@@ -130,10 +130,11 @@ async function ensureRingInitialized() {
   recentRing.initialized = true;
   try {
     const db = await getAdapter();
-    const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
+    const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, httpStatus, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
     recentRing.items = rows.reverse().map((r) => ({
       timestamp: r.timestamp, provider: r.provider, model: r.model, connectionId: r.connectionId,
       apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost, status: r.status,
+      httpStatus: r.httpStatus ?? null,
       tokens: parseJson(r.tokens, {}),
     }));
   } catch {}
@@ -298,11 +299,13 @@ export async function saveRequestUsage(entry) {
            AND COALESCE(apiKey, '') = COALESCE(?, '')
            AND promptTokens = ?
            AND completionTokens = ?
+           AND COALESCE(httpStatus, -1) = COALESCE(?, -1)
          ORDER BY id DESC LIMIT 1`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null,
           promptTokens, completionTokens,
+          entry.httpStatus ?? null,
         ]
       );
 
@@ -314,11 +317,12 @@ export async function saveRequestUsage(entry) {
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, httpStatus, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
+          entry.httpStatus ?? null,
           stringifyJson(tokens), stringifyJson({}),
         ]
       );
@@ -360,12 +364,12 @@ export async function getUsageHistory(filter = {}) {
   if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ${where} ORDER BY id ASC`, params);
+  const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, httpStatus, tokens FROM usageHistory ${where} ORDER BY id ASC`, params);
 
   return rows.map((r) => ({
     timestamp: r.timestamp, provider: r.provider, model: r.model,
     connectionId: r.connectionId, apiKeyMasked: maskApiKey(r.apiKey), endpoint: r.endpoint,
-    cost: r.cost, status: r.status, tokens: parseJson(r.tokens, {}),
+    cost: r.cost, status: r.status, httpStatus: r.httpStatus ?? null, tokens: parseJson(r.tokens, {}),
   }));
 }
 
@@ -405,7 +409,7 @@ export async function getUsageStats(period = "all") {
   for (const k of allApiKeys) apiKeyMap[k.key] = { name: k.name, id: k.id, createdAt: k.createdAt };
 
   // recentRequests from live history (last 100 entries enough for 20 deduped)
-  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status FROM usageHistory ORDER BY id DESC LIMIT 100`);
+  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status, httpStatus FROM usageHistory ORDER BY id DESC LIMIT 100`);
   const seen = new Set();
   const completedRecent = recentRows
     .map((r) => {
@@ -416,12 +420,15 @@ export async function getUsageStats(period = "all") {
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
         status: r.status || "ok",
+        httpStatus: r.httpStatus ?? null,
       };
     })
     .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
+      // Keep error rows even with 0 tokens (so 429/502 surface in recent list);
+      // skip only zero-token success rows (likely noise/duplicates).
+      if (e.promptTokens === 0 && e.completionTokens === 0 && e.status !== "error") return false;
       const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
+      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${e.httpStatus}|${minute}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;

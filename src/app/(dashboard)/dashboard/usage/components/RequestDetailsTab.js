@@ -201,6 +201,21 @@ function RequestRow({ detail, index, handleViewDetail, providerNameCache }) {
                       )}
                     </td>
                     <td className="p-4 text-center">
+                      {(() => {
+                        const code = detail.response?.status;
+                        if (code == null) return <span className="inline-flex items-center rounded bg-bg-subtle px-2 py-0.5 text-xs font-medium text-text-muted">—</span>;
+                        const c = Number(code);
+                        const cls = c >= 200 && c < 300
+                          ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                          : c >= 400 && c < 500
+                            ? "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"
+                            : c >= 500
+                              ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                              : "bg-bg-subtle text-text-muted";
+                        return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-mono font-medium ${cls}`}>{code}</span>;
+                      })()}
+                    </td>
+                    <td className="p-4 text-center">
                       <Button
                         variant="outline"
                         size="sm"
@@ -342,13 +357,14 @@ export default function RequestDetailsTab() {
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Output Tokens</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Latency</th>
                 <th className="text-center p-4 text-sm font-semibold text-text-main">Status</th>
+                <th className="text-center p-4 text-sm font-semibold text-text-main">Code</th>
                 <th className="text-center p-4 text-sm font-semibold text-text-main">Action</th>
               </tr>
             </thead>
             <tbody>
               {loading || !isFilterReady ? (
                 <tr>
-                  <td colSpan="8" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
                       Loading...
@@ -357,7 +373,7 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     No request details found
                   </td>
                 </tr>

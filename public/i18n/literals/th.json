@@ -1390,4 +1390,6 @@
   "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 ต้องใช้ OAuth เพิ่มตอนนี้แล้ว authenticate หลัง Apply; รายการเครื่องมือจะถูกค้นพบหลังการเชื่อมต่อครั้งแรก",
   "Donate Me": "สนับสนุน",
   "Check new changelog": "ดูบันทึกการเปลี่ยนแปลง"
+,
+  "Weights": "Weights"
 }

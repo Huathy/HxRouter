@@ -194,4 +194,6 @@
   "Endpoint is exposed without an API key.": "端點未設定 API 金鑰即對外暴露。",
   "Donate Me": "支持開發",
   "Check new changelog": "查看更新日誌"
+,
+  "Weights": "Weights"
 }

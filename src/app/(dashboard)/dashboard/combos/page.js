@@ -241,6 +241,8 @@ export default function CombosPage() {
           onClose={() => setEditingCombo(null)}
           onSave={(data) => handleUpdate(editingCombo.id, data)}
           activeProviders={activeProviders}
+          strategy={comboStrategies[editingCombo.name] || {}}
+          onSetStrategy={(patch) => handleSetComboStrategy(editingCombo.name, patch)}
         />
       )}
 
@@ -259,7 +261,7 @@ export default function CombosPage() {
 
 const STRATEGY_OPTIONS = [
   { value: "fallback", label: "Fallback — try in order" },
-  { value: "round-robin", label: "Round Robin — rotate (weighted)" },
+  { value: "round-robin", label: "Round Robin — rotate" },
   { value: "fusion", label: "Fusion — panel + judge" },
 ];
 
@@ -509,7 +511,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
   );
 }
 
-function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null }) {
+function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindFilter = null, strategy = {}, onSetStrategy }) {
   // Initialize state with combo values - key prop on parent handles reset on remount
   const [name, setName] = useState(combo?.name || "");
   const [models, setModels] = useState(combo?.models || []);
@@ -517,6 +519,22 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState("");
   const [modelAliases, setModelAliases] = useState({});
+
+  const isEdit = !!combo;
+  const currentStrategy = strategy.fallbackStrategy || "fallback";
+  const isRoundRobin = currentStrategy === "round-robin";
+  const weights = (strategy.weights && typeof strategy.weights === "object") ? strategy.weights : {};
+
+  const handleWeightChange = (model, raw) => {
+    const n = parseInt(raw, 10);
+    const next = { ...weights };
+    if (!Number.isFinite(n) || n < 1) {
+      delete next[model];
+    } else {
+      next[model] = Math.min(n, 10);
+    }
+    onSetStrategy?.({ weights: next });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -609,8 +627,6 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
     setSaving(false);
   };
 
-  const isEdit = !!combo;
-
   return (
     <>
       <Modal
@@ -678,6 +694,29 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
               Add Model
             </button>
           </div>
+
+          {/* Round-robin weight inputs (edit mode only) */}
+          {isEdit && isRoundRobin && models.length > 0 && onSetStrategy && (
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Strategy</label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-text-muted">Weights</span>
+                {models.map((model) => (
+                  <label key={model} className="inline-flex items-center gap-1 rounded border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-1.5 py-0.5" title={`Weight for ${model}`}>
+                    <span className="font-mono text-[10px] text-text-muted truncate max-w-[110px]">{model}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={weights[model] ?? 1}
+                      onChange={(e) => handleWeightChange(model, e.target.value)}
+                      className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">

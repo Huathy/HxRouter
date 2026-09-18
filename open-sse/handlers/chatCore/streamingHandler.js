@@ -224,7 +224,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       console.error("[RequestDetail] Failed to update streaming content:", err.message);
     });
 
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, label: "STREAM USAGE" });
+    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, httpStatus: 200, label: "STREAM USAGE" });
   };
 
   return { onStreamComplete, streamDetailId };

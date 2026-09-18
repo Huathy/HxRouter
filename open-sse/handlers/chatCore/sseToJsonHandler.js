@@ -188,7 +188,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
       const usage = jsonResponse.usage || {};
       const normalizedUsage = responsesUsageToOpenAI(usage);
       appendLog({ tokens: normalizedUsage, status: "200 OK" });
-      saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, comboName });
+      saveUsageStats({ provider, model, tokens: normalizedUsage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, httpStatus: providerResponse.status, comboName });
 
       const { msgItem, textContent } = pickAssistantMessageForChatCompletion(jsonResponse.output);
       const totalLatency = Date.now() - requestStartTime;
@@ -285,7 +285,7 @@ export async function handleForcedSSEToJson({ providerResponse, sourceFormat, pr
 
     const usage = parsed.usage || {};
     appendLog({ tokens: usage, status: "200 OK" });
-    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint });
+    saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, httpStatus: providerResponse.status });
 
     const totalLatency = Date.now() - requestStartTime;
     saveRequestDetail(buildRequestDetail({

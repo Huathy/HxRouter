@@ -98,7 +98,18 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
                       {inFlight ? (
                         <span className="material-symbols-outlined animate-spin text-[14px] text-primary">progress_activity</span>
                       ) : (
-                        <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} aria-label={ok ? "Success" : "Error"} />
+                        (() => {
+                          const code = r.httpStatus;
+                          const c = Number(code);
+                          const dotCls = !ok ? "bg-error" : (c >= 400 && c < 500 ? "bg-yellow-500" : "bg-success");
+                          const txt = code != null ? String(code) : (ok ? "200" : "ERR");
+                          return (
+                            <span className="inline-flex items-center gap-1">
+                              <span className={`block w-1.5 h-1.5 rounded-full ${dotCls}`} aria-label={ok ? "Success" : "Error"} />
+                              <span className="font-mono text-[10px] text-text-muted">{txt}</span>
+                            </span>
+                          );
+                        })()
                       )}
                     </td>
                     <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>

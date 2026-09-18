@@ -16,7 +16,7 @@ import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { getExecutor } from "../executors/index.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
-import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
+import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
 import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
@@ -536,17 +536,20 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
+    const httpStatus = error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY;
+    appendRequestLog({ model, provider, connectionId, status: `FAILED ${httpStatus}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId, apiKey, apiKeyName,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
       request: extractRequestConfig(body, upstreamStream),
       providerRequest: translatedBody || null,
-      response: { error: error.message || String(error), status: error.name === "AbortError" ? 499 : 502, thinking: null },
+      response: { error: error.message || String(error), status: httpStatus, thinking: null },
       pxpipe: pxpipeSummary,
       status: "error"
     })).catch(() => { });
+
+    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus, status: "error", label: "ERROR USAGE" });
 
     if (error.name === "AbortError") {
       streamController.handleError(error);
@@ -609,6 +612,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       pxpipe: pxpipeSummary,
       status: "error"
     })).catch(() => { });
+
+    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus: statusCode, status: "error", label: "ERROR USAGE" });
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);
