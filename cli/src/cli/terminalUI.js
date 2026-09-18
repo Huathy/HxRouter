@@ -67,14 +67,14 @@ async function startTerminalUI(port) {
   // Configure API client
   api.configure({ port });
 
-  const basePath = ["VansRouter"];
+  const basePath = ["HxRouter"];
 
   // Prime header cache before first render
   await refreshHeaderBg(port);
 
   // Main menu
   await showMenuWithBack({
-    title: "📡 VansRouter Terminal UI",
+    title: "📡 HxRouter Terminal UI",
     breadcrumb: basePath,
     headerContent: () => getHeader(port),
     items: [

@@ -1,7 +1,7 @@
 # Robust System, UI/UX Caching & ACL Architecture Master Plan
 
 > **Tujuan Dokumen:**  
-> Panduan teknis arsitektur master yang dirancang dengan **100% detail dan tanpa asumsi**, sehingga AI atau software engineer mana pun dengan **0 context** dapat memahami seluruh codebase 9router/VansRouter, mereproduksi, memverifikasi, dan mengimplementasikan seluruh perbaikan performa streaming (TPS), prompt caching, stabilitas socket, dan pemisahan 3 kategori ACL secara presisi tanpa ada yang terlewat.
+> Panduan teknis arsitektur master yang dirancang dengan **100% detail dan tanpa asumsi**, sehingga AI atau software engineer mana pun dengan **0 context** dapat memahami seluruh codebase 9router/HxRouter, mereproduksi, memverifikasi, dan mengimplementasikan seluruh perbaikan performa streaming (TPS), prompt caching, stabilitas socket, dan pemisahan 3 kategori ACL secara presisi tanpa ada yang terlewat.
 
 ---
 

@@ -14,14 +14,14 @@
 - **Streaming and translation** — Hardened Antigravity/Gemini content normalization, Claude/OpenAI tool and content handling, early end-of-stream recovery, and request logging redaction.
 - **Provider and API safety** — Restored media ACL enforcement, routed compatible bulk imports through provider nodes, bounded video operation identifiers, and kept custom-provider, ZCode, branding, and persistent DB-path behavior intact.
 - **Authentication refresh** — Hardened Clinepass OAuth refresh and provider/account health recovery paths.
-- **Upstream compatibility merge** — Integrated the latest `origin/main` fixes for custom-provider bulk hydration and Antigravity Claude image/document input while preserving VansRouter routing, persistence, and deployment behavior.
+- **Upstream compatibility merge** — Integrated the latest `origin/main` fixes for custom-provider bulk hydration and Antigravity Claude image/document input while preserving HxRouter routing, persistence, and deployment behavior.
 - **Bulk provider hydration** — Resolves each compatible provider node once per batch, preventing duplicate lookup logic and keeping OpenAI-compatible, Anthropic-compatible, and embedding imports consistent.
 
 ## Release Infrastructure
 
 - **Atomic standalone deployment** — Added isolated build/staging validation, temporary health/version smoke checks, atomic release-link activation, retained releases for rollback, and recovery when PM2 switching fails. PM2 reloads the persistent `server.js` launcher with `RELEASE_SERVER` pointing at the durable current-release link; ephemeral `/tmp` release paths are rejected, and deployment no longer deletes the live PM2 process or saves a missing process list. This removes the documented live-asset copy step that caused `Loading chunk failed` during upgrades.
 - **Cross-platform build output** — Standalone symlink repair now follows `NEXT_DIST_DIR`, so custom build directories are handled without hardcoded `.next` assumptions.
-- **Upgrade storage contract** — Docker documentation and compose examples consistently preserve the `9router-data` volume; installs created with historical `vansrouter-data` are copied automatically into the canonical volume without overwriting existing files; npm/CLI packaging retains the existing `DATA_DIR` and legacy JSON migration path.
+- **Upgrade storage contract** — Docker documentation and compose examples consistently preserve the `9router-data` volume; installs created with historical `hxrouter-data` are copied automatically into the canonical volume without overwriting existing files; npm/CLI packaging retains the existing `DATA_DIR` and legacy JSON migration path.
 - **CI cost control** — Routine branch and pull-request validation runs one cached Ubuntu/Node 22 core gate; the six-job Windows/macOS/Linux × Node 22/24 matrix runs only for CLI, runtime, build, data-path, Docker, and workflow changes or manual dispatch. Release-tag validation remains full and multi-platform. The public `main` branch now requires the core check, up-to-date branches, admin enforcement, and conversation resolution while allowing the conditional matrix to skip safely.
 - **Clean-checkout portability** — Preserved LF shebangs for Node entrypoints and the Devin ACP fixture so GitHub Actions and Unix users do not receive an invalid `node\\r` interpreter after checkout. CLI SQLite runtime tests now validate both a built bundled WASM asset and the clean-source fallback ordering.
 - **Semaphore wake reliability** — Kept the required account-block expiry timer referenced so queued requests wake reliably under Node 22 instead of timing out when the event loop has no other referenced work.
@@ -40,7 +40,7 @@
 - Release-hardening focused suite: **5 files passed; 54 tests passed**, covering Cline envelope handling, video adapters, account-bound polling, video model filtering, and database migrations.
 - Deployment/database regression tests: **3 files passed; 19 tests passed**; the broader provider/deployment focused run passed **8 files and 79 tests**, covering atomic release validation, rollback selection, persistent DB paths, ACL/provider behavior, and custom provider routing.
 - Production build (`pnpm run build`) completed successfully with TypeScript verification, 139 generated pages, native `better-sqlite3`, WAL-safe pre-build backup, and `no-undef` lint clean; the backup completes synchronously before `next build` starts.
-- Docker validation passed locally: `docker build --check .` and full `docker build -t vansrouter:release-readiness-check .`; the image build verified native `better-sqlite3`. Application-level migration tests preserved legacy settings and database state; Docker-volume migration remains CI/integration coverage, not a live production claim.
+- Docker validation passed locally: `docker build --check .` and full `docker build -t hxrouter:release-readiness-check .`; the image build verified native `better-sqlite3`. Application-level migration tests preserved legacy settings and database state; Docker-volume migration remains CI/integration coverage, not a live production claim.
 - ESLint completed with exit code 0; the repository reports 231 warnings and 0 errors.
 - CLI tarball validation and clean temporary extraction smoke test passed, including bundled server startup, SQLite creation, and legacy `db.json` migration.
 - `git -c core.whitespace=cr-at-eol diff --check` and release pre-tag validation passed locally; CRLF line endings are handled explicitly by the repository release gate. Live provider tests remain credential-gated and were not claimed as verified.
@@ -106,7 +106,7 @@
 ## Release Infrastructure
 
 - **Multi-architecture Docker** — Added mandatory `docker/setup-qemu-action@v3` immediately before `docker/setup-buildx-action@v3`, preventing ARM64 native-module build failures and QEMU instruction stalls.
-- **Container naming** — Standardized published GHCR image references to lowercase `ghcr.io/vanszs/vansrouter`.
+- **Container naming** — Standardized published GHCR image references to lowercase `ghcr.io/vanszs/hxrouter`.
 - **Release validation** — Kept version, changelog, annotated-tag, npm artifact, SQLite smoke-test, and multi-architecture image gates explicit in CI/CD policy.
 
 ## Tests
@@ -185,7 +185,7 @@
 
 # v0.91.1 (2026-08-15)
 
-VansRouter 0.91.1 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
+HxRouter 0.91.1 introduces Gemini 3.7 tiered model support for Antigravity, comprehensive prompt caching and session affinity hardening, bulk proxy management, and dedicated quota lifecycle tools.
 
 ## Provider and model routing
 
@@ -216,7 +216,7 @@ VansRouter 0.91.1 introduces Gemini 3.7 tiered model support for Antigravity, co
 
 # v0.9.99 (2026-08-09)
 
-VansRouter 0.9.99 hardens Qoder authentication, proxy-pool batch operations, OAuth callback handling, and SQLite fallback compatibility.
+HxRouter 0.9.99 hardens Qoder authentication, proxy-pool batch operations, OAuth callback handling, and SQLite fallback compatibility.
 
 ## Provider and runtime fixes
 
@@ -237,7 +237,7 @@ VansRouter 0.9.99 hardens Qoder authentication, proxy-pool batch operations, OAu
 
 # v0.9.97 (2026-08-08)
 
-VansRouter 0.9.97 hardens production SQLite packaging and provider display resolution.
+HxRouter 0.9.97 hardens production SQLite packaging and provider display resolution.
 
 ## Runtime reliability
 
@@ -252,7 +252,7 @@ VansRouter 0.9.97 hardens production SQLite packaging and provider display resol
 
 # v0.9.96 (2026-08-08)
 
-VansRouter 0.9.96 resolves sidebar hierarchy, proxy fitness UI alignment, and OAuth device-code provider registration.
+HxRouter 0.9.96 resolves sidebar hierarchy, proxy fitness UI alignment, and OAuth device-code provider registration.
 
 ## UI and Sidebar updates
 
@@ -266,7 +266,7 @@ VansRouter 0.9.96 resolves sidebar hierarchy, proxy fitness UI alignment, and OA
 
 # v0.9.95 (2026-08-08)
 
-VansRouter 0.9.95 hardens GHCR release builds for bounded, reproducible delivery.
+HxRouter 0.9.95 hardens GHCR release builds for bounded, reproducible delivery.
 
 ## CI/CD fixes
 
@@ -277,7 +277,7 @@ VansRouter 0.9.95 hardens GHCR release builds for bounded, reproducible delivery
 
 # v0.9.94 (2026-08-08)
 
-VansRouter 0.9.94 hardens provider response identity, Kiro system-prompt injection, and Issue #98 security consistency.
+HxRouter 0.9.94 hardens provider response identity, Kiro system-prompt injection, and Issue #98 security consistency.
 
 ## Provider and compatibility fixes
 
@@ -297,7 +297,7 @@ VansRouter 0.9.94 hardens provider response identity, Kiro system-prompt injecti
 
 # v0.9.93 (2026-08-08)
 
-VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting, and settings-cache consistency.
+HxRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting, and settings-cache consistency.
 
 ## Security and consistency
 
@@ -315,7 +315,7 @@ VansRouter 0.9.93 hardens proxy-pool administration, forced-SSE usage accounting
 
 # v0.9.92 (2026-08-07)
 
-VansRouter 0.9.92 adds FreeBuff support and production-safe single-node proxy-pool fitness persistence.
+HxRouter 0.9.92 adds FreeBuff support and production-safe single-node proxy-pool fitness persistence.
 
 ## New features
 
@@ -348,14 +348,14 @@ VansRouter 0.9.92 adds FreeBuff support and production-safe single-node proxy-po
 
 # v0.9.91 (2026-08-07)
 
-VansRouter 0.9.91 republishes the corrected CLI package version after the initial 0.9.90 release workflow exposed a package-version mismatch.
+HxRouter 0.9.91 republishes the corrected CLI package version after the initial 0.9.90 release workflow exposed a package-version mismatch.
 
 ## Fixed
-- **CLI release version alignment** — Synchronized `cli/package.json` with the application version so the GitHub Release workflow publishes `vansrouter@0.9.91` instead of attempting to republish an existing npm version.
+- **CLI release version alignment** — Synchronized `cli/package.json` with the application version so the GitHub Release workflow publishes `hxrouter@0.9.91` instead of attempting to republish an existing npm version.
 
 # v0.9.90 (2026-08-07)
 
-VansRouter 0.9.90 is a large compatibility, provider, security, proxy, CLI-tool, usage-tracking, and runtime-hardening release. It incorporates the validated upstream/runtime work accumulated after `v0.9.80`, then adds the VansRouter-specific OpenCode contract fix and release-pipeline corrections.
+HxRouter 0.9.90 is a large compatibility, provider, security, proxy, CLI-tool, usage-tracking, and runtime-hardening release. It incorporates the validated upstream/runtime work accumulated after `v0.9.80`, then adds the HxRouter-specific OpenCode contract fix and release-pipeline corrections.
 
 ## New features
 
@@ -435,21 +435,21 @@ VansRouter 0.9.90 is a large compatibility, provider, security, proxy, CLI-tool,
 
 # v0.9.80 (2026-07-22)
 
-VansRouter 0.9.80 incorporates merged Pull Requests (#55, #56, #57) adding Gemini 3.6 Flash / Flash-Lite / Pro support via Google Cloud Code host, classifying Grok CLI free-usage-exhausted 429s as daily quota, unwrapping Antigravity non-stream usage metadata, and optimizing code quality & timers.
+HxRouter 0.9.80 incorporates merged Pull Requests (#55, #56, #57) adding Gemini 3.6 Flash / Flash-Lite / Pro support via Google Cloud Code host, classifying Grok CLI free-usage-exhausted 429s as daily quota, unwrapping Antigravity non-stream usage metadata, and optimizing code quality & timers.
 
 ## Features
-- **Gemini 3.6 Flash Support** ([PR #55](https://github.com/Vanszs/VansRouter/pull/55)) — Added Gemini 3.6 Flash (High / Medium / Low) model tiers for Antigravity provider.
+- **Gemini 3.6 Flash Support** ([PR #55](https://github.com/Huathy/HxRouter/pull/55)) — Added Gemini 3.6 Flash (High / Medium / Low) model tiers for Antigravity provider.
 
 ## Fixed
-- **Grok Daily Quota 429** ([PR #56](https://github.com/Vanszs/VansRouter/pull/56)) — Classified `subscription:free-usage-exhausted` errors from Grok CLI as `daily_quota` instead of 60s rate limit.
-- **Antigravity Usage Metadata** ([PR #57](https://github.com/Vanszs/VansRouter/pull/57)) — Unwrapped `response.usageMetadata` envelope in non-stream requests to prevent 0/0 token recordings in request details.
+- **Grok Daily Quota 429** ([PR #56](https://github.com/Huathy/HxRouter/pull/56)) — Classified `subscription:free-usage-exhausted` errors from Grok CLI as `daily_quota` instead of 60s rate limit.
+- **Antigravity Usage Metadata** ([PR #57](https://github.com/Huathy/HxRouter/pull/57)) — Unwrapped `response.usageMetadata` envelope in non-stream requests to prevent 0/0 token recordings in request details.
 
 ## Refactoring & Code Quality
 - **Timer & Regex Optimization** — Replaced hand-rolled sleep timers with stdlib `node:timers/promises` and consolidated 429 regex patterns.
 
 # v0.9.75 (2026-07-21)
 
-VansRouter 0.9.75 introduces a materialized provider model catalog in SQLite (`cachedProviderModels`), parallelizes dynamic model resolution, switches dashboard pages to native direct fetching with `cache: "no-store"`, and adds background idle preloading for provider icons and font assets.
+HxRouter 0.9.75 introduces a materialized provider model catalog in SQLite (`cachedProviderModels`), parallelizes dynamic model resolution, switches dashboard pages to native direct fetching with `cache: "no-store"`, and adds background idle preloading for provider icons and font assets.
 
 ## Performance & Optimization
 - **SQLite Materialized Model Catalog** — Created `cachedProviderModels` table (schema v2) for background non-blocking model catalog persistence and instant 1ms local DB queries.
@@ -461,7 +461,7 @@ VansRouter 0.9.75 introduces a materialized provider model catalog in SQLite (`c
 # v0.9.72 (2026-07-21)
 
 
-VansRouter 0.9.72 fixes GitHub Actions CI/CD matrix build failures by exporting `getStaticProviderModels`, resolving `no-undef` lint errors, and aligning CI workflows with upstream v0.5.40 updates.
+HxRouter 0.9.72 fixes GitHub Actions CI/CD matrix build failures by exporting `getStaticProviderModels`, resolving `no-undef` lint errors, and aligning CI workflows with upstream v0.5.40 updates.
 
 ## Fixed
 - **CI/CD Build Matrix** — Exported and imported `getStaticProviderModels` in `open-sse/config/providers.js` and `src/app/api/providers/[id]/models/route.js` to eliminate `no-undef` lint errors during GitHub Actions workflow runs.
@@ -469,7 +469,7 @@ VansRouter 0.9.72 fixes GitHub Actions CI/CD matrix build failures by exporting 
 
 # v0.9.71 (2026-07-21)
 
-VansRouter 0.9.71 registers two new AI providers (`ZenMux AI` & `TokenRouter`), updates `a6api` referral links, and bumps the version to 0.9.71.
+HxRouter 0.9.71 registers two new AI providers (`ZenMux AI` & `TokenRouter`), updates `a6api` referral links, and bumps the version to 0.9.71.
 
 ## Features
 - **ZenMux AI Provider (`zenmux`)** — Full registration for ZenMux AI (`https://zenmux.ai`) with OpenAI API compatibility, passthrough model support, and embeddings/image generation services.
@@ -478,7 +478,7 @@ VansRouter 0.9.71 registers two new AI providers (`ZenMux AI` & `TokenRouter`), 
 
 # v0.9.70 (2026-07-21)
 
-VansRouter 0.9.70 adds the new `a6api` provider with a curated selection of Top 5 models per provider family (GPT, Claude, Gemini, Grok, etc.), adopts critical upstream v0.5.40 Cursor HTTP/2 AgentService (`agent.api5.cursor.sh`) Connect RPC updates, aligns UsageStats table headers, and optimizes provider icon anti-spam caching.
+HxRouter 0.9.70 adds the new `a6api` provider with a curated selection of Top 5 models per provider family (GPT, Claude, Gemini, Grok, etc.), adopts critical upstream v0.5.40 Cursor HTTP/2 AgentService (`agent.api5.cursor.sh`) Connect RPC updates, aligns UsageStats table headers, and optimizes provider icon anti-spam caching.
 
 ## Features
 - **a6api Provider** — Registration for `a6api` featuring top 5 curated models per brand family (GPT, Claude, Gemini, Grok, DeepSeek, Kimi) with OpenAI API compatibility and passthrough support.
@@ -502,7 +502,7 @@ VansRouter 0.9.70 adds the new `a6api` provider with a curated selection of Top 
 
 # v0.9.63 (2026-07-19)
 
-VansRouter 0.9.63 fixes the AgentRouter validation failures by implementing proper Claude CLI header spoofing during credential checks and validation probes.
+HxRouter 0.9.63 fixes the AgentRouter validation failures by implementing proper Claude CLI header spoofing during credential checks and validation probes.
 
 ## Fixed
 - **AgentRouter Validation** — Added support for `agentrouter` validation in route handlers and `testUtils.js` using identical dynamic Claude CLI fingerprint headers.
@@ -510,21 +510,21 @@ VansRouter 0.9.63 fixes the AgentRouter validation failures by implementing prop
 
 # v0.9.62 (2026-07-19)
 
-VansRouter 0.9.62 restores the `prepublishOnly` lifecycle script to the CLI configuration to guarantee that the Next.js standalone server directory (`app/`) is always built and packaged during npm releases.
+HxRouter 0.9.62 restores the `prepublishOnly` lifecycle script to the CLI configuration to guarantee that the Next.js standalone server directory (`app/`) is always built and packaged during npm releases.
 
 ## Fixed
 - **NPM Package Standalone Restoration** — Restored `prepublishOnly` build hook in `cli/package.json` to resolve missing standalone directory errors on global installations.
 
 # v0.9.61 (2026-07-19)
 
-VansRouter 0.9.61 fixes standalone Next.js server runtime issues in clean environments by including explicit dependencies (like `react`, `react-dom`, `node-machine-id`, and `ora`) in the CLI package structure.
+HxRouter 0.9.61 fixes standalone Next.js server runtime issues in clean environments by including explicit dependencies (like `react`, `react-dom`, `node-machine-id`, and `ora`) in the CLI package structure.
 
 ## Fixed
 - **CLI Runtime Dependencies** — Added `react`, `react-dom`, `node-machine-id`, and `ora` to `cli/package.json` to ensure clean global/local installations have standard runtime dependencies available.
 
 # v0.9.60 (2026-07-19)
 
-VansRouter 0.9.60 introduces granular settings controls for guards (Loop Guard, Circuit Breaker, Semaphore) in the Token Saver dashboard, extracts cleanCookie helper utilities, refactors the validation routes to isolate GraphQL payloads, and handles various robust toggle evaluations.
+HxRouter 0.9.60 introduces granular settings controls for guards (Loop Guard, Circuit Breaker, Semaphore) in the Token Saver dashboard, extracts cleanCookie helper utilities, refactors the validation routes to isolate GraphQL payloads, and handles various robust toggle evaluations.
 
 ## Added
 - **Guards & Shields Panel** — Added Loop Guard, Circuit Breaker, and Semaphore toggles to the Token Saver dashboard page.
@@ -536,7 +536,7 @@ VansRouter 0.9.60 introduces granular settings controls for guards (Loop Guard, 
 
 # v0.9.56 (2026-07-19)
 
-VansRouter 0.9.56 restores the visibility of Web Cookie providers in the dashboard, allowing users to configure Meta AI Muse Spark Web cookie-based authentication, and rebases local customizations cleanly onto the latest upstream branch.
+HxRouter 0.9.56 restores the visibility of Web Cookie providers in the dashboard, allowing users to configure Meta AI Muse Spark Web cookie-based authentication, and rebases local customizations cleanly onto the latest upstream branch.
 
 ## Added
 - **Web Cookie Section in Dashboard** — Added a dedicated "Web Cookie Providers" section to the main dashboard providers layout to display cookie-based providers (like Meta AI Muse Spark Web).
@@ -547,7 +547,7 @@ VansRouter 0.9.56 restores the visibility of Web Cookie providers in the dashboa
 
 # v0.9.55 (2026-07-19)
 
-VansRouter 0.9.55 restores the CLI package scripts for NPM publishing, adopts upstream commits for Kimi dual-auth/flow animations/asset caching, and resolves packaging lints.
+HxRouter 0.9.55 restores the CLI package scripts for NPM publishing, adopts upstream commits for Kimi dual-auth/flow animations/asset caching, and resolves packaging lints.
 
 ## Added
 - **CLI Package Scripts** — Restored `build`, `pack:cli`, `publish:cli`, and `postinstall` to `cli/package.json` to ensure postinstall hooks (dynamic SQLite and tray runtime setup) execute during global npm installations.
@@ -567,7 +567,7 @@ VansRouter 0.9.55 restores the CLI package scripts for NPM publishing, adopts up
 
 # v0.9.51 (2026-07-19)
 
-VansRouter 0.9.51 adopts all upstream `decolua/9router` commits from `v0.5.31` to `v0.5.35` and fixes critical packaging, translation, and reasoning leaks.
+HxRouter 0.9.51 adopts all upstream `decolua/9router` commits from `v0.5.31` to `v0.5.35` and fixes critical packaging, translation, and reasoning leaks.
 
 ## Adopted from upstream (v0.5.31–v0.5.35)
 
@@ -593,24 +593,24 @@ VansRouter 0.9.51 adopts all upstream `decolua/9router` commits from `v0.5.31` t
 - **kiro** — improve direct session cache reuse (`9c58ba645`)
 - **startup** — skip inactive background services on boot (`27b37705b`)
 
-## Fixed (VansRouter-specific)
+## Fixed (HxRouter-specific)
 - **CLI Packaging (Issue #53)** — Added `"app"` and `"src"` back to the `files` array of `cli/package.json` so the Next.js production build is bundled, raising size from a broken `197 kB` back to a healthy `88.3 MB`.
 - **Thinking Concerns ReferenceError** — Resolved `ReferenceError: Cannot access 'fmt' before initialization` in `open-sse/translator/concerns/thinkingUnified.js`.
 - **GLM-5.2 Reasoning Leak** — Re-integrated the `effectiveCfg` logic in `thinkingUnified.js` to prevent reasoning leak on `agentrouter` when the client does not explicitly request thinking.
 - **Kiro Auto Slot** — Added the missing `{ id: "auto", name: "Auto / Agent default", alias: "auto" }` mapping to Kiro's `defaultModels` in `src/shared/constants/cliTools.js`.
-- **NPM Package Rename** — Renamed root package to `"vansrouter-app"`, tests package to `"vansrouter-tests"`, and CLI package to `"vansrouter"`.
+- **NPM Package Rename** — Renamed root package to `"hxrouter-app"`, tests package to `"hxrouter-tests"`, and CLI package to `"hxrouter"`.
 - `open-sse/handlers/chatCore.js` — tambah import `extractThinking` dan definisi `reqTag` yang upstream referensikan tapi tidak dideklarasikan
 - `open-sse/translator/request/openai-to-kiro.js` — tambah `import { randomUUID } from "node:crypto"`
 - `src/app/api/v1/models/route.js` — inisialisasi `liveCapabilitiesById` dan `liveKind` dari hasil live resolver
 - `src/app/api/providers/[id]/models/route.js` — ganti `getStaticProviderModels()` yang tidak ada dengan fallback `[]`
 
 ## Skipped (sengaja tidak diadopsi)
-- Penghapusan ZCode provider — upstream menghapus ZCode; VansRouter tetap mempertahankannya
+- Penghapusan ZCode provider — upstream menghapus ZCode; HxRouter tetap mempertahankannya
 - Restore branding 9Router — upstream mengembalikan label UI 9Router; dilewati untuk menjaga branding VansAI
 
 # v0.9.5 (2026-07-19)
 
-VansRouter 0.9.5 hardens React-Doctor build diagnostics, optimizes `/masuk` page accessibility contrast, and adds a regression test for the `.9router` data directory and Docker volume persistence.
+HxRouter 0.9.5 hardens React-Doctor build diagnostics, optimizes `/masuk` page accessibility contrast, and adds a regression test for the `.9router` data directory and Docker volume persistence.
 
 ## Added
 - **Database Paths Verification Test** — `tests/unit/database-paths-verification.test.js` asserts `dataDir.js` defines `APP_NAME = "9router"`, `db/paths.js` resolves to `DATA_DIR/db/data.sqlite`, and `docker-compose.yml` keeps the `9router-data` volume mount intact.
@@ -623,21 +623,21 @@ VansRouter 0.9.5 hardens React-Doctor build diagnostics, optimizes `/masuk` page
 - **`/masuk` accessibility contrast** — password label promoted from `font-medium` to `font-semibold text-text-main`; helper paragraph set to `text-sm` to satisfy Lighthouse AAA.
 
 ## Changed
-- `doctor.config.json` — corrected `projects` target from `"vansrouter-app"` to `"9router-app"`; added `react-doctor/effect-needs-cleanup` to disabled rules (false positive on the conditional `setInterval` pattern).
+- `doctor.config.json` — corrected `projects` target from `"hxrouter-app"` to `"9router-app"`; added `react-doctor/effect-needs-cleanup` to disabled rules (false positive on the conditional `setInterval` pattern).
 - `package.json` and `cli/package.json` — version bump to `0.9.5`.
 
 # v0.9.4 (2026-07-16)
 
-VansRouter 0.9.4 fixes source-clone version detection and preserves Docker SQLite data across updates.
+HxRouter 0.9.4 fixes source-clone version detection and preserves Docker SQLite data across updates.
 
 ## Fixed
-- **Version Update Detection** — checks the published `vansrouter` package instead of legacy `9router`.
+- **Version Update Detection** — checks the published `hxrouter` package instead of legacy `9router`.
 - **Docker SQLite Volume Persistence** — preserves the `9router-data` volume name.
 
 
 # v0.9.3 (2026-07-16)
 
-VansRouter 0.9.3 replaces placeholder logos with official icons, aligns multi-name provider assets, removes redundant defaultModel input for custom compatible endpoints, and syncs upstream omnirouter provider additions.
+HxRouter 0.9.3 replaces placeholder logos with official icons, aligns multi-name provider assets, removes redundant defaultModel input for custom compatible endpoints, and syncs upstream omnirouter provider additions.
 
 ## Added
 - **Official WebP Icons** — Replaces 17+ empty placeholder assets with official high-quality logos for Databricks, GitLab, Weights & Biases, Bytez, Galadriel, PublicAI, DeepInfra, Venice, SambaNova, Snowflake, Upstage, AI21 Labs, Vercel, Venice, and Volcengine.
@@ -653,7 +653,7 @@ VansRouter 0.9.3 replaces placeholder logos with official icons, aligns multi-na
 
 # v0.9.1 (2026-07-11)
 
-VansRouter 0.9.1 fixes the `content-blocked` fallback locking loop, aligns `agentrouter` headers dynamically to bypass WAF edge blocks (405), and includes recent fixes for Responses API compatibility, usage tracking, and CI/lint configurations.
+HxRouter 0.9.1 fixes the `content-blocked` fallback locking loop, aligns `agentrouter` headers dynamically to bypass WAF edge blocks (405), and includes recent fixes for Responses API compatibility, usage tracking, and CI/lint configurations.
 
 ## Added
 - **AgentRouter Dynamic Wire Image** — Spoofs Claude Code SDK headers dynamically, matching dynamic user agent and lowercase version/beta headers, and appends `?beta=true` to bypass WAF edge blocks (405).
@@ -665,7 +665,7 @@ VansRouter 0.9.1 fixes the `content-blocked` fallback locking loop, aligns `agen
 
 # v0.9.0 (2026-07-11)
 
-VansRouter 0.9.0 delivers a major sync with upstream v0.5.30, adds experimental PXPIPE token saver (multimodal prompt compression), integrates Perplexity Agent / Grok CLI / Featherless providers, and resolves critical packaging, environment, and streaming regressions.
+HxRouter 0.9.0 delivers a major sync with upstream v0.5.30, adds experimental PXPIPE token saver (multimodal prompt compression), integrates Perplexity Agent / Grok CLI / Featherless providers, and resolves critical packaging, environment, and streaming regressions.
 
 ## Added
 - **Upstream v0.5.30 sync** — cherry-picks 23 upstream commits.
@@ -682,7 +682,7 @@ VansRouter 0.9.0 delivers a major sync with upstream v0.5.30, adds experimental 
 
 # v0.8.9 (2026-07-09)
 
-VansRouter 0.8.9 syncs the latest upstream v0.5.20 fixes, hardens production data-directory handling, and cleans up the remaining test/lint regressions.
+HxRouter 0.8.9 syncs the latest upstream v0.5.20 fixes, hardens production data-directory handling, and cleans up the remaining test/lint regressions.
 
 ## Added
 - **Upstream v0.5.20 sync** — cherry-picks 9 upstream fixes into `dev`:
@@ -718,15 +718,15 @@ VansRouter 0.8.9 syncs the latest upstream v0.5.20 fixes, hardens production dat
 
 # v0.8.8 (2026-07-08)
 
-VansRouter 0.8.8 adds the first community-built dashboard enhancement and continues the `go-port` work in parallel.
+HxRouter 0.8.8 adds the first community-built dashboard enhancement and continues the `go-port` work in parallel.
 
 ## Added
-- **Circuit breaker dashboard UI** — adds `CircuitBreakerBadge` to provider cards, live status polling, retry countdown, and manual reset. Includes `GET /api/providers/circuit-breakers` and `POST /api/providers/circuit-breakers/[name]/reset` (authenticated). Merged from fork PR [#17](https://github.com/Vanszs/VansRouter/pull/17) by @mahdiwafy.
+- **Circuit breaker dashboard UI** — adds `CircuitBreakerBadge` to provider cards, live status polling, retry countdown, and manual reset. Includes `GET /api/providers/circuit-breakers` and `POST /api/providers/circuit-breakers/[name]/reset` (authenticated). Merged from fork PR [#17](https://github.com/Huathy/HxRouter/pull/17) by @mahdiwafy.
 
 ## Go port (experimental)
-- **Proxy-aware network layer** — ports connection-level proxy resolution, outbound proxy env management, proxy tester, and per-request proxy wiring. Merged from fork PR [#20](https://github.com/Vanszs/VansRouter/pull/20) by @mahdiwafy.
-- **11 missing provider executors** — ports additional executors to Go. Merged from fork PR [#21](https://github.com/Vanszs/VansRouter/pull/21) by @mahdiwafy.
-- **Dashboard handlers for proxy-pools, provider-nodes, and models** — replaces 21 stub routes with real SQLite-backed CRUD handlers. Merged from fork PR [#22](https://github.com/Vanszs/VansRouter/pull/22) by @mahdiwafy.
+- **Proxy-aware network layer** — ports connection-level proxy resolution, outbound proxy env management, proxy tester, and per-request proxy wiring. Merged from fork PR [#20](https://github.com/Huathy/HxRouter/pull/20) by @mahdiwafy.
+- **11 missing provider executors** — ports additional executors to Go. Merged from fork PR [#21](https://github.com/Huathy/HxRouter/pull/21) by @mahdiwafy.
+- **Dashboard handlers for proxy-pools, provider-nodes, and models** — replaces 21 stub routes with real SQLite-backed CRUD handlers. Merged from fork PR [#22](https://github.com/Huathy/HxRouter/pull/22) by @mahdiwafy.
 
 ## Fixed
 - **Contributors section in README** — adds a `contrib.rocks` badge so contributors remain visible while GitHub's forked-repo Insights graph shows no data.
@@ -734,16 +734,16 @@ VansRouter 0.8.8 adds the first community-built dashboard enhancement and contin
 
 # v0.8.7 (2026-07-07)
 
-VansRouter 0.8.7 is a focused patch release that fixes the broken ClinePass provider and welcomes two new community contributions.
+HxRouter 0.8.7 is a focused patch release that fixes the broken ClinePass provider and welcomes two new community contributions.
 
 ## Added
 - **ClinePass API-key authentication** — ports the upstream fix so ClinePass authenticates with an API key from `app.cline.bot/settings/api-keys` instead of the broken IDE-extension OAuth flow. Merged from upstream PR [#2332](https://github.com/decolua/9router/pull/2332) by @adentdk.
 - **ClinePass response envelope handling** — unwraps `{success, data}` responses from the ClinePass/Vercel proxy and retries once on transient empty responses. Merged from upstream PR [#2332](https://github.com/decolua/9router/pull/2332) by @adentdk.
 - **ClinePass thinking budget floor** — enforces a 4096 `max_tokens` floor on reasoning models so they do not return empty content. Merged from upstream PR [#2332](https://github.com/decolua/9router/pull/2332) by @adentdk.
-- **Migration guide** — adds `docs/MIGRATION.md` with zero-downtime steps for migrating from 9Router to VansRouter, plus improved `docker-compose.yml` and `.env.example`. Merged from fork PR [#13](https://github.com/Vanszs/VansRouter/pull/13) by @mahdiwafy.
+- **Migration guide** — adds `docs/MIGRATION.md` with zero-downtime steps for migrating from 9Router to HxRouter, plus improved `docker-compose.yml` and `.env.example`. Merged from fork PR [#13](https://github.com/Huathy/HxRouter/pull/13) by @mahdiwafy.
 
 ## Fixed
-- **Migration 002 idempotency** — makes the `002-fix-empty-allowed-lists` migration safe for pre-ACL legacy databases by checking `PRAGMA table_info(apiKeys)` before each `UPDATE`. Merged from fork PR [#12](https://github.com/Vanszs/VansRouter/pull/12) by @mahdiwafy.
+- **Migration 002 idempotency** — makes the `002-fix-empty-allowed-lists` migration safe for pre-ACL legacy databases by checking `PRAGMA table_info(apiKeys)` before each `UPDATE`. Merged from fork PR [#12](https://github.com/Huathy/HxRouter/pull/12) by @mahdiwafy.
 - **ClinePass model aliases** — shortens exposed model IDs from `cline-pass/<model>` to `<model>` while preserving the upstream-prefixed ID internally.
 - **ClinePass icon** — aligns the ClinePass dashboard icon with the Cline provider (`smart_toy`).
 
@@ -753,7 +753,7 @@ VansRouter 0.8.7 is a focused patch release that fixes the broken ClinePass prov
 
 # v0.8.6 (2026-07-05)
 
-VansRoute 0.8.6 combines the latest VansRouter fork improvements with upstream enhancements from `decolua/9router`, reshaping everything into a faster, more personal AI gateway. Changes are listed by author so every contributor is visible.
+VansRoute 0.8.6 combines the latest HxRouter fork improvements with upstream enhancements from `decolua/9router`, reshaping everything into a faster, more personal AI gateway. Changes are listed by author so every contributor is visible.
 
 ## Added
 - **API key secret management and directory handling** — improves how API-key secrets are stored and resolved, plus fixes directory handling for data paths. Merged from fork commit `c5171b47` by **@29nls**.
@@ -790,9 +790,9 @@ VansRoute 0.8.6 combines the latest VansRouter fork improvements with upstream e
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/vansrouter:0.8.6
+docker pull ghcr.io/vanszs/hxrouter:0.8.6
 ```
 
 # v0.8.4 (2026-07-03)
@@ -823,9 +823,9 @@ Hotfix for Antigravity streaming failures. Ports two upstream `decolua/9router` 
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/vansrouter:0.8.4
+docker pull ghcr.io/vanszs/hxrouter:0.8.4
 ```
 
 # v0.8.3 (2026-07-02)
@@ -842,7 +842,7 @@ Maintenance release that fixes the `npm run dev` startup error, hardens legacy d
   - Inline `buildKimchiQuotaReactivatedUpdate` to cut the import chain into the provider registry (which pulls in Node built-ins like `os`).
   - Use `/* webpackIgnore: true */` with a relative path for the `localDb` dynamic import so `better-sqlite3` stays out of the dev webpack bundle.
 - **SearXNG test timeouts** (`tests/unit/all-endpoints-robust.test.js`): skip the SearXNG reachability test when no local instance is running at `127.0.0.1:8888`, preventing 5-second hangs on most dev machines.
-- **Version snapshot** (`tests/translator/__snapshots__/golden-url-header.test.js.snap`): regenerated for `VansRouter/0.8.3`.
+- **Version snapshot** (`tests/translator/__snapshots__/golden-url-header.test.js.snap`): regenerated for `HxRouter/0.8.3`.
 - **Build / standalone edge cases** (`6220e12d`):
   - `@swc/helpers` bundling fix.
   - Windows standalone EPERM symlink handling (`scripts/fix-standalone-symlinks.cjs`).
@@ -865,9 +865,9 @@ Maintenance release that fixes the `npm run dev` startup error, hardens legacy d
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/vansrouter:0.8.3
+docker pull ghcr.io/vanszs/hxrouter:0.8.3
 ```
 
 # v0.8.0 (2026-07-01)
@@ -908,17 +908,17 @@ Major provider expansion + resilience improvements. This release syncs AgentRout
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/vansrouter:0.8.0
+docker pull ghcr.io/vanszs/hxrouter:0.8.0
 ```
 
 # v0.7.8 (2026-06-30)
 
-Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/vansrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
+Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/hxrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
 
 ## Fixed
-- `Dockerfile`: set `ENV API_KEY_SECRET=vansrouter-dev-default-change-me-in-production` so GHCR installs work out-of-the-box. Operators running production deployments should override with `-e API_KEY_SECRET="$(openssl rand -hex 32)"` at `docker run` time to invalidate any API keys minted with the default secret. Without this env var, the key generation path (`generateCrc` uses HMAC-SHA256 with the secret) throws and the keys POST handler returns 500.
+- `Dockerfile`: set `ENV API_KEY_SECRET=hxrouter-dev-default-change-me-in-production` so GHCR installs work out-of-the-box. Operators running production deployments should override with `-e API_KEY_SECRET="$(openssl rand -hex 32)"` at `docker run` time to invalidate any API keys minted with the default secret. Without this env var, the key generation path (`generateCrc` uses HMAC-SHA256 with the secret) throws and the keys POST handler returns 500.
 - **Not a code bug** — the JS code is correct in throwing; the issue was a missing Dockerfile default. Pure configuration fix.
 - **Client-abort loop bug** (`src/sse/handlers/chat.js`, `open-sse/handlers/chatCore.js`): when a client disconnected mid-request (or a coding-agent aborted), the account fallback loop in `handleSingleModelChat` kept cycling through accounts and re-hitting a dead upstream (e.g. CastAI returning HTTP 500), feeding the provider circuit breaker with probe requests that never recovered. The loop never checked `request.signal.aborted`, and `handleChatCore`'s `streamController` was not linked to the client's abort signal, so in-flight upstream fetches survived the disconnect. Now the fallback loop short-circuits with HTTP 499 as soon as the client aborts, and the client abort signal is forwarded to `streamController.abort()` to cancel pending upstream fetches.
 
@@ -931,14 +931,14 @@ Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/vansrouter:0.7.7`
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 # or pull the patched image
-docker pull ghcr.io/vanszs/vansrouter:0.7.8
+docker pull ghcr.io/vanszs/hxrouter:0.7.8
 ```
 
 # v0.7.7 (2026-06-30)
 
-Sync of upstream `decolua/9router` bug-fix batch onto the VansRouter fork, plus two repo-maintenance chores. No source-code regressions vs. v0.7.6.
+Sync of upstream `decolua/9router` bug-fix batch onto the HxRouter fork, plus two repo-maintenance chores. No source-code regressions vs. v0.7.6.
 
 ## Fixed
 - **translator**: preserve `cache_control` when `collapseTextParts` would otherwise drop it (`c0bd3e0d`).
@@ -976,7 +976,7 @@ Sync of upstream `decolua/9router` bug-fix batch onto the VansRouter fork, plus 
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 ```
 
 # v0.7.6 (2026-06-30)
@@ -993,7 +993,7 @@ Hotfix release. v0.7.5 was published as a tag (a03d07d0 → fae6fa1c → 68e53b4
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 ```
 
 # v0.7.5 (2026-06-29)
@@ -1010,11 +1010,11 @@ Auto-update flow now detects the runtime (PM2, systemd, screen, tmux, Docker, or
 - `GITHUB_RAW_PKG` was reading `main` but we push releases to `dev` (per user instruction not to push to main), so the Sidebar always reported `github_behind_npm` after a publish. Now points to `dev` so the comparison reflects what we actually released.
 
 ## Changed
-- `README.md` + `cli/README.md` install commands corrected: Docker mount now points to `~/.9router:/app/data` (was `vansrouter-data:/home/node/.vansrouter`), port aligned with Dockerfile (`-p 20128:20128`), PM2 `--name vansrouter` (was `vansroute`), and a port-clarification note added.
+- `README.md` + `cli/README.md` install commands corrected: Docker mount now points to `~/.9router:/app/data` (was `hxrouter-data:/home/node/.hxrouter`), port aligned with Dockerfile (`-p 20128:20128`), PM2 `--name hxrouter` (was `vansroute`), and a port-clarification note added.
 - `donateUrl` cleared (was pointing to upstream `9router.com`). `DonateModal` now handles an empty donateUrl gracefully (`Donate is not configured.`).
 - `.gitignore` now excludes `.kimchi/` and `.understand-anything/` so future tooling generations don't clutter the repo.
 - `DonateModal` react-hooks `set-state-in-effect` regression fixed by wrapping synchronous `setFetchState` in `Promise.resolve().then()`.
-- `tests/translator/__snapshots__/golden-url-header.test.js.snap` regenerated for the new `VansRouter/0.7.5` User-Agent, `vansrouter` `X-CLIENT-TYPE`/`X-Msh-Platform`, and `0.7.5` `X-CLIENT-VERSION`/`X-CORE-VERSION`.
+- `tests/translator/__snapshots__/golden-url-header.test.js.snap` regenerated for the new `HxRouter/0.7.5` User-Agent, `hxrouter` `X-CLIENT-TYPE`/`X-Msh-Platform`, and `0.7.5` `X-CLIENT-VERSION`/`X-CORE-VERSION`.
 - `.kimchi` (12M) and `.understand-anything` (5.3M) tooling artifacts committed to dev (one-time, before gitignore added).
 
 ## Tests
@@ -1024,7 +1024,7 @@ Auto-update flow now detects the runtime (PM2, systemd, screen, tmux, Docker, or
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 ```
 
 # v0.7.4 (2026-06-29)
@@ -1037,36 +1037,36 @@ Publish with a 2FA-bypass token (Classic Automation or Granular with bypass enab
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 ```
 
 # v0.7.3 (2026-06-29)
 
-Publish npm package under the unscoped name `vansrouter`. The user owns `vansrouter` on npmjs.com via account `blugaaaaaaaa`; earlier attempts failed because the tokens in use were organization-scoped (`vanroute` org) instead of USER-scoped from the owner account.
+Publish npm package under the unscoped name `hxrouter`. The user owns `hxrouter` on npmjs.com via account `blugaaaaaaaa`; earlier attempts failed because the tokens in use were organization-scoped (`vanroute` org) instead of USER-scoped from the owner account.
 
 ## Changed
-- Keep CLI npm package name as `vansrouter` (revert from scoped `@vanroute/vansrouter` experiment).
-- Update version endpoint, updater config, sidebar messages, and CLI README install commands back to `vansrouter`.
+- Keep CLI npm package name as `hxrouter` (revert from scoped `@vanroute/hxrouter` experiment).
+- Update version endpoint, updater config, sidebar messages, and CLI README install commands back to `hxrouter`.
 - Bump version to `0.7.3` (v0.7.0/v0.7.1/v0.7.2 npm publish attempts failed with E404 due to org-scoped tokens).
 
 ## Install
 ```bash
-npm install -g vansrouter
+npm install -g hxrouter
 ```
 
 # v0.7.0 (2026-06-29)
 
-First independent VansRouter release. Fork branding is now applied throughout the UI, CLI, documentation, and published artifacts while preserving the `~/.9router` data directory for backward compatibility.
+First independent HxRouter release. Fork branding is now applied throughout the UI, CLI, documentation, and published artifacts while preserving the `~/.9router` data directory for backward compatibility.
 
 ## Infrastructure
-- Unified release workflow (`.github/workflows/release.yml`) publishes both Docker images (GHCR + Docker Hub) and the `vansrouter` npm package on every `v*` tag push.
-- Docker image: `ghcr.io/Vanszs/VansRouter:latest` and `vanszs/vansrouter:latest`.
-- npm package: `vansrouter`.
+- Unified release workflow (`.github/workflows/release.yml`) publishes both Docker images (GHCR + Docker Hub) and the `hxrouter` npm package on every `v*` tag push.
+- Docker image: `ghcr.io/Vanszs/HxRouter:latest` and `vanszs/hxrouter:latest`.
+- npm package: `hxrouter`.
 
 ## Branding
-- Rename CLI npm package and UI labels from `9Router` to `VansRouter`.
-- Update landing page, login page, CLI tray, terminal UI, and docs links to point to `github.com/Vanszs/VansRouter`.
-- Update Docker / Compose docs to use VansRouter image while keeping host data path at `$HOME/.9router`.
+- Rename CLI npm package and UI labels from `9Router` to `HxRouter`.
+- Update landing page, login page, CLI tray, terminal UI, and docs links to point to `github.com/Vanszs/HxRouter`.
+- Update Docker / Compose docs to use HxRouter image while keeping host data path at `$HOME/.9router`.
 
 ## Notes
 - Data directory remains `~/.9router` so existing users do not need to migrate.

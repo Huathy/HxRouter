@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GHCR_IMAGE: ghcr.io/vanszs/vansrouter
+  GHCR_IMAGE: ghcr.io/vanszs/hxrouter
 
 jobs:
   check-branch:
@@ -127,7 +127,7 @@ jobs:
         run: |
           npm run build --prefix cli
           npm pack ./cli --pack-destination "$RUNNER_TEMP"
-          printf 'tarball=%s\n' "$RUNNER_TEMP/vansrouter-${{ needs.check-branch.outputs.version }}.tgz" >> "$GITHUB_OUTPUT"
+          printf 'tarball=%s\n' "$RUNNER_TEMP/hxrouter-${{ needs.check-branch.outputs.version }}.tgz" >> "$GITHUB_OUTPUT"
 
       - name: Validate final CLI tarball
         env:
@@ -178,12 +178,12 @@ jobs:
       - name: Revalidate downloaded CLI tarball
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/vansrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
+        run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
 
       - name: Publish validated CLI tarball
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: npm publish "$RUNNER_TEMP/npm-package/vansrouter-${RELEASE_VERSION}.tgz" --provenance
+        run: npm publish "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" --provenance
 
   promote-ghcr:
     needs: [check-branch, build-and-verify-ghcr]

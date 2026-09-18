@@ -147,7 +147,7 @@ if (require.main === module) {
   const buildDistDirName = ".next-cli-build";
   const buildDistDir = path.join(appDir, buildDistDirName);
 
-  console.log("📦 Building VansRouter CLI package with Next.js...\n");
+  console.log("📦 Building HxRouter CLI package with Next.js...\n");
 
   fs.mkdirSync(buildHomeDir, { recursive: true });
   fs.mkdirSync(path.join(buildHomeDir, "AppData", "Roaming"), { recursive: true });

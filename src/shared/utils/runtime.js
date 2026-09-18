@@ -74,7 +74,7 @@ function isDocker() {
  * re-run the binary).
  *
  * @param {"pm2"|"systemd"|"screen"|"tmux"|"docker"|"direct"} runtime
- * @param {string} packageName  npm package name (e.g. "vansrouter")
+ * @param {string} packageName  npm package name (e.g. "hxrouter")
  * @returns {string|null}
  */
 export function updateAndRestartCommand(runtime, packageName) {
@@ -82,7 +82,7 @@ export function updateAndRestartCommand(runtime, packageName) {
   switch (runtime) {
     case "pm2":
       // Detect PM2 process name from process.env (PM2 sets pm2_env.name).
-      const pm2Name = readPm2ProcessName() || "vansrouter";
+      const pm2Name = readPm2ProcessName() || "hxrouter";
       return `${installCmd} && pm2 restart ${pm2Name}`;
     case "systemd":
       // Convention: systemd unit named after the binary. Best-effort guess
@@ -90,14 +90,14 @@ export function updateAndRestartCommand(runtime, packageName) {
       const unitName = readSystemdUnitName() || packageName;
       return `${installCmd} && sudo systemctl restart ${unitName}`;
     case "screen":
-      // Re-launch in a detached screen window named "vansrouter".
+      // Re-launch in a detached screen window named "hxrouter".
       // The user's existing screen session keeps running — they can
-      // `screen -r vansrouter` to attach to the new instance.
-      return `${installCmd} && screen -dmS vansrouter vansrouter`;
+      // `screen -r hxrouter` to attach to the new instance.
+      return `${installCmd} && screen -dmS hxrouter hxrouter`;
     case "tmux":
-      // Re-launch in a detached tmux session named "vansrouter".
-      // User can `tmux attach -t vansrouter` to attach to the new instance.
-      return `${installCmd} && tmux new-session -d -s vansrouter 'vansrouter'`;
+      // Re-launch in a detached tmux session named "hxrouter".
+      // User can `tmux attach -t hxrouter` to attach to the new instance.
+      return `${installCmd} && tmux new-session -d -s hxrouter 'hxrouter'`;
     case "docker":
       // For Docker we can't self-restart inside the container — the host
       // must pull a new image. Return a hint that the user can use
@@ -127,7 +127,7 @@ function readSystemdUnitName() {
   // Best-effort: derive unit name from the binary path.
   // Caller can override via systemd unit if the auto-detected name is wrong.
   try {
-    const exe = process.execPath.split("/").pop() || "vansrouter";
+    const exe = process.execPath.split("/").pop() || "hxrouter";
     return `${exe}.service`;
   } catch {
     return null;

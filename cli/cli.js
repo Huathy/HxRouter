@@ -112,7 +112,7 @@ function getDisplayHost() {
 const MAX_PORT_ATTEMPTS = 10;
 // Identifiers for killAllAppProcesses - only kill this app's processes
 const PROCESS_IDENTIFIERS = [
-  APP_NAME  // Use package name from package.json (e.g. vansrouter)
+  APP_NAME  // Use package name from package.json (e.g. hxrouter)
 ];
 
 // Parse arguments

@@ -42,7 +42,7 @@ Jangan menjalankan `pm2 save` saat eksperimen gagal atau saat `9router` tidak on
 
 ---
 
-## 6. Custom Fitur VansRouter Wajib Dijaga Saat Sync Upstream
+## 6. Custom Fitur HxRouter Wajib Dijaga Saat Sync Upstream
 
 Daftar ini **harus diverifikasi** setiap kali melakukan cherry-pick atau merge dari `decolua/9router`. Gunakan:
 
@@ -68,7 +68,7 @@ git diff <v0.9.0-commit> dev --stat  # pastikan tidak ada file custom hilang
 | 14 | Terse caveman mode | `open-sse/rtk/caveman.js` |
 | 15 | Proxy pool selection (`pickProxyPoolId`) | `src/sse/services/auth.js` |
 | 16 | Connection proxy layer (`connectionProxy`) | `src/lib/network/connectionProxy.js` |
-| 17 | Sidebar VansRouter brand | `src/shared/components/Sidebar.js` |
+| 17 | Sidebar HxRouter brand | `src/shared/components/Sidebar.js` |
 | 18 | Provider detail connections pagination (10/page) | `src/app/(dashboard)/dashboard/providers/[id]/connectionsPagination.js` |
 | 19 | ACL filter di `GET /v1/models` (validate key + filter providers) | `src/app/api/v1/models/route.js` |
 
@@ -81,7 +81,7 @@ Hybrid **tidak boleh** cherry-pick file penuh dari upstream. Port hanya blok per
 - `custom-server.js` tetap menjadi entrypoint Docker; jangan menghapus trusted peer header dan proxy-IP handling.
 - `pnpm run build` tetap menyalin `public`, `.next/static`, `src/`, serta shim/runtime yang dibuat `scripts/build.js`.
 - Jangan mengubah nama volume Docker `9router-data`; perubahan memerlukan migrasi dan verifikasi database eksplisit.
-- Fitur VansRouter pada tabel ini harus tetap aktif; verifikasi handler, bukan sekadar import atau nama simbol.
+- Fitur HxRouter pada tabel ini harus tetap aktif; verifikasi handler, bukan sekadar import atau nama simbol.
 - Hybrid security patch wajib mempertahankan `allowRemoteNoApiKey`, ACL, trusted internal call, dan multi-account compatible provider.
 - Provider/model hybrid wajib mempertahankan registry lokal, executor khusus, proxy layer, fallback account, dan test baseline.
 

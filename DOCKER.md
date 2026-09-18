@@ -1,8 +1,8 @@
 # Docker
 
-Run VansRouter in a container. Published images:
-- GHCR: [`ghcr.io/vanszs/vansrouter`](https://github.com/Vanszs/VansRouter/pkgs/container/VansRouter)
-- Docker Hub: [`vanszs/vansrouter`](https://hub.docker.com/r/vanszs/vansrouter) (if published separately)
+Run HxRouter in a container. Published images:
+- GHCR: [`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
+- Docker Hub: [`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter) (if published separately)
 
 Multi-platform `linux/amd64` + `linux/arm64`.
 
@@ -16,23 +16,23 @@ Multi-platform `linux/amd64` + `linux/arm64`.
 docker run -d \
   -p 20128:20128 \
   -v 9router-data:/app/data \
-  -v vansrouter-data:/migration-data:ro \
+  -v hxrouter-data:/migration-data:ro \
   -e DATA_DIR=/app/data \
-  --name vansrouter \
-  ghcr.io/vanszs/vansrouter:latest
+  --name hxrouter \
+  ghcr.io/vanszs/hxrouter:latest
 ```
 
-The `vansrouter-data` mount is read-only compatibility input for pre-v0.91.22 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
+The `hxrouter-data` mount is read-only compatibility input for pre-v0.91.22 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
 
 App listens on port `20128`. Open: http://localhost:20128
 
 ## Manage container
 
 ```bash
-docker logs -f vansrouter        # view logs
-docker stop vansrouter           # stop
-docker start vansrouter          # start again
-docker rm -f vansrouter          # remove
+docker logs -f hxrouter        # view logs
+docker stop hxrouter           # stop
+docker start hxrouter          # start again
+docker rm -f hxrouter          # remove
 ```
 
 ## Data persistence
@@ -58,7 +58,7 @@ Host path: `$HOME/.9router/db/data.sqlite`
 Container path: `/app/data/db/data.sqlite`
 
 Production requirements:
-- Run one VansRouter process per SQLite file. Multiple containers/processes with separate local volumes do not share proxy-pool fitness state.
+- Run one HxRouter process per SQLite file. Multiple containers/processes with separate local volumes do not share proxy-pool fitness state.
 - If scaling horizontally, provide a shared database/backend for routing state before enabling multiple app instances.
 - Keep the persistent volume name `9router-data` used by `docker-compose.yml`; renaming it creates a new empty database volume.
 - Production requires a native SQLite driver. The `sql.js` fallback is single-process development fallback only.
@@ -96,9 +96,9 @@ Create your own `docker-compose.yml`:
 
 ```yaml
 services:
-  vansrouter:
-    image: ghcr.io/vanszs/vansrouter:latest
-    container_name: vansrouter
+  hxrouter:
+    image: ghcr.io/vanszs/hxrouter:latest
+    container_name: hxrouter
     restart: always
     ports:
       - "20128:20128"
@@ -137,14 +137,14 @@ If Headroom runs on the Docker host instead of as a sidecar, use `http://host.do
 
 ## Update without manual asset or database steps
 
-`9router-data` is the canonical volume. The compose file also mounts historical `vansrouter-data` read-only for automatic compatibility copying. The entrypoint copies the complete legacy data tree only when `/app/data/db/data.sqlite` does not exist and records `.legacy-volume-migrated`; it never overwrites an existing canonical file. Legacy installs that used a host bind mount (`$HOME/.9router:/app/data`) must keep that bind mount or copy its contents into `9router-data` before switching to named volumes.
+`9router-data` is the canonical volume. The compose file also mounts historical `hxrouter-data` read-only for automatic compatibility copying. The entrypoint copies the complete legacy data tree only when `/app/data/db/data.sqlite` does not exist and records `.legacy-volume-migrated`; it never overwrites an existing canonical file. Legacy installs that used a host bind mount (`$HOME/.9router:/app/data`) must keep that bind mount or copy its contents into `9router-data` before switching to named volumes.
 
 ```bash
-docker compose pull vansrouter
-docker compose up -d --no-deps vansrouter
+docker compose pull hxrouter
+docker compose up -d --no-deps hxrouter
 ```
 
-For a pinned release, replace `latest` in the compose file with `X.Y.Z` before pulling. Do not copy `.next`, delete either volume, or run application migrations manually. After a successful upgrade, remove the `vansrouter-data:/migration-data:ro` mount only after confirming the new container reports the expected version and data.
+For a pinned release, replace `latest` in the compose file with `X.Y.Z` before pulling. Do not copy `.next`, delete either volume, or run application migrations manually. After a successful upgrade, remove the `hxrouter-data:/migration-data:ro` mount only after confirming the new container reports the expected version and data.
 
 ---
 
@@ -153,18 +153,18 @@ For a pinned release, replace `latest` in the compose file with `X.Y.Z` before p
 ## Build image locally (test)
 
 ```bash
-docker build -t vansrouter .
+docker build -t hxrouter .
 
 docker run --rm -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  vansrouter
+  hxrouter
 ```
 
 ## Publish (automatic via CI)
 
 Push an annotated release tag `vX.Y.Z` after the checks in `.agent/cicd.md`. GitHub Actions builds multi-platform (amd64+arm64) and promotes the verified image to:
-- `ghcr.io/vanszs/vansrouter:X.Y.Z` + `:latest`
+- `ghcr.io/vanszs/hxrouter:X.Y.Z` + `:latest`
 
 Docker Hub is not published by the current workflow; treat its listing as a separate/manual distribution only.
 

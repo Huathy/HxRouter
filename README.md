@@ -1,19 +1,19 @@
 <div align="center">
-  <img src="./images/9router.png?1" alt="VansRouter Dashboard" width="800"/>
+  <img src="./images/9router.png?1" alt="HxRouter Dashboard" width="800"/>
   
-  # VansRouter - FREE AI Router & Token Saver
+  # HxRouter - FREE AI Router & Token Saver
   
   **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
   
   **Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
   
-  [![npm](https://img.shields.io/npm/v/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
-  [![Downloads](https://img.shields.io/npm/dm/vansrouter.svg)](https://www.npmjs.com/package/vansrouter)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/vansrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/vansrouter)
-  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fvansrouter-blue?logo=github)](https://github.com/Vanszs/VansRouter/pkgs/container/vansrouter)
-  [![License](https://img.shields.io/npm/l/vansrouter.svg)](https://github.com/Vanszs/VansRouter/blob/main/LICENSE)
+  [![npm](https://img.shields.io/npm/v/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
+  [![Downloads](https://img.shields.io/npm/dm/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/hxrouter)
+  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+  [![License](https://img.shields.io/npm/l/hxrouter.svg)](https://github.com/Huathy/HxRouter/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fvansrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 [🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Setup](#-setup-guide) • [🌐 Website](https://9router.com)
 
@@ -23,7 +23,7 @@
 
 ---
 
-## 🤔 Why VansRouter?
+## 🤔 Why HxRouter?
 
 **Stop wasting money, tokens and hitting limits:**
 
@@ -33,7 +33,7 @@
 - ❌ Expensive APIs ($20-50/month per provider)
 - ❌ Manual switching between providers
 
-**VansRouter solves this:**
+**HxRouter solves this:**
 
 - ✅ **RTK Token Saver** - Auto-compress tool_result content, save 20-40% tokens per request
 - ✅ **Maximize subscriptions** - Track quota, use every bit before reset
@@ -43,11 +43,11 @@
 
 ---
 
-## 📊 Comparison: VansRouter vs 9Router vs OmniRoute
+## 📊 Comparison: HxRouter vs 9Router vs OmniRoute
 
 ### Logic & Backend — what each has
 
-| Feature | 9Router | OmniRoute | **VansRouter** |
+| Feature | 9Router | OmniRoute | **HxRouter** |
 |---------|---------|-----------|---------------|
 | **Gemini 3.7 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
 | **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI |
@@ -72,7 +72,7 @@
 | **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
 | **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 |
 
-### What VansRouter has that neither 9Router nor OmniRoute has
+### What HxRouter has that neither 9Router nor OmniRoute has
 
 1. **Kimchi CLI alignment** — 9router's Kimchi provider masquerades as the official Kimchi CLI, with exactly the same 5 models, capabilities, and temperature rules
 2. **Kimchi quota auto-reactivation** — accounts deactivated due to quota exhaustion automatically reactivate at the 1st of each month
@@ -80,12 +80,12 @@
 4. **Proxy-aware resilience** — circuit breaker and semaphore keyed per `provider:proxyHash` so one dead proxy doesn't block others
 5. **TPS optimization** — cached settings + cached connections + per-provider mutex = fewer sync DB reads per request
 
-### What VansRouter does NOT have (yet)
+### What HxRouter does NOT have (yet)
 
-- OmniRoute's 17 combo strategies (VansRouter has 4)
+- OmniRoute's 17 combo strategies (HxRouter has 4)
 - OmniRoute's `sessionPool` with fingerprint rotation
 - OmniRoute's `autoCombo` with complexity routing and task fitness scoring
-- OmniRoute's 231 providers (VansRouter has 40+)
+- OmniRoute's 231 providers (HxRouter has 40+)
 
 ---
 
@@ -99,7 +99,7 @@
        │ http://localhost:20128/v1
        ↓
 ┌─────────────────────────────────────────────┐
-│          VansRouter (Smart Router)          │
+│          HxRouter (Smart Router)          │
 │  • RTK Token Saver (cut tool_result tokens) │
 │  • Format translation (OpenAI ↔ Claude)     │
 │  • Quota tracking                           │
@@ -122,8 +122,8 @@ Result: Never stop coding, minimal cost + 20-40% token savings via RTK
 **1. Install globally:**
 
 ```bash
-npm install -g vansrouter
-vansrouter
+npm install -g hxrouter
+hxrouter
 ```
 
 🎉 Dashboard opens at `http://localhost:20128`
@@ -1203,8 +1203,8 @@ Model: cc/claude-opus-4-7
 
 ```bash
 # Clone and install
-git clone https://github.com/Vanszs/VansRouter.git
-cd VansRouter
+git clone https://github.com/Huathy/HxRouter.git
+cd HxRouter
 npm install
 npm run build
 
@@ -1225,7 +1225,7 @@ npm run start
 
 # Or use PM2
 npm install -g pm2
-pm2 start npm --name vansrouter -- start
+pm2 start npm --name hxrouter -- start
 pm2 save
 pm2 startup
 ```
@@ -1234,18 +1234,18 @@ pm2 startup
 
 Published images (multi-platform `linux/amd64` + `linux/arm64`):
 
-- Docker Hub: [`vanszs/vansrouter`](https://hub.docker.com/r/vanszs/vansrouter)
-- GHCR: [`ghcr.io/vanszs/vansrouter`](https://github.com/Vanszs/VansRouter/pkgs/container/vansrouter)
+- Docker Hub: [`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
+- GHCR: [`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
 
 **Quick start (use published image):**
 
 ```bash
 docker run -d \
-  --name vansrouter \
+  --name hxrouter \
   -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  ghcr.io/vanszs/vansrouter:latest
+  ghcr.io/vanszs/hxrouter:latest
 ```
 
 → Open http://localhost:20128
@@ -1253,11 +1253,11 @@ docker run -d \
 **Build from source (dev):**
 
 ```bash
-git clone https://github.com/Vanszs/VansRouter.git
-cd VansRouter/app
-docker build -t vansrouter .
-docker run -d --name vansrouter -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data vansrouter
+git clone https://github.com/Huathy/HxRouter.git
+cd HxRouter/app
+docker build -t hxrouter .
+docker run -d --name hxrouter -p 20128:20128 \
+  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data hxrouter
 ```
 
 **Container defaults:**
@@ -1268,10 +1268,10 @@ docker run -d --name vansrouter -p 20128:20128 \
 **Useful commands:**
 
 ```bash
-docker logs -f vansrouter
-docker restart vansrouter
-docker stop vansrouter && docker rm vansrouter
-docker pull ghcr.io/vanszs/vansrouter:latest   # update to latest
+docker logs -f hxrouter
+docker restart hxrouter
+docker stop hxrouter && docker rm hxrouter
+docker pull ghcr.io/vanszs/hxrouter:latest   # update to latest
 ```
 
 **Data persistence:** `$HOME/.9router/db/data.sqlite` on host ↔ `/app/data/db/data.sqlite` in container.
@@ -1473,22 +1473,22 @@ Authorization: Bearer your-api-key
 ## 📧 Support
 
 - **Website**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/Vanszs/VansRouter](https://github.com/Vanszs/VansRouter)
-- **Issues**: [github.com/Vanszs/VansRouter/issues](https://github.com/Vanszs/VansRouter/issues)
+- **GitHub**: [github.com/Vanszs/HxRouter](https://github.com/Huathy/HxRouter)
+- **Issues**: [github.com/Vanszs/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
 
 ---
 
 ## 👥 Contributors
 
-Thanks to all contributors who helped make VansRouter better!
+Thanks to all contributors who helped make HxRouter better!
 
-[![Contributors](https://contrib.rocks/image?repo=Vanszs/VansRouter&max=150&columns=15&anon=1&v=20260309)](https://github.com/Vanszs/VansRouter/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Vanszs/HxRouter&max=150&columns=15&anon=1&v=20260309)](https://github.com/Huathy/HxRouter/graphs/contributors)
 
 ---
 
 ## 📊 Star Chart
 
-[![Star Chart](https://starchart.cc/Vanszs/VansRouter.svg?variant=adaptive)](https://github.com/Vanszs/VansRouter)
+[![Star Chart](https://starchart.cc/Vanszs/HxRouter.svg?variant=adaptive)](https://github.com/Huathy/HxRouter)
 
 ## 🔀 Forks
 

@@ -75,7 +75,7 @@ describe("detectRuntime", () => {
   });
 
   it("returns 'pm2' when pm2_env is set (older PM2 fallback)", () => {
-    setEnv({ pm2_env: '{"name":"vansrouter"}' });
+    setEnv({ pm2_env: '{"name":"hxrouter"}' });
     expect(detectRuntime()).toBe("pm2");
   });
 
@@ -150,7 +150,7 @@ describe("detectRuntime", () => {
 });
 
 describe("updateAndRestartCommand", () => {
-  const PKG = "vansrouter";
+  const PKG = "hxrouter";
 
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
@@ -158,8 +158,8 @@ describe("updateAndRestartCommand", () => {
 
   it("returns pm2 restart command when runtime is pm2", () => {
     const cmd = updateAndRestartCommand("pm2", PKG);
-    expect(cmd).toContain("npm i -g vansrouter@latest");
-    expect(cmd).toContain("pm2 restart vansrouter");
+    expect(cmd).toContain("npm i -g hxrouter@latest");
+    expect(cmd).toContain("pm2 restart hxrouter");
   });
 
   it("uses pm2 process name from pm2_env when available", () => {
@@ -168,26 +168,26 @@ describe("updateAndRestartCommand", () => {
     expect(cmd).toContain("pm2 restart my-custom-pm2-app");
   });
 
-  it("falls back to default 'vansrouter' name when pm2_env has no name", () => {
+  it("falls back to default 'hxrouter' name when pm2_env has no name", () => {
     setEnv({ pm2_env: '{"other":"value"}' });
     const cmd = updateAndRestartCommand("pm2", PKG);
-    expect(cmd).toContain("pm2 restart vansrouter");
+    expect(cmd).toContain("pm2 restart hxrouter");
   });
 
   it("returns systemd restart command when runtime is systemd", () => {
     const cmd = updateAndRestartCommand("systemd", PKG);
-    expect(cmd).toContain("npm i -g vansrouter@latest");
+    expect(cmd).toContain("npm i -g hxrouter@latest");
     expect(cmd).toContain("sudo systemctl restart");
   });
 
   it("returns screen re-launch command when runtime is screen", () => {
     const cmd = updateAndRestartCommand("screen", PKG);
-    expect(cmd).toContain("screen -dmS vansrouter");
+    expect(cmd).toContain("screen -dmS hxrouter");
   });
 
   it("returns tmux re-launch command when runtime is tmux", () => {
     const cmd = updateAndRestartCommand("tmux", PKG);
-    expect(cmd).toContain("tmux new-session -d -s vansrouter");
+    expect(cmd).toContain("tmux new-session -d -s hxrouter");
   });
 
   it("returns docker hint when runtime is docker (host must pull new image)", () => {

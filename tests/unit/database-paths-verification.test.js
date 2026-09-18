@@ -1,5 +1,5 @@
 // Unit tests to ensure database pathing and Docker configurations
-// remain bound to "9router" to prevent data loss on VansRouter upgrades.
+// remain bound to "9router" to prevent data loss on HxRouter upgrades.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -47,8 +47,8 @@ describe("Database location & fallback path rules", () => {
     expect(volumeDef).toBeDefined();
     expect(volumeDef.name).toBe("9router-data");
 
-    expect(service.volumes).toContain("vansrouter-data:/migration-data:ro");
-    expect(compose.volumes["vansrouter-data"]).toEqual({ name: "vansrouter-data" });
+    expect(service.volumes).toContain("hxrouter-data:/migration-data:ro");
+    expect(compose.volumes["hxrouter-data"]).toEqual({ name: "hxrouter-data" });
 
     const dockerfile = read("Dockerfile");
     expect(dockerfile).toContain("/migration-data");

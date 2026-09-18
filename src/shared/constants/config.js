@@ -2,22 +2,22 @@ import pkg from "../../../package.json" with { type: "json" };
 
 // App configuration
 export const APP_CONFIG = {
-  name: "VansRouter Proxy",
+  name: "HxRouter Proxy",
   description: "AI Infrastructure Management",
   version: pkg.version,
 };
 
 // GitHub configuration
 export const GITHUB_CONFIG = {
-  changelogUrl: "https://raw.githubusercontent.com/Vanszs/VansRouter/refs/heads/main/CHANGELOG.md",
+  changelogUrl: "https://raw.githubusercontent.com/Vanszs/HxRouter/refs/heads/main/CHANGELOG.md",
   donateUrl: "",
 };
 
 // Updater configuration
 export const UPDATER_CONFIG = {
-  npmPackageName: "vansrouter",
-  installCmd: "npm i -g vansrouter",
-  installCmdLatest: "npm i -g vansrouter@latest --prefer-online",
+  npmPackageName: "hxrouter",
+  installCmd: "npm i -g hxrouter",
+  installCmdLatest: "npm i -g hxrouter@latest --prefer-online",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,

@@ -24,7 +24,7 @@ git diff --name-status v0.5.40..v0.5.45
 ## Status rules
 
 - `adopted + tested`: behavior is present in the current tree and covered by a focused or full test.
-- `skipped + reason`: intentionally not ported because it would overwrite VansRouter custom behavior or is outside Kimchi/shared contract scope.
+- `skipped + reason`: intentionally not ported because it would overwrite HxRouter custom behavior or is outside Kimchi/shared contract scope.
 - `irrelevant + proof`: upstream change does not affect Kimchi or a shared contract used by Kimchi.
 - `unverified / external blocker`: source or live behavior cannot be proven from available refs/credentials.
 
@@ -48,7 +48,7 @@ git diff --name-status v0.5.40..v0.5.45
 | Live Kimchi API-key/OAuth chat/stream/usage/retry/error/fallback | External integration | unverified / external blocker | No live Kimchi credentials/sandbox available. Contract tests are not live proof. |
 | Live TTS smoke gate | External integration | external blocker | `all-endpoints-robust.test.js`: 24 passed, 1 failed, 2 skipped; `TTS > reachable sample TTS models` timed out at 5000ms. Reproduced standalone. Not weakened. |
 
-## Custom VansRouter protection matrix
+## Custom HxRouter protection matrix
 
 Verified markers/tests remain present for ACL (`isProviderAllowed`, `isComboAllowed`, `isKindAllowed`), ZCode, Kimi/Kimchi parser, NVIDIA coercion, proxy selection, custom OAuth, VansAI branding, `APP_NAME = "9router"`, Docker volume `9router-data`, retry/cooldown, model/capability overrides, and custom-provider connections. Evidence: `agent.md`, `AGENTS.md`, `tests/unit/post-merge-verification.test.js`, focused/full test runs, and source marker scan.
 

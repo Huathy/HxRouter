@@ -204,7 +204,7 @@ async function verifyRunningApp(checkPort, child = null, expectedBuildId = null)
 async function smokeRelease(releasePath) {
   const checkPort = await getFreePort();
   const release = verifyRelease(releasePath);
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vansrouter-atomic-smoke-"));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "hxrouter-atomic-smoke-"));
   const child = spawn(process.execPath, [path.join(releasePath, "server.js")], {
     cwd: releasePath,
     env: {

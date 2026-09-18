@@ -36,7 +36,7 @@ export function isNamedTunnelConfigured() {
  * Validate the named-tunnel environment configuration.
  * Returns { ok: true } or { ok: false, errors: string[] }.
  *
- * Rules (per VansRouter review):
+ * Rules (per HxRouter review):
  * - TUNNEL_HOSTNAME must be a bare hostname (no scheme, path, port).
  * - Exactly one auth mode: either TUNNEL_TOKEN or TUNNEL_CRED_FILE, not both.
  * - TUNNEL_CRED_FILE mode may optionally use TUNNEL_ID.

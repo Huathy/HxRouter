@@ -11,7 +11,7 @@ if (!tarball || !expectedVersion) {
   throw new Error("Usage: smoke-package.cjs <tarball> <version>");
 }
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "vansrouter-release-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "hxrouter-release-"));
 const dataDir = path.join(root, "data");
 const port = 43000 + (process.pid % 1000);
 fs.mkdirSync(dataDir, { recursive: true });
@@ -84,7 +84,7 @@ async function main() {
     const marker = path.join(dataDir, "db", ".migrated-from-json");
     if (!fs.existsSync(dbFile)) throw new Error(`SQLite database missing: ${dbFile}`);
     if (!fs.existsSync(marker)) throw new Error(`Migration marker missing: ${marker}`);
-    console.log(`Smoke-tested vansrouter@${expectedVersion}: bundled server, SQLite, legacy migration`);
+    console.log(`Smoke-tested hxrouter@${expectedVersion}: bundled server, SQLite, legacy migration`);
   } finally {
     child.kill("SIGTERM");
     await new Promise((resolve) => {

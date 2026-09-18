@@ -32,7 +32,7 @@ export async function POST(request) {
   } catch {
     // body may be empty for the simple "just shut down" call
   }
-  const packageName = body.packageName || "vansrouter";
+  const packageName = body.packageName || "hxrouter";
   const mode = body.mode === "manual" ? "manual" : "auto";
 
   // Best effort: kill sibling processes that might hold file locks
