@@ -92,6 +92,7 @@ export async function handleSearch(request) {
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[comboNameSearch]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    const comboWeights = comboStrategies[comboNameSearch]?.weights;
     log.info("SEARCH", `Combo "${comboNameSearch}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
@@ -101,6 +102,7 @@ export async function handleSearch(request) {
       comboName: comboNameSearch,
       comboStrategy,
       comboStickyLimit,
+      comboWeights,
       timeoutMs: comboStrategies[comboNameSearch]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameSearch]?.queueDepth ?? null,
     });

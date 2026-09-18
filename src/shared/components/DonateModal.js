@@ -10,28 +10,12 @@ const DEFAULT_DONATE_DATA = {
   message: "Terima kasih telah mendukung pengembangan HxRouter agar infrastruktur dan fitur baru terus aktif!",
   channels: [
     {
-      id: "saweria",
-      label: "Saweria",
-      description: "Dukung via QRIS, GoPay, OVO, DANA, LinkAja, ShopeePay",
-      icon: "volunteer_activism",
-      color: "#FAAE2B",
-      url: "https://saweria.co/vanszs"
-    },
-    {
-      id: "trakteer",
-      label: "Trakteer",
-      description: "Dukung via QRIS / E-Wallet / Bank Transfer",
-      icon: "favorite",
-      color: "#C9283E",
-      url: "https://teer.id/bevan_satriaa"
-    },
-    {
-      id: "kofi",
-      label: "Ko-fi",
-      description: "Support via Card or PayPal",
-      icon: "local_cafe",
-      color: "#13C3FF",
-      url: "https://ko-fi.com/bevansatriaa"
+      id: "donation",
+      label: "Donation",
+      description: "请我喝杯咖啡吧 Coffee is always welcome",
+      icon: "account_balance_wallet",
+      color: "#FF6B9D",
+      qr: "/donate/zfb.jpg" 
     }
   ]
 };

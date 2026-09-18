@@ -84,6 +84,7 @@ export default function ProviderDetailPage() {
   const [oneByOneCurrentConnectionId, setOneByOneCurrentConnectionId] = useState(null);
   const [oneByOneResults, setOneByOneResults] = useState({});
   const [oneByOneSummary, setOneByOneSummary] = useState(null);
+  const [reqStats, setReqStats] = useState(null);
   const stopOneByOneRef = useRef(false);
   const [importingModels, setImportingModels] = useState(false);
   const { copied, copy } = useCopyToClipboard();
@@ -309,16 +310,28 @@ export default function ProviderDetailPage() {
 
   const fetchConnections = useCallback(async () => {
     try {
-      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
+      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes, statsRes] = await Promise.all([
         fetch("/api/providers", { cache: "no-store" }),
         fetch("/api/provider-nodes", { cache: "no-store" }),
         fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
         fetch("/api/settings", { cache: "no-store" }),
+        fetch("/api/usage/stats?period=24h", { cache: "no-store" }),
       ]);
       const connectionsData = await connectionsRes.json();
       const nodesData = await nodesRes.json();
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const statsData = statsRes.ok ? await statsRes.json() : {};
+      // Extract this provider's request success/fail from byProvider (24h).
+      const byProvider = statsData.byProvider || {};
+      const p = byProvider[providerId] || byProvider[providerId?.toLowerCase()];
+      if (p && (p.requests || 0) > 0) {
+        const success = p.successCount || 0;
+        const total = p.requests || 0;
+        setReqStats({ success, fail: p.failCount || 0, total, rate: success / total });
+      } else {
+        setReqStats(null);
+      }
       if (connectionsRes.ok) {
         const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
         setConnections(filtered);
@@ -1510,6 +1523,16 @@ export default function ProviderDetailPage() {
             <p className="text-text-muted">
               {connections.length} connection{connections.length === 1 ? "" : "s"}
             </p>
+            {reqStats && (
+              <div className="mt-1 flex items-center gap-2">
+                <Badge variant={reqStats.rate >= 0.95 ? "success" : reqStats.rate >= 0.8 ? "warning" : "error"} size="sm">
+                  {Math.round(reqStats.rate * 100)}% success
+                </Badge>
+                <span className="text-xs text-text-muted">
+                  {reqStats.success} ok / {reqStats.fail} fail / {reqStats.total} total (24h)
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

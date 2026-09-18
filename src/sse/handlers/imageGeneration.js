@@ -66,6 +66,7 @@ export async function handleImageGeneration(request) {
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[comboNameImg]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    const comboWeights = comboStrategies[comboNameImg]?.weights;
     log.info("IMAGE", `Combo "${comboNameImg}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
@@ -75,6 +76,7 @@ export async function handleImageGeneration(request) {
       comboName: comboNameImg,
       comboStrategy,
       comboStickyLimit,
+      comboWeights,
       timeoutMs: comboStrategies[comboNameImg]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameImg]?.queueDepth ?? null,
     });

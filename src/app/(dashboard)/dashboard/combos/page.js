@@ -259,7 +259,7 @@ export default function CombosPage() {
 
 const STRATEGY_OPTIONS = [
   { value: "fallback", label: "Fallback — try in order" },
-  { value: "round-robin", label: "Round Robin — rotate" },
+  { value: "round-robin", label: "Round Robin — rotate (weighted)" },
   { value: "fusion", label: "Fusion — panel + judge" },
 ];
 
@@ -268,6 +268,19 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
   const current = strategy.fallbackStrategy || "fallback";
   const judge = strategy.judgeModel || "";
   const isFusion = current === "fusion";
+  const isRoundRobin = current === "round-robin";
+  const weights = (strategy.weights && typeof strategy.weights === "object") ? strategy.weights : {};
+
+  const handleWeightChange = (model, raw) => {
+    const n = parseInt(raw, 10);
+    const next = { ...weights };
+    if (!Number.isFinite(n) || n < 1) {
+      delete next[model];
+    } else {
+      next[model] = Math.min(n, 10);
+    }
+    onSetStrategy({ weights: next });
+  };
 
   return (
     <Card padding="sm" className="group">
@@ -285,6 +298,7 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                 combo.models.slice(0, 3).map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
                     <span>{model}</span>
+                    {isRoundRobin && weights[model] ? <span className="text-primary">×{weights[model]}</span> : null}
                     <CapacityBadges caps={getCaps?.(model)} />
                   </code>
                 ))
@@ -293,6 +307,25 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                 <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
               )}
             </div>
+            {/* Round-robin: per-model weight inputs */}
+            {isRoundRobin && combo.models.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-text-muted">Weights</span>
+                {combo.models.map((model) => (
+                  <label key={model} className="inline-flex items-center gap-1 rounded border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-1.5 py-0.5" title={`Weight for ${model}`}>
+                    <span className="font-mono text-[10px] text-text-muted truncate max-w-[110px]">{model}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={weights[model] ?? 1}
+                      onChange={(e) => handleWeightChange(model, e.target.value)}
+                      className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
             {/* Fusion: judge picker (Auto = first model) */}
             {isFusion && (
               <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">

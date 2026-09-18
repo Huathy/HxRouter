@@ -186,27 +186,58 @@ function rotateModelsFromIndex(models, currentIndex) {
  * @param {string} comboName - Name of the combo
  * @param {string} strategy - "fallback" or "round-robin"
  * @param {number|string} [stickyLimit=1] - Requests per combo model before switching
+ * @param {Object<string,number>} [weights] - Optional per-model weight map (model value → weight).
+ *   When provided, each model is expanded into `weight` virtual slots so heavier-weighted
+ *   models are picked proportionally more often across a full rotation cycle. Missing/invalid
+ *   weights default to 1. Behavior is identical to unweighted when all weights are 1 or absent.
  * @returns {string[]} Rotated models array
  */
-export function getRotatedModels(models, comboName, strategy, stickyLimit = 1) {
+export function getRotatedModels(models, comboName, strategy, stickyLimit = 1, weights) {
   if (!models || models.length <= 1 || strategy !== "round-robin") {
     return models;
   }
 
   const rotationKey = comboName || "__default__";
   const normalizedStickyLimit = normalizeStickyLimit(stickyLimit);
+
+  // Build a slot array: each model repeated `weight` times (min 1). This turns
+  // weighted rotation into plain round-robin over slots, so a weight of 3 vs 1
+  // yields ~3:1 selection over a full cycle. Invalid/non-positive weights → 1.
+  const hasWeights = weights && typeof weights === "object" && Object.keys(weights).length > 0;
+  const slots = hasWeights
+    ? models.flatMap((m) => {
+        const w = Number(weights[m]);
+        const n = Number.isFinite(w) && w >= 1 ? Math.floor(w) : 1;
+        return Array.from({ length: n }, () => m);
+      })
+    : [...models];
+
   const existingState = comboRotationState.get(rotationKey);
   const state = typeof existingState === "number"
     ? { index: existingState, consecutiveUseCount: 0 }
     : (existingState || { index: 0, consecutiveUseCount: 0 });
 
-  const currentIndex = state.index % models.length;
-  const rotatedModels = rotateModelsFromIndex(models, currentIndex);
+  const currentIndex = state.index % slots.length;
+  const currentModel = slots[currentIndex];
+  // Produce the ordered list starting from the current slot's model. Dedupe so
+  // each distinct model appears once per cycle position (keeps fallback order
+  // stable; weighting affects pick frequency, not list length per call).
+  const rotatedModels = [];
+  const seen = new Set();
+  for (let i = 0; i < slots.length; i++) {
+    const m = slots[(currentIndex + i) % slots.length];
+    if (!seen.has(m)) { seen.add(m); rotatedModels.push(m); }
+    if (seen.size === models.length) break;
+  }
+  // ponytail: weighted rotation tracks a slot index, not a model index. If
+  // weights change or models are added mid-cycle, the slot count shifts and
+  // the modulus rebases automatically. Upgrade to a per-model weighted-random
+  // sampler if strict proportionality under churn is needed.
   const nextUseCount = state.consecutiveUseCount + 1;
 
   if (nextUseCount >= normalizedStickyLimit) {
     comboRotationState.set(rotationKey, {
-      index: (currentIndex + 1) % models.length,
+      index: (currentIndex + 1) % slots.length,
       consecutiveUseCount: 0,
     });
   } else {
@@ -286,14 +317,15 @@ function combineSignals(...signals) {
  * @param {string} [options.comboName] - Name of the combo (for round-robin tracking)
  * @param {string} [options.comboStrategy] - Strategy: "fallback" or "round-robin"
  * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
+ * @param {Object<string,number>} [options.comboWeights] - Per-model weight map for round-robin (model value → weight ≥1)
  * @param {AbortSignal} [options.signal] - Optional external signal (e.g. client disconnect) that aborts every target
  * @param {number} [options.timeoutMs=DEFAULT_COMBO_TARGET_TIMEOUT_MS] - Max time to wait for a target to return response headers
  * @param {number} [options.queueDepth] - Optional per-combo account-semaphore queue depth (0 = fail immediately on saturation)
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, comboWeights = null, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
   // Apply rotation strategy if enabled
-  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
+  let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit, comboWeights);
 
   // Auto-switch: float models that satisfy the request's required capabilities to the front.
   if (autoSwitch) {

@@ -99,10 +99,10 @@ function maskKey(fullKey) {
   return fullKey.length > 8 ? `${fullKey.slice(0, 8)}...` : fullKey;
 }
 
-function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFilterStart, filterEnd, setFilterEnd, providers, cn, handleApplyFilters, handleClearFilters }) {
+function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFilterStart, filterEnd, setFilterEnd, filterStatus, setFilterStatus, providers, cn, handleApplyFilters, handleClearFilters }) {
   return (
       <Card padding="md">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
             <select
@@ -116,6 +116,21 @@ function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFil
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>{provider.name}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex min-w-0 flex-col gap-2">
+            <label htmlFor="status-filter" className="text-sm font-medium text-text-main">Status</label>
+            <select
+              id="status-filter"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className={cn("h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20 w-full min-w-0 cursor-pointer")}
+              style={{ colorScheme: 'auto' }}
+            >
+              <option value="">All</option>
+              <option value="success">Success</option>
+              <option value="error">Error</option>
+              <option value="pending">Pending</option>
             </select>
           </div>
           <div className="flex min-w-0 flex-col gap-2">
@@ -137,7 +152,7 @@ function RequestFilters({ filterProvider, setFilterProvider, filterStart, setFil
             <div className="flex gap-2">
               <Button onClick={handleApplyFilters} className="flex-1">Search</Button>
               <Button variant="ghost" onClick={handleClearFilters}
-                disabled={!filterProvider && !filterStart && !filterEnd}
+                disabled={!filterProvider && !filterStart && !filterEnd && !filterStatus}
                 className="flex-1">Clear</Button>
             </div>
           </div>
@@ -177,6 +192,15 @@ function RequestRow({ detail, index, handleViewDetail, providerNameCache }) {
                       </div>
                     </td>
                     <td className="p-4 text-center">
+                      {detail.status === "success" || detail.status === "ok" ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">Success</span>
+                      ) : detail.status === "error" || detail.status === "failed" ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">Error</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-0.5 text-xs font-medium text-text-muted">{detail.status || "—"}</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-center">
                       <Button
                         variant="outline"
                         size="sm"
@@ -203,6 +227,7 @@ export default function RequestDetailsTab() {
   const [providerNameCache, setProviderNameCache] = useState(null);
   // Filter input state (not applied until Search clicked)
   const [filterProvider, setFilterProvider] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [filterStart, setFilterStart] = useState(() => {
     if (typeof window === "undefined") return "";
     const d = new Date();
@@ -212,6 +237,7 @@ export default function RequestDetailsTab() {
   const [filterEnd, setFilterEnd] = useState("");
   // Applied filter state (triggers fetch)
   const [appliedProvider, setAppliedProvider] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState("");
   const [appliedStart, setAppliedStart] = useState(() => {
     if (typeof window === "undefined") return "";
     const d = new Date();
@@ -247,6 +273,7 @@ export default function RequestDetailsTab() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (appliedProvider) params.append("provider", appliedProvider);
+    if (appliedStatus) params.append("status", appliedStatus);
     params.append("startDate", appliedStart);
     if (appliedEnd) params.append("endDate", appliedEnd);
 
@@ -268,20 +295,21 @@ export default function RequestDetailsTab() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [isFilterReady, page, pageSize, appliedProvider, appliedStart, appliedEnd]);
+  }, [isFilterReady, page, pageSize, appliedProvider, appliedStatus, appliedStart, appliedEnd]);
 
   const handleApplyFilters = () => {
     setPage(1);
     setAppliedProvider(filterProvider);
+    setAppliedStatus(filterStatus);
     setAppliedStart(filterStart);
     setAppliedEnd(filterEnd);
   };
 
   const handleClearFilters = () => {
     const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 16); })();
-    setFilterProvider(""); setFilterStart(weekAgo); setFilterEnd("");
+    setFilterProvider(""); setFilterStatus(""); setFilterStart(weekAgo); setFilterEnd("");
     setPage(1);
-    setAppliedProvider(""); setAppliedStart(weekAgo); setAppliedEnd("");
+    setAppliedProvider(""); setAppliedStatus(""); setAppliedStart(weekAgo); setAppliedEnd("");
   };
 
   const handlePageChange = (newPage) => setPage(newPage);
@@ -300,7 +328,7 @@ export default function RequestDetailsTab() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <RequestFilters filterProvider={filterProvider} setFilterProvider={setFilterProvider} filterStart={filterStart} setFilterStart={setFilterStart} filterEnd={filterEnd} setFilterEnd={setFilterEnd} providers={providers} cn={cn} handleApplyFilters={handleApplyFilters} handleClearFilters={handleClearFilters} />
+      <RequestFilters filterProvider={filterProvider} setFilterProvider={setFilterProvider} filterStatus={filterStatus} setFilterStatus={setFilterStatus} filterStart={filterStart} setFilterStart={setFilterStart} filterEnd={filterEnd} setFilterEnd={setFilterEnd} providers={providers} cn={cn} handleApplyFilters={handleApplyFilters} handleClearFilters={handleClearFilters} />
 
       <Card padding="none">
         <div className="overflow-x-auto">
@@ -313,13 +341,14 @@ export default function RequestDetailsTab() {
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Input Tokens</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Output Tokens</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Latency</th>
+                <th className="text-center p-4 text-sm font-semibold text-text-main">Status</th>
                 <th className="text-center p-4 text-sm font-semibold text-text-main">Action</th>
               </tr>
             </thead>
             <tbody>
               {loading || !isFilterReady ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="8" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
                       Loading...
@@ -328,7 +357,7 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="8" className="p-8 text-center text-text-muted">
                     No request details found
                   </td>
                 </tr>

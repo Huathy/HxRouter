@@ -174,6 +174,7 @@ export async function handleChat(request, clientRawRequest = null) {
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
+    const comboWeights = comboStrategies[modelStr]?.weights;
     log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return handleComboChat({
       body,
@@ -183,6 +184,7 @@ export async function handleChat(request, clientRawRequest = null) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
+      comboWeights,
       signal: request?.signal ?? null,
       timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
@@ -234,6 +236,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       }
 
       const comboStickyLimit = chatSettings.comboStickyRoundRobinLimit;
+      const comboWeights = comboStrategies[modelStr]?.weights;
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
       return handleComboChat({
         body,
@@ -243,6 +246,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboName: modelStr,
         comboStrategy,
         comboStickyLimit,
+        comboWeights,
         signal: request?.signal ?? null,
         timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
         queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,

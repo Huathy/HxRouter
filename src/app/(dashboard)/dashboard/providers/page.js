@@ -100,6 +100,7 @@ const APIKEY_INITIAL_VISIBLE = 20;
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
+  const [providerStatsMap, setProviderStatsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [showAllApikey, setShowAllApikey] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
@@ -153,16 +154,30 @@ export default function ProvidersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [connectionsRes, nodesRes] = await Promise.all([
+        const [connectionsRes, nodesRes, statsRes] = await Promise.all([
           fetch("/api/providers", { cache: "no-store" }),
           fetch("/api/provider-nodes", { cache: "no-store" }),
+          fetch("/api/usage/stats?period=24h", { cache: "no-store" }),
         ]);
 
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
+        const statsData = statsRes.ok ? await statsRes.json() : {};
         if (connectionsRes.ok)
           setConnections(connectionsData.connections || []);
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+        // Build providerId -> { successCount, failCount, total, reqRate }
+        const byProvider = statsData.byProvider || {};
+        const map = {};
+        for (const [prov, p] of Object.entries(byProvider)) {
+          const success = p.successCount || 0;
+          const fail = p.failCount || 0;
+          const total = p.requests || 0;
+          if (total > 0) {
+            map[prov] = { successCount: success, failCount: fail, total, reqRate: success / total };
+          }
+        }
+        setProviderStatsMap(map);
       } catch (error) {
         console.log("Error fetching data:", error);
       } finally {
@@ -213,8 +228,17 @@ export default function ProvidersPage() {
       ? getRelativeTime(latestError.lastErrorAt)
       : null;
 
-    return { connected, error, total, errorCode, errorTime, allDisabled };
-  }, [connections]);
+    // Request success/fail rate from usage stats (last 24h). Lowercase match
+    // because usageRepo stores provider ids as-is (often lowercase) but the
+    // provider registry keys may differ in case.
+    const reqStats = providerStatsMap[providerId] || providerStatsMap[providerId?.toLowerCase()];
+    const reqSuccess = reqStats?.successCount || 0;
+    const reqFail = reqStats?.failCount || 0;
+    const reqTotal = reqStats?.total || 0;
+    const reqRate = reqStats?.reqRate ?? null;
+
+    return { connected, error, total, errorCode, errorTime, allDisabled, reqSuccess, reqFail, reqTotal, reqRate };
+  }, [connections, providerStatsMap]);
 
   // Toggle all connections for a provider on/off. authType may be a single
   // string or an array (kiro counts oauth + api_key/apikey together).
@@ -680,7 +704,7 @@ export default function ProvidersPage() {
 }
 
 function ProviderCard({ providerId, provider, stats, authType, onToggle, circuitBreaker, onResetCircuit }) {
-  const { connected, error, errorCode, errorTime, allDisabled } = stats;
+  const { connected, error, errorCode, errorTime, allDisabled, reqTotal, reqRate } = stats;
   const isNoAuth = !!provider.noAuth;
 
   const dotColors = {
@@ -695,6 +719,16 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle, circuit
     apikey: "API Key",
     compatible: "Compatible",
   };
+
+  const reqBadge = reqTotal > 0 && reqRate != null ? (
+    <Badge
+      variant={reqRate >= 0.95 ? "success" : reqRate >= 0.8 ? "warning" : "error"}
+      size="sm"
+      title={`Success ${stats.reqSuccess} / Fail ${stats.reqFail} / Total ${reqTotal} (last 24h)`}
+    >
+      {Math.round(reqRate * 100)}%
+    </Badge>
+  ) : null;
 
   return (
     <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
@@ -738,6 +772,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle, circuit
                 ) : (
                   <>
                     {getStatusDisplay(connected, error, errorCode)}
+                    {reqBadge}
                     {circuitBreaker && (
                       <CircuitBreakerBadge status={circuitBreaker} onReset={() => onResetCircuit(circuitBreaker?.name || providerId)} />
                     )}
@@ -785,7 +820,7 @@ function ApiKeyProviderCard({
   circuitBreaker,
   onResetCircuit,
 }) {
-  const { connected, error, errorCode, errorTime, allDisabled } = stats;
+  const { connected, error, errorCode, errorTime, allDisabled, reqTotal, reqRate, reqSuccess, reqFail } = stats;
   const isCompatible = providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
   const isAnthropicCompatible = providerId.startsWith(
     ANTHROPIC_COMPATIBLE_PREFIX,
@@ -812,6 +847,16 @@ function ApiKeyProviderCard({
     if (isAnthropicCompatible) return "/providers/anthropic-m.webp";
     return getProviderIconSrc(provider.id);
   };
+
+  const reqBadge = reqTotal > 0 && reqRate != null ? (
+    <Badge
+      variant={reqRate >= 0.95 ? "success" : reqRate >= 0.8 ? "warning" : "error"}
+      size="sm"
+      title={`Success ${reqSuccess} / Fail ${reqFail} / Total ${reqTotal} (last 24h)`}
+    >
+      {Math.round(reqRate * 100)}%
+    </Badge>
+  ) : null;
 
   return (
     <Link href={`/dashboard/providers/${providerId}`} className="group min-w-0">
@@ -853,6 +898,7 @@ function ApiKeyProviderCard({
                 ) : (
                   <>
                     {getStatusDisplay(connected, error, errorCode)}
+                    {reqBadge}
                     {isCompatible && (
                       <Badge variant="default" size="sm">
                         {provider.apiType === "responses"

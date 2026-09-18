@@ -91,18 +91,34 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
             <tbody className="divide-y divide-border/50">
               {requests.map((r, i) => {
                 const ok = !r.status || r.status === "ok" || r.status === "success";
+                const inFlight = r.inFlight === true;
                 return (
-                  <tr key={`${r.timestamp}-${r.model}-${i}`} className="hover:bg-bg-subtle transition-colors">
+                  <tr key={`${r.timestamp}-${r.model}-${i}-${inFlight ? "p" : "c"}`} className={`hover:bg-bg-subtle transition-colors ${inFlight ? "bg-primary/5" : ""}`}>
                     <td className="py-1.5">
-                      <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} aria-label={ok ? "Success" : "Error"} />
+                      {inFlight ? (
+                        <span className="material-symbols-outlined animate-spin text-[14px] text-primary">progress_activity</span>
+                      ) : (
+                        <span className={`block w-1.5 h-1.5 rounded-full ${ok ? "bg-success" : "bg-error"}`} aria-label={ok ? "Success" : "Error"} />
+                      )}
                     </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>{r.model}</td>
+                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>
+                      <span className="truncate">{r.model}</span>
+                      {inFlight && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary">pending</span>}
+                    </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
-                      <span className="text-primary">{fmt(r.promptTokens)}↑</span>
-                      {" "}
-                      <span className="text-success">{fmt(r.completionTokens)}↓</span>
+                      {inFlight ? (
+                        <span className="text-text-muted">—</span>
+                      ) : (
+                        <>
+                          <span className="text-primary">{fmt(r.promptTokens)}↑</span>
+                          {" "}
+                          <span className="text-success">{fmt(r.completionTokens)}↓</span>
+                        </>
+                      )}
                     </td>
-                    <td className="py-1.5 text-right text-text-muted whitespace-nowrap"><TimeAgo timestamp={r.timestamp} /></td>
+                    <td className="py-1.5 text-right text-text-muted whitespace-nowrap">
+                      {inFlight ? "now" : <TimeAgo timestamp={r.timestamp} />}
+                    </td>
                   </tr>
                 );
               })}
@@ -128,7 +144,10 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
       const inputCost = totalTokens > 0 ? nonCachedInput * (totalCost / totalTokens) : 0;
       const cachedCost = totalTokens > 0 ? cachedTokens * (totalCost / totalTokens) : 0;
       const outputCost = totalTokens > 0 ? (data.completionTokens || 0) * (totalCost / totalTokens) : 0;
-      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, pending: pendingMap[key] || 0 };
+      const successCount = data.successCount || 0;
+      const failCount = data.failCount || 0;
+      const successRate = (data.requests || 0) > 0 ? successCount / (data.requests || 0) : null;
+      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, successCount, failCount, successRate, pending: pendingMap[key] || 0 };
     })
     .sort((a, b) => {
       let valA = a[sortBy];
@@ -160,7 +179,8 @@ function groupDataByKey(data, keyField) {
       groups[gk] = {
         groupKey: gk,
         summary: {
-          requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0,
+          requests: 0, successCount: 0, failCount: 0,
+          promptTokens: 0, completionTokens: 0, cachedTokens: 0,
           totalTokens: 0, cost: 0, inputCost: 0, cachedCost: 0, outputCost: 0,
           lastUsed: null, pending: 0,
           provider: null, rawModel: null, keyName: null, endpoint: null
@@ -170,6 +190,8 @@ function groupDataByKey(data, keyField) {
     }
     const s = groups[gk].summary;
     s.requests += item.requests || 0;
+    s.successCount += item.successCount || 0;
+    s.failCount += item.failCount || 0;
     s.promptTokens += item.promptTokens || 0;
     s.completionTokens += item.completionTokens || 0;
     s.cachedTokens += item.cachedTokens || 0;
@@ -197,6 +219,10 @@ function groupDataByKey(data, keyField) {
 
     groups[gk].items.push(item);
   });
+  // Finalize derived summary fields (successRate) after accumulation.
+  for (const g of Object.values(groups)) {
+    g.summary.successRate = g.summary.requests > 0 ? g.summary.successCount / g.summary.requests : null;
+  }
   return Object.values(groups);
 }
 
@@ -204,6 +230,7 @@ const MODEL_COLUMNS = [
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
+  { field: "successRate", label: "Success Rate", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -212,6 +239,7 @@ const ACCOUNT_COLUMNS = [
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
+  { field: "successRate", label: "Success Rate", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -220,6 +248,7 @@ const API_KEY_COLUMNS = [
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
+  { field: "successRate", label: "Success Rate", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -228,6 +257,7 @@ const ENDPOINT_COLUMNS = [
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
+  { field: "successRate", label: "Success Rate", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -237,6 +267,15 @@ const TABLE_OPTIONS = [
   { value: "apiKey", label: "Usage by API Key" },
   { value: "endpoint", label: "Usage by Endpoint" },
 ];
+
+// Render a success-rate cell. rate is 0..1 or null (no data). Historical day
+// rows without success/fail counts show "—" since the rate is unknown, not 0%.
+function SuccessRateBadge({ rate }) {
+  if (rate == null) return <span className="text-text-muted">—</span>;
+  const pct = rate * 100;
+  const variant = rate >= 0.95 ? "success" : rate >= 0.8 ? "warning" : "error";
+  return <Badge variant={variant} size="sm">{pct.toFixed(0)}%</Badge>;
+}
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -404,6 +443,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
                 )}
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -412,6 +452,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -450,6 +491,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
                 )}
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -459,6 +501,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -487,6 +530,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
                 )}
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -496,6 +540,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3">{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -525,6 +570,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
                 )}
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -534,6 +580,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3">{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
+              <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
