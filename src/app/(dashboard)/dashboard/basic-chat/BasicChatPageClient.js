@@ -231,16 +231,23 @@ export default function BasicChatPageClient() {
       setLoadError("");
 
       try {
-        const providersRes = await fetch("/api/providers", { cache: "no-store", signal: controller.signal });
+        const [providersRes, combosRes] = await Promise.all([
+          fetch("/api/providers", { cache: "no-store", signal: controller.signal }),
+          fetch("/api/combos", { cache: "no-store", signal: controller.signal }),
+        ]);
         const providersData = await providersRes.json().catch(() => ({}));
+        const combosData = await combosRes.json().catch(() => ({}));
         const connections = Array.isArray(providersData.connections)
           ? providersData.connections.filter((connection) => connection?.isActive !== false)
           : [];
+        const combos = Array.isArray(combosData.combos)
+          ? combosData.combos.filter((combo) => !combo.kind || combo.kind === "llm")
+          : [];
 
-        if (connections.length === 0) {
+        if (connections.length === 0 && combos.length === 0) {
           if (!cancelled) {
             setProviderGroups([]);
-            setLoadError("No providers connected yet.");
+            setLoadError("No providers or combos configured yet.");
           }
           return;
         }
@@ -298,6 +305,18 @@ export default function BasicChatPageClient() {
           group.models.push(...result.models);
         }
 
+        // Combos as a separate group: each combo becomes a selectable "model" via combo/<name>.
+        const comboModels = combos
+          .filter((combo) => Array.isArray(combo.models) && combo.models.length > 0)
+          .map((combo) => ({
+            id: `combo/${combo.name}`,
+            requestModel: `combo/${combo.name}`,
+            name: combo.name,
+            providerId: "combo",
+            providerName: "Combos",
+            source: "combo",
+          }));
+
         const normalized = Array.from(providerMap.values())
           .reduce((acc, group) => {
             const models = dedupeModels(group.models).sort((a, b) => a.name.localeCompare(b.name));
@@ -305,6 +324,16 @@ export default function BasicChatPageClient() {
             return acc;
           }, [])
           .sort((a, b) => a.providerName.localeCompare(b.providerName));
+
+        if (comboModels.length > 0) {
+          normalized.unshift({
+            providerId: "combo",
+            providerName: "Combos",
+            providerType: "combo",
+            connections: [],
+            models: dedupeModels(comboModels).sort((a, b) => a.name.localeCompare(b.name)),
+          });
+        }
 
         if (!cancelled) {
           setProviderGroups(normalized);
@@ -479,12 +508,7 @@ export default function BasicChatPageClient() {
     const nextModel = group.models[0];
 
     const current = sessions.find((session) => session.id === activeSessionId);
-    if (current && current.messages.length > 0) {
-      const session = ensureSessionForModel(nextModel);
-      if (!session) return;
-      setSessions((prev) => [session, ...prev]);
-      setActiveSessionId(session.id);
-    } else if (current) {
+    if (current) {
       setSessions((prev) => prev.map((item) => (item.id === current.id ? {
         ...item,
         providerId: group.providerId,
@@ -492,7 +516,6 @@ export default function BasicChatPageClient() {
         modelId: nextModel.id,
         modelName: nextModel.name,
       } : item)));
-      setActiveSessionId(current.id);
     }
 
     setActiveProviderId(group.providerId);
@@ -505,12 +528,7 @@ export default function BasicChatPageClient() {
     if (!model) return;
 
     const current = sessions.find((session) => session.id === activeSessionId);
-    if (current && current.messages.length > 0) {
-      const session = ensureSessionForModel(model);
-      if (!session) return;
-      setSessions((prev) => [session, ...prev]);
-      setActiveSessionId(session.id);
-    } else if (current) {
+    if (current) {
       setSessions((prev) => prev.map((item) => (item.id === current.id ? {
         ...item,
         providerId: model.providerId,
@@ -518,7 +536,6 @@ export default function BasicChatPageClient() {
         modelId: model.id,
         modelName: model.name,
       } : item)));
-      setActiveSessionId(current.id);
     } else {
       const session = ensureSessionForModel(model);
       if (!session) return;
@@ -761,7 +778,7 @@ export default function BasicChatPageClient() {
               <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(520px,calc(100vw-2rem))] overflow-hidden rounded-[20px] border border-white/10 bg-[#262626] shadow-2xl shadow-black/50">
                 <div className="border-b border-white/10 px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.22em] text-white/45">Models</p>
-                  <p className="text-sm text-white/75">Only from connected providers</p>
+                  <p className="text-sm text-white/75">From connected providers & combos</p>
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
                   {providerGroups.map((group) => (
@@ -799,6 +816,14 @@ export default function BasicChatPageClient() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleNewChat}
+              disabled={!activeModel}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 transition hover:bg-white/8 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              New chat
+            </button>
             <button
               type="button"
               onClick={() => setHistoryOpen((value) => !value)}
@@ -866,7 +891,7 @@ export default function BasicChatPageClient() {
                   <div className="space-y-2">
                     <h2 className="text-2xl font-semibold text-white">Start a conversation</h2>
                     <p className="text-sm leading-6 text-white/60">
-                      Simple chat interface to interact with any AI model from connected providers. Select a model and start chatting!
+                      Simple chat interface to interact with any AI model from connected providers or combos. Select a model and start chatting!
                     </p>
                   </div>
                 </div>

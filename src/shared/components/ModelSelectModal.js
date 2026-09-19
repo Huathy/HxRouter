@@ -31,6 +31,7 @@ export default function ModelSelectModal({
   kindFilter = null,
   addedModelValues = [],
   closeOnSelect = true,
+  size = "md",
 }) {
   // Filter activeProviders by serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
   const filteredActiveProviders = useMemo(() => {
@@ -212,7 +213,7 @@ export default function ModelSelectModal({
         setSearchQuery("");
       }}
       title={title}
-      size="md"
+      size={size}
       className="p-4!"
       footer={null}
     >

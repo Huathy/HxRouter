@@ -633,6 +633,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
         isOpen={isOpen}
         onClose={onClose}
         title={isEdit ? "Edit Combo" : "Create Combo"}
+        size="combo"
       >
         <div className="flex flex-col gap-3">
           {/* Name */}
@@ -748,6 +749,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
           kindFilter={kindFilter}
           addedModelValues={models}
           closeOnSelect={false}
+          size="combo"
         />
       )}
     </>

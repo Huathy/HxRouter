@@ -11,6 +11,7 @@ const MODAL_SIZES = {
   lg: "max-w-lg",
   xl: "max-w-xl",
   full: "max-w-4xl",
+  combo: "max-w-[1000px]",
 };
 
 export default function Modal({

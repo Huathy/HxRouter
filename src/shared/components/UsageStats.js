@@ -83,7 +83,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
             <thead className="sticky top-0 bg-bg z-10">
               <tr className="border-b border-border">
                 <th className="py-1.5 text-left font-semibold text-text-muted w-2"><span className="sr-only">Status</span></th>
-                <th className="py-1.5 text-left font-semibold text-text-muted">Model</th>
+                <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Model</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
               </tr>
@@ -112,7 +112,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
                         })()
                       )}
                     </td>
-                    <td className="py-1.5 font-mono truncate max-w-[120px]" title={r.model}>
+                    <td className="pl-1 py-1.5 font-mono truncate max-w-[120px]" title={r.model}>
                       <span className="truncate">{r.model}</span>
                       {inFlight && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary">pending</span>}
                     </td>

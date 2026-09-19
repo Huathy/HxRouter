@@ -186,7 +186,7 @@ export async function handleChat(request, clientRawRequest = null) {
       comboStickyLimit,
       comboWeights,
       signal: request?.signal ?? null,
-      timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
+      timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? undefined,
       queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
     });
   }
@@ -248,7 +248,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboStickyLimit,
         comboWeights,
         signal: request?.signal ?? null,
-        timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? null,
+        timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? undefined,
         queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
       });
     }
