@@ -193,7 +193,6 @@
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ A MITM elfogja az IDE eszközök (Antigravity, GitHub Copilot, Kiro) HTTPS forgalmát helyi CA-n keresztül, hogy átirányítsa a kéréseket a szolgáltatóidhoz. Megsértheti a ToS-t → fiók letiltási kockázat. Saját felelősségre használja.",
   "Endpoint is exposed without an API key.": "A végpont API-kulcs nélkül van kitéve.",
   "Donate Me": "Támogatás",
-  "Check new changelog": "Változási napló megtekintése"
-,
-  "Weights": "Weights"
+  "Check new changelog": "Változási napló megtekintése",
+  "Weights": "Súlyok"
 }

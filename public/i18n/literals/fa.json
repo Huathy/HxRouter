@@ -45,7 +45,7 @@
   "API Type": "نوع API",
   "API Version": "نسخه API",
   "API endpoint configuration": "پیکربندی نقطه پایانی API",
-  "AWS Builder ID": "AWS Builder ID",
+  "AWS Builder ID": "شناسه AWS Builder",
   "AWS IAM Identity Center": "مرکز هویت AWS IAM",
   "AWS Region": "منطقه AWS",
   "AWS region for the key (default: us-east-1)": "منطقه AWS برای کلید (پیش‌فرض: us-east-1)",
@@ -1304,7 +1304,7 @@
   "below.": "در زیر.",
   "bound": "پیوند شده",
   "chars)": "کاراکتر)",
-  "cloudflare relay": "cloudflare relay",
+  "cloudflare relay": "رله cloudflare",
   "connection": "اتصال",
   "connections": "اتصالات",
   "daily-cloudcode-pa.googleapis.com": "daily-cloudcode-pa.googleapis.com",
@@ -1370,7 +1370,7 @@
   "tries models in order (next on failure)": "مدل‌ها را به ترتیب امتحان می‌کند (در صورت شکست به بعدی می‌رود)",
   "unknown": "ناشناخته",
   "v1.0 is now live": "v1.0 اکنون زنده است",
-  "vercel relay": "vercel relay",
+  "vercel relay": "رله vercel",
   "yet.": "هنوز.",
   "your-org.deno.net": "your-org.deno.net",
   "© 2025 9Router. All rights reserved.": "© ۲۰۲۵ 9Router. تمام حقوق محفوظ است.",
@@ -1389,7 +1389,6 @@
   "📝 Configure providers in dashboard or use environment variables": "📝 ارائه‌دهندگان را در داشبورد پیکربندی کنید یا از متغیرهای محیطی استفاده کنید",
   "🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.": "🔐 نیاز به OAuth. اکنون اضافه کنید و پس از اعمال، احراز هویت کنید؛ لیست ابزارها پس از اولین اتصال کشف می‌شود.",
   "Donate Me": "حمایت مالی",
-  "Check new changelog": "مشاهده گزارش تغییرات"
-,
-  "Weights": "Weights"
+  "Check new changelog": "مشاهده گزارش تغییرات",
+  "Weights": "وزن‌ها"
 }

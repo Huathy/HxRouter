@@ -136,7 +136,7 @@
   "Password updated successfully": "Mot de passe mis à jour avec succès",
   "Passwords do not match": "Les mots de passe ne correspondent pas",
   "Routing Strategy": "Stratégie d'acheminement",
-  "Round Robin": "Round Robin",
+  "Round Robin": "Tournante",
   "Cycle through accounts to distribute load": "Parcourir les comptes pour distribuer la charge",
   "Sticky Limit": "Limite collante",
   "Calls per account before switching": "Appels par compte avant de changer",
@@ -193,7 +193,6 @@
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM intercepte le trafic HTTPS des outils IDE (Antigravity, GitHub Copilot, Kiro) via une CA locale pour rediriger les requêtes vers vos fournisseurs. Peut violer les CGU → risque de bannissement de compte. Utilisez à vos propres risques.",
   "Endpoint is exposed without an API key.": "Le point de terminaison est exposé sans clé API.",
   "Donate Me": "Faire un don",
-  "Check new changelog": "Voir le journal des modifications"
-,
-  "Weights": "Weights"
+  "Check new changelog": "Voir le journal des modifications",
+  "Weights": "Poids"
 }

@@ -193,7 +193,6 @@
   "⚠️ MITM intercepts HTTPS traffic of IDE tools (Antigravity, GitHub Copilot, Kiro) via local CA to redirect requests to your providers. May violate ToS → account ban. Use at your own risk.": "⚠️ MITM interceta tráfego HTTPS de ferramentas IDE (Antigravity, GitHub Copilot, Kiro) via CA local para redirecionar pedidos para os seus fornecedores. Pode violar ToS → risco de banimento de conta. Use por sua conta e risco.",
   "Endpoint is exposed without an API key.": "O endpoint está exposto sem uma chave de API.",
   "Donate Me": "Doar",
-  "Check new changelog": "Ver registo de alterações"
-,
-  "Weights": "Weights"
+  "Check new changelog": "Ver registo de alterações",
+  "Weights": "Pesos"
 }
