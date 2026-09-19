@@ -22,7 +22,7 @@ docker run -d \
   ghcr.io/vanszs/hxrouter:latest
 ```
 
-`hxrouter-data` 挂载为只读兼容输入，供 v0.91.22 之前使用命名卷的安装使用。仅当 `9router-data` 卷中没有数据库时，才会自动复制到该规范卷中。若旧安装使用 `$HOME/.9router:/app/data` 绑定挂载，请继续使用该绑定挂载，或先将其内容迁移到 `9router-data` 中。
+`hxrouter-data` 挂载为只读兼容输入，供 v1.0.0 之前使用命名卷的安装使用。仅当 `9router-data` 卷中没有数据库时，才会自动复制到该规范卷中。若旧安装使用 `$HOME/.9router:/app/data` 绑定挂载，请继续使用该绑定挂载，或先将其内容迁移到 `9router-data` 中。
 
 应用监听端口 `20128`。访问：http://localhost:20128
 

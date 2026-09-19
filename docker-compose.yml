@@ -13,7 +13,7 @@ services:
       - "${PORT:-20128}:20128"
     volumes:
       - 9router-data:/app/data
-      # Compatibility source for pre-v0.91.22 named-volume installs.
+      # Compatibility source for pre-v1.0.0 named-volume installs.
       # Bind-mount users must keep their existing host path or migrate it first.
       # The entrypoint copies only missing files into the canonical volume.
       - hxrouter-data:/migration-data:ro

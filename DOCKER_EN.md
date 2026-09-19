@@ -22,7 +22,7 @@ docker run -d \
   ghcr.io/vanszs/hxrouter:latest
 ```
 
-The `hxrouter-data` mount is read-only compatibility input for pre-v0.91.22 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
+The `hxrouter-data` mount is read-only compatibility input for pre-v1.0.0 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
 
 App listens on port `20128`. Open: http://localhost:20128
 
