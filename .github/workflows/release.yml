@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GHCR_IMAGE: ghcr.io/vanszs/hxrouter
+  GHCR_IMAGE: ghcr.io/huathy/hxrouter
 
 jobs:
   check-branch:

@@ -18,7 +18,7 @@ HxRouter auto-detects the legacy schema and upgrades it on first start.
 
 - Docker installed
 - 9Router running (any version) with data at `~/.9router/`
-- HxRouter Docker image: `ghcr.io/vanszs/hxrouter:latest`
+- HxRouter Docker image: `ghcr.io/huathy/hxrouter:latest`
 
 ## Step 1: Backup
 
@@ -82,7 +82,7 @@ docker run -d --name hxrouter --restart unless-stopped \
   -e JWT_SECRET="$JWT_SECRET" \
   -e API_KEY_SECRET="$JWT_SECRET" \
   -e REQUIRE_API_KEY=false \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 ## Step 5: Verify
@@ -155,7 +155,7 @@ A backup is automatically created at `~/.hxrouter/db/backups/` before migration 
 
 ## Differences from 9Router
 
-- **Image**: `ghcr.io/vanszs/hxrouter` (not `decolua/9router`)
+- **Image**: `ghcr.io/huathy/hxrouter` (not `decolua/9router`)
 - **Data dir**: `~/.hxrouter/` recommended (not `~/.9router/`)
 - **Headroom**: Optional sidecar for tool-history safety (not bundled)
 - **Circuit breaker**: Built-in provider failure tracking (inspired by OmniRoute)

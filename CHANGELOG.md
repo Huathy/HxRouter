@@ -106,7 +106,7 @@
 ## Release Infrastructure
 
 - **Multi-architecture Docker** — Added mandatory `docker/setup-qemu-action@v3` immediately before `docker/setup-buildx-action@v3`, preventing ARM64 native-module build failures and QEMU instruction stalls.
-- **Container naming** — Standardized published GHCR image references to lowercase `ghcr.io/vanszs/hxrouter`.
+- **Container naming** — Standardized published GHCR image references to lowercase `ghcr.io/huathy/hxrouter`.
 - **Release validation** — Kept version, changelog, annotated-tag, npm artifact, SQLite smoke-test, and multi-architecture image gates explicit in CI/CD policy.
 
 ## Tests
@@ -792,7 +792,7 @@ VansRoute 0.8.6 combines the latest HxRouter fork improvements with upstream enh
 ```bash
 npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/hxrouter:0.8.6
+docker pull ghcr.io/huathy/hxrouter:0.8.6
 ```
 
 # v0.8.4 (2026-07-03)
@@ -825,7 +825,7 @@ Hotfix for Antigravity streaming failures. Ports two upstream `decolua/9router` 
 ```bash
 npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/hxrouter:0.8.4
+docker pull ghcr.io/huathy/hxrouter:0.8.4
 ```
 
 # v0.8.3 (2026-07-02)
@@ -867,7 +867,7 @@ Maintenance release that fixes the `npm run dev` startup error, hardens legacy d
 ```bash
 npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/hxrouter:0.8.3
+docker pull ghcr.io/huathy/hxrouter:0.8.3
 ```
 
 # v0.8.0 (2026-07-01)
@@ -910,12 +910,12 @@ Major provider expansion + resilience improvements. This release syncs AgentRout
 ```bash
 npm install -g hxrouter
 # or pull the image
-docker pull ghcr.io/vanszs/hxrouter:0.8.0
+docker pull ghcr.io/huathy/hxrouter:0.8.0
 ```
 
 # v0.7.8 (2026-06-30)
 
-Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/hxrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
+Hotfix for GHCR Docker installs. Users who ran `ghcr.io/huathy/hxrouter:0.7.7` (or tried to create an API key in the dashboard) saw repeated `Error: API_KEY_SECRET environment variable is required` errors thrown from `src/shared/utils/apiKey.js:6`.
 
 ## Fixed
 - `Dockerfile`: set `ENV API_KEY_SECRET=hxrouter-dev-default-change-me-in-production` so GHCR installs work out-of-the-box. Operators running production deployments should override with `-e API_KEY_SECRET="$(openssl rand -hex 32)"` at `docker run` time to invalidate any API keys minted with the default secret. Without this env var, the key generation path (`generateCrc` uses HMAC-SHA256 with the secret) throws and the keys POST handler returns 500.
@@ -933,7 +933,7 @@ Hotfix for GHCR Docker installs. Users who ran `ghcr.io/vanszs/hxrouter:0.7.7` (
 ```bash
 npm install -g hxrouter
 # or pull the patched image
-docker pull ghcr.io/vanszs/hxrouter:0.7.8
+docker pull ghcr.io/huathy/hxrouter:0.7.8
 ```
 
 # v0.7.7 (2026-06-30)
@@ -1060,12 +1060,12 @@ First independent HxRouter release. Fork branding is now applied throughout the 
 
 ## Infrastructure
 - Unified release workflow (`.github/workflows/release.yml`) publishes both Docker images (GHCR + Docker Hub) and the `hxrouter` npm package on every `v*` tag push.
-- Docker image: `ghcr.io/Vanszs/HxRouter:latest` and `vanszs/hxrouter:latest`.
+- Docker image: `ghcr.io/huathy/HxRouter:latest` and `huathy/hxrouter:latest`.
 - npm package: `hxrouter`.
 
 ## Branding
 - Rename CLI npm package and UI labels from `9Router` to `HxRouter`.
-- Update landing page, login page, CLI tray, terminal UI, and docs links to point to `github.com/Vanszs/HxRouter`.
+- Update landing page, login page, CLI tray, terminal UI, and docs links to point to `github.com/huathy/HxRouter`.
 - Update Docker / Compose docs to use HxRouter image while keeping host data path at `$HOME/.9router`.
 
 ## Notes

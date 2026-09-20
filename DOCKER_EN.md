@@ -1,8 +1,8 @@
 # Docker
 
 Run HxRouter in a container. Published images:
-- GHCR: [`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
-- Docker Hub: [`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter) (if published separately)
+- GHCR: [`ghcr.io/huathy/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
+- Docker Hub: [`huathy/hxrouter`](https://hub.docker.com/r/huathy/hxrouter) (if published separately)
 
 Multi-platform `linux/amd64` + `linux/arm64`.
 
@@ -19,7 +19,7 @@ docker run -d \
   -v hxrouter-data:/migration-data:ro \
   -e DATA_DIR=/app/data \
   --name hxrouter \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 The `hxrouter-data` mount is read-only compatibility input for pre-v1.0.0 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
@@ -97,7 +97,7 @@ Create your own `docker-compose.yml`:
 ```yaml
 services:
   hxrouter:
-    image: ghcr.io/vanszs/hxrouter:latest
+    image: ghcr.io/huathy/hxrouter:latest
     container_name: hxrouter
     restart: always
     ports:
@@ -164,7 +164,7 @@ docker run --rm -p 20128:20128 \
 ## Publish (automatic via CI)
 
 Push an annotated release tag `vX.Y.Z` after the checks in `.agent/cicd.md`. GitHub Actions builds multi-platform (amd64+arm64) and promotes the verified image to:
-- `ghcr.io/vanszs/hxrouter:X.Y.Z` + `:latest`
+- `ghcr.io/huathy/hxrouter:X.Y.Z` + `:latest`
 
 Docker Hub is not published by the current workflow; treat its listing as a separate/manual distribution only.
 

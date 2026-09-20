@@ -10,11 +10,11 @@
   
   [![npm](https://img.shields.io/npm/v/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
   [![Downloads](https://img.shields.io/npm/dm/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/hxrouter)
-  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/huathy/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/huathy/hxrouter)
+  [![GHCR](https://img.shields.io/badge/GHCR-huathy%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
   [![License](https://img.shields.io/npm/l/hxrouter.svg)](https://github.com/Huathy/HxRouter/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="huathy%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 [🚀 快速开始](#-快速开始) • [💡 功能特点](#-主要功能) • [📖 设置指南](#-设置指南) • [🌐 网站](https://9router.com)
 
@@ -83,7 +83,6 @@
 
 ### v1.0.0 新特性
 
-- **品牌重命名** — VansRouter → HxRouter（npm 包 `hxrouter`、Docker 镜像 `ghcr.io/vanszs/hxrouter`、CLI 命令 `hxrouter`、环境变量前缀 `HXROUTER_`）；UI/落地页 VansAI → HXAI
 - **请求成功率监控** — 概览成功率卡片按阈值着色（≥95% 绿 / ≥80% 黄 / 其余红）、提供商卡片 24h 成功率徽章、状态筛选（成功 / 错误 / 进行中）、进行中请求置顶实时展示
 - **HTTP 状态码追踪** — 用量历史记录 `httpStatus`（schema v9），失败/中止请求也会记录，请求详情新增着色 Code 列（2xx/4xx/5xx）
 - **组合加权轮询** — 每模型权重（1-10），slot 展开法等比例分配（如 3:1）
@@ -156,7 +155,7 @@ Claude Code/Codex/OpenClaw/Cursor/Cline 设置：
 
 **替代方案：从源码运行（本仓库）：**
 
-本仓库的包是私有的（`9router-app`），所以源码/Docker 执行是预期的本地开发方式。
+本仓库的包是私有的（`hxrouter-app`），所以源码/Docker 执行是预期的本地开发方式。
 
 ```bash
 cp .env.example .env
@@ -181,8 +180,8 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 已发布镜像（多平台 `linux/amd64` + `linux/arm64`）：
 
-- Docker Hub：[`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
-- GHCR：[`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+- Docker Hub：[`huathy/hxrouter`](https://hub.docker.com/r/huathy/hxrouter)
+- GHCR：[`ghcr.io/huathy/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
 
 ```bash
 docker run -d \
@@ -190,7 +189,7 @@ docker run -d \
   -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 → 打开 http://localhost:20128
@@ -1179,8 +1178,8 @@ pm2 startup
 
 已发布镜像（多平台 `linux/amd64` + `linux/arm64`）：
 
-- Docker Hub：[`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
-- GHCR：[`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+- Docker Hub：[`huathy/hxrouter`](https://hub.docker.com/r/huathy/hxrouter)
+- GHCR：[`ghcr.io/huathy/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
 
 **快速开始（使用已发布镜像）：**
 
@@ -1190,7 +1189,7 @@ docker run -d \
   -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 **从源码构建（开发）：**
@@ -1213,7 +1212,7 @@ docker run -d --name hxrouter -p 20128:20128 \
 docker logs -f hxrouter
 docker restart hxrouter
 docker stop hxrouter && docker rm hxrouter
-docker pull ghcr.io/vanszs/hxrouter:latest   # 更新到最新
+docker pull ghcr.io/huathy/hxrouter:latest   # 更新到最新
 ```
 
 数据持久化：宿主机 `$HOME/.9router/db/data.sqlite` ↔ 容器内 `/app/data/db/data.sqlite`。

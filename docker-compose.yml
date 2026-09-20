@@ -6,7 +6,7 @@
 
 services:
   hxrouter:
-    image: ghcr.io/vanszs/hxrouter:latest
+    image: ghcr.io/huathy/hxrouter:latest
     container_name: hxrouter
     restart: unless-stopped
     ports:

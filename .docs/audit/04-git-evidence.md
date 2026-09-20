@@ -4,7 +4,7 @@ Previous commits that tried to address Kimi reasoning issues. Read this **before
 
 ## `c76c9105` — fix(kimi): harden 2.6/2.7 thinking + add termination prompt
 
-**Author**: Vanszs, 2026-06-25
+**Author**: huathy, 2026-06-25
 **Files**: 8 changed, +57 / -45
 **Key changes**:
 
@@ -32,7 +32,7 @@ Previous commits that tried to address Kimi reasoning issues. Read this **before
 
 ## `3dd7a9e5` — fix(nvidia/kimi-k2.6): clamp max_tokens to prevent NIM degeneration/loop
 
-**Author**: Vanszs, 2026-06-04
+**Author**: huathy, 2026-06-04
 **Files**: 15 changed, +948 / -186
 **Key changes**:
 
@@ -73,7 +73,7 @@ The infrastructure files survived (`loopGuard.js`, `terminationPrompt.js`, the t
 
 ## `8b844655` — fix: reject kimi tool mode on nvidia
 
-**Author**: Vanszs, 2026-06-04
+**Author**: huathy, 2026-06-04
 **Files**: 2 changed, +65 / -26
 
 Predecessor to `3dd7a9e5`. Added tool-mode rejection for NVIDIA Kimi in the executor. Tests in `kimi-nvidia-hardening.test.js` were first added here.

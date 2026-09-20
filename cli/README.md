@@ -6,8 +6,8 @@
 
 [![npm](https://img.shields.io/npm/v/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
 [![Downloads](https://img.shields.io/npm/dm/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
-[![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/hxrouter)
-[![GHCR](https://img.shields.io/badge/GHCR-Vanszs%2FHxRouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
+[![Docker Pulls](https://img.shields.io/docker/pulls/huathy/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/huathy/hxrouter)
+[![GHCR](https://img.shields.io/badge/GHCR-huathy%2FHxRouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
 [![License](https://img.shields.io/npm/l/hxrouter.svg)](https://github.com/Huathy/HxRouter/blob/main/LICENSE)
 
 <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
@@ -52,10 +52,10 @@ npx hxrouter
 ```bash
 docker run -d --name hxrouter -p 20128:20128 \
   -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
-Published images: [Docker Hub](https://hub.docker.com/r/vanszs/hxrouter) • [GHCR](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter) (multi-platform amd64/arm64).
+Published images: [Docker Hub](https://hub.docker.com/r/huathy/hxrouter) • [GHCR](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter) (multi-platform amd64/arm64).
 
 🎉 Dashboard opens at `http://localhost:20128`
 

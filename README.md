@@ -9,11 +9,11 @@
   
   [![npm](https://img.shields.io/npm/v/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
   [![Downloads](https://img.shields.io/npm/dm/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/hxrouter)
-  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/huathy/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/huathy/hxrouter)
+  [![GHCR](https://img.shields.io/badge/GHCR-huathy%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
   [![License](https://img.shields.io/npm/l/hxrouter.svg)](https://github.com/Huathy/HxRouter/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="huathy%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 [🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Setup](#-setup-guide) • [🌐 Website](https://9router.com)
 
@@ -82,7 +82,6 @@
 
 ### What's New in v1.0.0
 
-- **Brand rename** — VansRouter → HxRouter (npm `hxrouter`, Docker `ghcr.io/vanszs/hxrouter`, CLI `hxrouter`, env prefix `HXROUTER_`); VansAI → HXAI in UI/landing
 - **Request success-rate monitoring** — overview success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges on provider cards, status filter (success / error / pending), and in-flight requests pinned with live spinners
 - **HTTP status code tracking** — usage history records `httpStatus` (schema v9), failed/aborted requests are now logged, request details show a color-coded Code column (2xx/4xx/5xx)
 - **Weighted round-robin combos** — per-model weight (1-10) with slot-expansion proportional distribution (e.g. 3:1)
@@ -155,7 +154,7 @@ Claude Code/Codex/OpenClaw/Cursor/Cline Settings:
 
 **Alternative: run from source (this repository):**
 
-This repository package is private (`9router-app`), so source/Docker execution is the expected local development path.
+This repository package is private (`hxrouter-app`), so source/Docker execution is the expected local development path.
 
 ```bash
 cp .env.example .env
@@ -1248,8 +1247,8 @@ pm2 startup
 
 Published images (multi-platform `linux/amd64` + `linux/arm64`):
 
-- Docker Hub: [`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
-- GHCR: [`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+- Docker Hub: [`huathy/hxrouter`](https://hub.docker.com/r/huathy/hxrouter)
+- GHCR: [`ghcr.io/huathy/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
 
 **Quick start (use published image):**
 
@@ -1259,7 +1258,7 @@ docker run -d \
   -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 → Open http://localhost:20128
@@ -1285,7 +1284,7 @@ docker run -d --name hxrouter -p 20128:20128 \
 docker logs -f hxrouter
 docker restart hxrouter
 docker stop hxrouter && docker rm hxrouter
-docker pull ghcr.io/vanszs/hxrouter:latest   # update to latest
+docker pull ghcr.io/huathy/hxrouter:latest   # update to latest
 ```
 
 **Data persistence:** `$HOME/.9router/db/data.sqlite` on host ↔ `/app/data/db/data.sqlite` in container.

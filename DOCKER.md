@@ -1,8 +1,8 @@
 # Docker
 
 容器化运行 HxRouter。已发布镜像：
-- GHCR：[`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
-- Docker Hub：[`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)（如单独发布）
+- GHCR：[`ghcr.io/huathy/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/HxRouter)
+- Docker Hub：[`huathy/hxrouter`](https://hub.docker.com/r/huathy/hxrouter)（如单独发布）
 
 多平台支持 `linux/amd64` + `linux/arm64`。
 
@@ -19,7 +19,7 @@ docker run -d \
   -v hxrouter-data:/migration-data:ro \
   -e DATA_DIR=/app/data \
   --name hxrouter \
-  ghcr.io/vanszs/hxrouter:latest
+  ghcr.io/huathy/hxrouter:latest
 ```
 
 `hxrouter-data` 挂载为只读兼容输入，供 v1.0.0 之前使用命名卷的安装使用。仅当 `9router-data` 卷中没有数据库时，才会自动复制到该规范卷中。若旧安装使用 `$HOME/.9router:/app/data` 绑定挂载，请继续使用该绑定挂载，或先将其内容迁移到 `9router-data` 中。
@@ -97,7 +97,7 @@ docker compose up -d
 ```yaml
 services:
   hxrouter:
-    image: ghcr.io/vanszs/hxrouter:latest
+    image: ghcr.io/huathy/hxrouter:latest
     container_name: hxrouter
     restart: always
     ports:
@@ -164,7 +164,7 @@ docker run --rm -p 20128:20128 \
 ## 发布（通过 CI 自动完成）
 
 按 `.agent/cicd.md` 中的检查后推送带注解的发布标签 `vX.Y.Z`。GitHub Actions 构建多平台（amd64+arm64）并将验证过的镜像提升到：
-- `ghcr.io/vanszs/hxrouter:X.Y.Z` + `:latest`
+- `ghcr.io/huathy/hxrouter:X.Y.Z` + `:latest`
 
 当前工作流不发布 Docker Hub；其列表仅视为单独/手动分发。
 

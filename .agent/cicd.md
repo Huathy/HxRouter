@@ -104,7 +104,7 @@ Required evidence:
 
 ## Deployment Rules
 
-- Deploy immutable image tag `ghcr.io/vanszs/hxrouter:X.Y.Z`, not `latest`.
+- Deploy immutable image tag `ghcr.io/huathy/hxrouter:X.Y.Z`, not `latest`.
 - Keep Docker volume name `9router-data`; never rename it without explicit DB migration and verification.
 - PM2 deployments must set the production port explicitly and use `--update-env` on restart.
 - Preserve `server.js`, `custom-server.js`, peer-token handling, proxy IP handling, and persistent `DATA_DIR`.
