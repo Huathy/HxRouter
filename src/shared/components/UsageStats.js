@@ -31,7 +31,7 @@ const overviewSkeleton = (
 );
 
 const topologySkeleton = (
-  <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+  <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
     <div className="h-[320px] w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50 sm:h-[480px]" aria-hidden="true" />
     <div className="h-[320px] w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50 sm:h-[480px]" aria-hidden="true" />
   </div>
@@ -67,7 +67,29 @@ function TimeAgo({ timestamp }) {
 
 const EMPTY_REQUESTS = [];
 
-function RecentRequests({ requests = EMPTY_REQUESTS }) {
+// Defensive merge for SSE pushes: a lightweight push can legitimately carry
+// fewer completed rows than are already displayed (e.g. a slower DB read or a
+// dedup boundary). Never let history "shrink" on a partial payload — union the
+// completed rows, always trust the fresh pending rows, newest first, cap 20.
+function mergeRecentRequests(prevRequests, incoming) {
+  const prevList = Array.isArray(prevRequests) ? prevRequests : [];
+  if (!Array.isArray(incoming)) return prevList;
+
+  const pending = incoming.filter((r) => r.inFlight === true);
+  const incomingCompleted = incoming.filter((r) => r.inFlight !== true);
+  const prevCompleted = prevList.filter((r) => r.inFlight !== true);
+  if (incomingCompleted.length >= prevCompleted.length) return incoming;
+
+  const rowKey = (r) => `${r.timestamp}|${r.model}|${r.provider || ""}|${r.httpStatus ?? ""}|${r.promptTokens}|${r.completionTokens}`;
+  const merged = new Map();
+  for (const r of [...prevCompleted, ...incomingCompleted]) {
+    if (!merged.has(rowKey(r))) merged.set(rowKey(r), r);
+  }
+  const completed = [...merged.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return [...pending, ...completed].slice(0, 20);
+}
+
+function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
   return (
     <Card className="flex min-w-0 flex-col overflow-hidden" padding="sm" style={{ height: 480 }}>
       {/* Header */}
@@ -79,11 +101,13 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <table className="w-full min-w-[300px] border-collapse text-xs">
+          <table className="w-full min-w-[420px] border-collapse text-xs">
             <thead className="sticky top-0 bg-bg z-10">
               <tr className="border-b border-border">
                 <th className="py-1.5 text-left font-semibold text-text-muted w-2"><span className="sr-only">Status</span></th>
                 <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Model</th>
+                <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Provider</th>
+                <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Account</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
               </tr>
@@ -115,6 +139,16 @@ function RecentRequests({ requests = EMPTY_REQUESTS }) {
                     <td className="pl-1 py-1.5 font-mono truncate max-w-[120px]" title={r.model}>
                       <span className="truncate">{r.model}</span>
                       {inFlight && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary">pending</span>}
+                    </td>
+                    <td className="pl-1 py-1.5 whitespace-nowrap max-w-[120px]">
+                      {r.provider ? (
+                        <Badge variant={inFlight ? "primary" : "neutral"} size="sm" className="max-w-full truncate">{providerNodeNames[r.provider] || r.provider}</Badge>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="pl-1 py-1.5 max-w-[110px] truncate text-text-muted" title={r.account || ""}>
+                      {r.account || "—"}
                     </td>
                     <td className="py-1.5 text-right whitespace-nowrap">
                       {inFlight ? (
@@ -331,6 +365,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
   const [providers, setProviders] = useState([]);
+  const [providerNodeNames, setProviderNodeNames] = useState({});
   const [periodLocal, setPeriodLocal] = useState("today");
   const isInitialLoad = useRef(true);
   const hasLoadedStats = useRef(false);
@@ -351,6 +386,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
         for (const node of (nodesData?.nodes || [])) {
           nodeNameMap[node.id] = node.name;
         }
+        setProviderNodeNames(nodeNameMap);
         const seen = new Set();
         const unique = (d?.connections || []).reduce((acc, c) => {
           if (c.isActive === false || !isLLMProvider(c.provider) || seen.has(c.provider)) return acc;
@@ -406,7 +442,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           return {
             ...prev,
             activeRequests: data.activeRequests,
-            recentRequests: data.recentRequests,
+            recentRequests: mergeRecentRequests(prev.recentRequests, data.recentRequests),
             errorProvider: data.errorProvider,
             pending: data.pending,
           };
@@ -612,14 +648,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Provider topology + Recent Requests */}
       {loading ? topologySkeleton : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-2">
           <ProviderTopology
             providers={providers}
             activeRequests={stats.activeRequests || []}
             lastProvider={stats.recentRequests?.[0]?.provider || ""}
             errorProvider={stats.errorProvider || ""}
           />
-          <RecentRequests requests={stats.recentRequests || []} />
+          <RecentRequests requests={stats.recentRequests || []} providerNodeNames={providerNodeNames} />
         </div>
       )}
 

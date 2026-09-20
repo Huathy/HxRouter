@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Badge, Button } from "@/shared/components";
-import { getModelsByProviderId } from "@/shared/constants/models";
-import { isAnthropicCompatibleProvider, isOpenAICompatibleProvider } from "@/shared/constants/providers";
+import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
+import { getProviderAlias, isAnthropicCompatibleProvider, isOpenAICompatibleProvider } from "@/shared/constants/providers";
 
 const STORAGE_KEYS = {
   sessions: "basic-chat.sessions",
@@ -13,8 +13,9 @@ const STORAGE_KEYS = {
   draft: "basic-chat.draft",
 };
 
-const MODELS_CACHE_KEY = "basic-chat.modelsCache";
+const MODELS_CACHE_KEY = "basic-chat.modelsCache.v2";
 const MODELS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const MAX_VISIBLE_MODELS = 10;
 
 function createId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -134,15 +135,29 @@ function getProviderLabel(connection) {
   return connection?.name || humanize(connection?.provider || connection?.id || "provider");
 }
 
-function normalizeStaticModel(model, connection) {
+function normalizeStaticModel(model, connection, alias) {
   if (!model?.id) return null;
+  const requestModel = `${alias}/${model.id}`;
   return {
-    id: `${connection.provider}/${model.id}`,
-    requestModel: `${connection.provider}/${model.id}`,
+    id: requestModel,
+    requestModel,
     name: model.name || model.id,
     providerId: connection.provider,
     providerName: getProviderLabel(connection),
     source: "static",
+  };
+}
+
+function normalizeCustomModel(model, connection, alias) {
+  if (!model?.id) return null;
+  const requestModel = `${alias}/${model.id}`;
+  return {
+    id: requestModel,
+    requestModel,
+    name: model.name || model.id,
+    providerId: connection.provider,
+    providerName: getProviderLabel(connection),
+    source: "custom",
   };
 }
 
@@ -214,13 +229,48 @@ function resolveGroupKey(connection) {
   return { key: rawProvider, name: null, rawProvider };
 }
 
+// Compatible protocol nodes and Cursor only expose a usable catalog upstream, so
+// they must be resolved live. Every other provider has a curated catalog that is
+// what the provider detail page calls "Available Models".
+function isLiveFirstProvider(rawProvider) {
+  return isOpenAICompatibleProvider(rawProvider)
+    || isAnthropicCompatibleProvider(rawProvider)
+    || rawProvider === "cursor";
+}
+
+function isLlmModel(model) {
+  const kind = getModelKind(model);
+  return !kind || kind === "llm";
+}
+
+async function fetchLiveConnectionModels(connection, { refresh = false, signal } = {}) {
+  try {
+    const url = refresh
+      ? `/api/providers/${connection.id}/models?refresh=1`
+      : `/api/providers/${connection.id}/models`;
+    const response = await fetch(url, { cache: "no-store", signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return [];
+    return parseProviderModelsPayload(data)
+      .flatMap((model) => { const m = normalizeLiveModel(model, connection); return m ? [m] : []; });
+  } catch {
+    return [];
+  }
+}
+
 async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
-  const [providersRes, combosRes] = await Promise.all([
+  const [providersRes, combosRes, customRes, disabledRes, aliasRes] = await Promise.all([
     fetch("/api/providers", { cache: "no-store", signal }),
     fetch("/api/combos", { cache: "no-store", signal }),
+    fetch("/api/models/custom", { cache: "no-store", signal }).catch(() => null),
+    fetch("/api/models/disabled", { cache: "no-store", signal }).catch(() => null),
+    fetch("/api/models/alias", { cache: "no-store", signal }).catch(() => null),
   ]);
   const providersData = await providersRes.json().catch(() => ({}));
   const combosData = await combosRes.json().catch(() => ({}));
+  const customData = customRes ? await customRes.json().catch(() => ({})) : {};
+  const disabledData = disabledRes ? await disabledRes.json().catch(() => ({})) : {};
+  const aliasData = aliasRes ? await aliasRes.json().catch(() => ({})) : {};
 
   const connections = Array.isArray(providersData.connections)
     ? providersData.connections.filter((connection) => connection?.isActive === true)
@@ -228,6 +278,9 @@ async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
   const combos = Array.isArray(combosData.combos)
     ? combosData.combos.filter((combo) => !combo.kind || combo.kind === "llm")
     : [];
+  const customModels = Array.isArray(customData.models) ? customData.models : [];
+  const disabledByAlias = disabledData.disabled && typeof disabledData.disabled === "object" ? disabledData.disabled : {};
+  const modelAliases = aliasData.aliases && typeof aliasData.aliases === "object" ? aliasData.aliases : {};
 
   if (connections.length === 0 && combos.length === 0) {
     return { groups: [], noProviders: true };
@@ -236,6 +289,19 @@ async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
   const providersMap = new Map(
     (Array.isArray(providersData.providers) ? providersData.providers : []).map((provider) => [provider.id, provider])
   );
+
+  // Kilo Code surfaces extra free models on top of its static catalog; the provider
+  // detail page merges them into "Available Models", so mirror that here too.
+  let kiloFreeModels = [];
+  if (connections.some((connection) => (connection.provider || connection.id) === "kilocode")) {
+    try {
+      const response = await fetch("/api/providers/kilo/free-models", { cache: "no-store", signal });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.models)) kiloFreeModels = data.models;
+    } catch {
+      // Keep the static catalog when the free-model lookup fails.
+    }
+  }
 
   const providerMap = new Map();
 
@@ -255,36 +321,80 @@ async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
     return group;
   };
 
-  const liveResults = await Promise.all(
-    connections.map(async (connection) => {
-      try {
-        const url = refresh
-          ? `/api/providers/${connection.id}/models?refresh=1`
-          : `/api/providers/${connection.id}/models`;
-        const response = await fetch(url, { cache: "no-store", signal });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) return { connection, models: [], live: false };
-        const models = parseProviderModelsPayload(data)
-          .flatMap((model) => { const m = normalizeLiveModel(model, connection); return m ? [m] : []; });
-        return { connection, models, live: models.length > 0 };
-      } catch {
-        return { connection, models: [], live: false };
-      }
-    })
+  const liveFirstConnections = connections.filter((connection) =>
+    isLiveFirstProvider(connection.provider || connection.id)
+  );
+  const liveCache = new Map(
+    await Promise.all(liveFirstConnections.map(async (connection) => [
+      connection.id,
+      await fetchLiveConnectionModels(connection, { refresh, signal }),
+    ]))
   );
 
-  for (const result of liveResults) {
-    const group = ensureGroup(result.connection);
-    if (result.live) {
-      // Live upstream succeeded: use only live models, never mix in the static catalog.
-      group.models.push(...result.models);
+  for (const connection of connections) {
+    const group = ensureGroup(connection);
+    const { rawProvider } = resolveGroupKey(connection);
+
+    if (isLiveFirstProvider(rawProvider)) {
+      const liveModels = liveCache.get(connection.id) || [];
+      if (liveModels.length > 0) {
+        group.models.push(...liveModels);
+        continue;
+      }
+    }
+
+    const alias = getProviderAlias(rawProvider);
+    const disabled = new Set([
+      ...(Array.isArray(disabledByAlias[alias]) ? disabledByAlias[alias] : []),
+      ...(Array.isArray(disabledByAlias[rawProvider]) ? disabledByAlias[rawProvider] : []),
+    ]);
+
+    const models = isLiveFirstProvider(rawProvider)
+      ? []
+      : getModelsByProviderId(rawProvider)
+          .filter(isLlmModel)
+          .flatMap((model) => { const m = normalizeStaticModel(model, connection, alias); return m ? [m] : []; });
+
+    if (rawProvider === "kilocode") {
+      models.push(...kiloFreeModels
+        .filter((model) => isLlmModel(model) && model?.id)
+        .flatMap((model) => { const m = normalizeCustomModel(model, connection, alias); return m ? [m] : []; }));
+    }
+
+    models.push(...customModels
+      .filter((model) => isLlmModel(model) && (model.providerAlias === alias || model.providerAlias === rawProvider))
+      .flatMap((model) => { const m = normalizeCustomModel(model, connection, alias); return m ? [m] : []; }));
+
+    models.push(...Object.entries(modelAliases).flatMap(([aliasName, fullModel]) => {
+      if (typeof fullModel !== "string") return [];
+      if (!fullModel.startsWith(`${alias}/`) && !fullModel.startsWith(`${rawProvider}/`)) return [];
+      return [{
+        id: fullModel,
+        requestModel: fullModel,
+        name: aliasName,
+        providerId: connection.provider,
+        providerName: getProviderLabel(connection),
+        source: "alias",
+      }];
+    }));
+
+    const visibleModels = dedupeModels(models).filter((model) => {
+      const bareId = model.requestModel.includes("/")
+        ? model.requestModel.slice(model.requestModel.indexOf("/") + 1)
+        : model.requestModel;
+      return !disabled.has(bareId) && !disabled.has(model.id);
+    });
+
+    if (visibleModels.length > 0) {
+      group.models.push(...visibleModels);
       continue;
     }
-    // Live failed: fall back to the static catalog for this provider.
-    const { rawProvider } = resolveGroupKey(result.connection);
-    const staticModels = getModelsByProviderId(rawProvider)
-      .flatMap((model) => { const m = normalizeStaticModel(model, result.connection); return m ? [m] : []; });
-    group.models.push(...staticModels);
+
+    // Nothing curated or registered for this provider: fall back to the live catalog.
+    const fallbackModels = liveCache.has(connection.id)
+      ? liveCache.get(connection.id)
+      : await fetchLiveConnectionModels(connection, { refresh, signal });
+    group.models.push(...fallbackModels);
   }
 
   const comboModels = combos
@@ -381,6 +491,7 @@ export default function BasicChatPageClient() {
   const [isHydrated] = useState(() => typeof window !== "undefined");
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
@@ -506,13 +617,21 @@ export default function BasicChatPageClient() {
     const q = modelSearch.trim().toLowerCase();
     if (!q) return providerGroups;
     return providerGroups
-      .map((group) => ({
-        ...group,
-        models: group.models.filter((model) =>
-          model.name.toLowerCase().includes(q) ||
-          model.requestModel.toLowerCase().includes(q)
-        ),
-      }))
+      .map((group) => {
+        // Match the provider / combo group name too, so searching e.g. "airforce"
+        // or a combo's group keeps every model under it visible.
+        const groupMatches = group.providerName.toLowerCase().includes(q);
+        return {
+          ...group,
+          groupMatches,
+          models: groupMatches
+            ? group.models
+            : group.models.filter((model) =>
+                model.name.toLowerCase().includes(q) ||
+                model.requestModel.toLowerCase().includes(q)
+              ),
+        };
+      })
       .filter((group) => group.models.length > 0);
   }, [providerGroups, modelSearch]);
 
@@ -895,6 +1014,7 @@ export default function BasicChatPageClient() {
               onClick={() => {
                 setModelMenuOpen((value) => !value);
                 setModelSearch("");
+                setExpandedGroups({});
               }}
               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/8"
             >
@@ -915,8 +1035,11 @@ export default function BasicChatPageClient() {
                     <input
                       type="text"
                       value={modelSearch}
-                      onChange={(event) => setModelSearch(event.target.value)}
-                      placeholder="Search models..."
+                      onChange={(event) => {
+                        setModelSearch(event.target.value);
+                        setExpandedGroups({});
+                      }}
+                      placeholder="Search models or providers..."
                       autoFocus
                       className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/40"
                     />
@@ -935,35 +1058,52 @@ export default function BasicChatPageClient() {
                 <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
                   {filteredProviderGroups.length === 0 ? (
                     <div className="px-3 py-6 text-center text-sm text-white/45">No models matched &ldquo;{modelSearch}&rdquo;.</div>
-                  ) : filteredProviderGroups.map((group) => (
-                    <div key={group.providerId} className="mb-2 rounded-[16px] border border-white/10 bg-black/20 p-2">
-                      <div className="flex items-center justify-between px-2 py-2">
-                        <p className="text-sm font-semibold text-white">{group.providerName}</p>
-                        <Badge size="sm" variant="default">{group.models.length}</Badge>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                        {group.models.map((model) => {
-                          const isActive = model.id === activeModelId;
-                          return (
-                            <button
-                              key={model.id}
-                              type="button"
-                              onClick={() => handleSelectModel(model.id)}
-                              className={`rounded-[14px] border px-3 py-3 text-left transition ${isActive ? "border-blue-400/40 bg-blue-500/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-white">{highlightMatch(model.name, modelSearch)}</p>
-                                  <p className="truncate text-[11px] text-white/45">{highlightMatch(model.requestModel, modelSearch)}</p>
+                  ) : filteredProviderGroups.map((group) => {
+                    const isExpanded = !!expandedGroups[group.providerId];
+                    const visibleModels = isExpanded ? group.models : group.models.slice(0, MAX_VISIBLE_MODELS);
+                    const hiddenCount = group.models.length - visibleModels.length;
+                    return (
+                      <div key={group.providerId} className="mb-2 rounded-[16px] border border-white/10 bg-black/20 p-2">
+                        <div className="flex items-center justify-between px-2 py-2">
+                          <p className={`text-sm font-semibold ${group.groupMatches ? "text-blue-200" : "text-white"}`}>
+                            {highlightMatch(group.providerName, modelSearch)}
+                          </p>
+                          <Badge size="sm" variant="default">{group.models.length}</Badge>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                          {visibleModels.map((model) => {
+                            const isActive = model.id === activeModelId;
+                            return (
+                              <button
+                                key={model.id}
+                                type="button"
+                                onClick={() => handleSelectModel(model.id)}
+                                className={`rounded-[14px] border px-3 py-3 text-left transition ${isActive ? "border-blue-400/40 bg-blue-500/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium text-white">{highlightMatch(model.name, modelSearch)}</p>
+                                    <p className="truncate text-[11px] text-white/45">{highlightMatch(model.requestModel, modelSearch)}</p>
+                                  </div>
+                                  {isActive ? <span className="material-symbols-outlined text-[18px] text-blue-300">check_circle</span> : null}
                                 </div>
-                                {isActive ? <span className="material-symbols-outlined text-[18px] text-blue-300">check_circle</span> : null}
-                              </div>
-                            </button>
-                          );
-                        })}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {group.models.length > MAX_VISIBLE_MODELS ? (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.providerId]: !prev[group.providerId] }))}
+                            className="mt-2 flex w-full items-center justify-center gap-1 rounded-[12px] border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:bg-white/8 hover:text-white"
+                          >
+                            <span className={`material-symbols-outlined text-[16px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
+                            {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
+                          </button>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

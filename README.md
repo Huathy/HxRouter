@@ -49,7 +49,7 @@
 
 | Feature | 9Router | OmniRoute | **HxRouter** |
 |---------|---------|-----------|---------------|
-| **Gemini 3.7 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
+| **Gemini 3.7/3.8 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
 | **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI |
 | **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) |
 | **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware |
@@ -70,7 +70,7 @@
 | **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache |
 | **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation |
 | **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
-| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 |
+| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7/3.8 |
 
 ### What HxRouter has that neither 9Router nor OmniRoute has
 
@@ -79,6 +79,16 @@
 3. **In-memory circuit breaker without DB** — simpler than OmniRoute's DB-backed version, no `domainState.js` dependency
 4. **Proxy-aware resilience** — circuit breaker and semaphore keyed per `provider:proxyHash` so one dead proxy doesn't block others
 5. **TPS optimization** — cached settings + cached connections + per-provider mutex = fewer sync DB reads per request
+
+### What's New in v1.0.0
+
+- **Brand rename** — VansRouter → HxRouter (npm `hxrouter`, Docker `ghcr.io/vanszs/hxrouter`, CLI `hxrouter`, env prefix `HXROUTER_`); VansAI → HXAI in UI/landing
+- **Request success-rate monitoring** — overview success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges on provider cards, status filter (success / error / pending), and in-flight requests pinned with live spinners
+- **HTTP status code tracking** — usage history records `httpStatus` (schema v9), failed/aborted requests are now logged, request details show a color-coded Code column (2xx/4xx/5xx)
+- **Weighted round-robin combos** — per-model weight (1-10) with slot-expansion proportional distribution (e.g. 3:1)
+- **Playground** — built-in basic-chat playground with provider/combo model picker, backed by a machine-bound CLI-token proxy route (`/api/dashboard/chat/completions`)
+- **32-language i18n** — dashboard fully localized
+- **Provider page improvements** — enable-first > configured-account sorting, 10-min model cache with search highlighting, custom-protocol nodes grouped separately with `nodeName`
 
 ### What HxRouter does NOT have (yet)
 
@@ -266,13 +276,13 @@ Default URLs:
 
 </div>
 
-> 🎬 **Made a video about 9Router?** Submit a [Pull Request](https://github.com/decolua/9router/pulls) adding your video to this section — we'll merge it!
+> 🎬 **Made a video about HxRouter?** Submit a [Pull Request](https://github.com/Huathy/HxRouter/pulls) adding your video to this section — we'll merge it!
 
 ---
 
 ## 🛠️ Supported CLI Tools
 
-9Router works seamlessly with all major AI coding tools:
+HxRouter works seamlessly with all major AI coding tools:
 
 <div align="center">
   <table>
@@ -497,11 +507,12 @@ Default URLs:
 | 🔄 **Auto Token Refresh**                                                         | OAuth tokens refresh automatically                                                       | No manual re-login needed                         |
 | 🎨 **Custom Combos**                                                              | Create unlimited model combinations                                                      | Tailor fallback to your needs                     |
 | 📝 **Request Logging**                                                            | Debug mode with full request/response logs                                               | Troubleshoot issues easily                        |
+| 📈 **Success-Rate Monitoring**                                                    | Live success-rate stats, HTTP status codes per request, in-flight request tracking       | Spot failing providers instantly                  |
 | 💾 **Cloud Sync**                                                                 | Sync config across devices                                                               | Same setup everywhere                             |
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
 | 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers                                               | Flexible deployment options                       |
 
-Set `X-9Router-Token-Saver: off` to bypass all token savers for one chat request.
+Set `x-9router-token-saver: off` to bypass all token savers for one chat request.
 
 <details>
 <summary><b>📖 Feature Details</b></summary>
@@ -523,10 +534,10 @@ With RTK:    28K tokens sent to LLM   (40% saved · same context · same answer)
 
 ### 🧠 Headroom Token Saver
 
-Headroom is optional and runs separately. 9Router calls Headroom's local `/v1/compress` endpoint, then keeps normal routing, fallback, auth, and usage tracking:
+Headroom is optional and runs separately. HxRouter calls Headroom's local `/v1/compress` endpoint, then keeps normal routing, fallback, auth, and usage tracking:
 
 ```
-Client → 9Router → Headroom /v1/compress → 9Router → provider
+Client → HxRouter → Headroom /v1/compress → HxRouter → provider
 ```
 
 Local setup:
@@ -548,7 +559,7 @@ http://headroom:8787
 http://host.docker.internal:8787
 ```
 
-If Headroom is down or returns an error, 9Router fails open and sends the original request.
+If Headroom is down or returns an error, HxRouter fails open and sends the original request.
 
 ### 🐴 Ponytail (Lazy Senior Dev)
 
@@ -590,7 +601,7 @@ Combo: "my-coding-stack"
 Seamless translation between formats:
 
 - **OpenAI** ↔ **Claude** ↔ **Gemini** ↔ **Cursor** ↔ **Kiro** ↔ **Vertex** ↔ **Antigravity** ↔ **Ollama** ↔ **OpenAI Responses**
-- Your CLI tool sends OpenAI format → 9Router translates → Provider receives native format
+- Your CLI tool sends OpenAI format → HxRouter translates → Provider receives native format
 - Works with any tool that supports custom OpenAI endpoints
 
 ### 👥 Multi-Account Support
@@ -644,13 +655,13 @@ Seamless translation between formats:
 > **💡 IMPORTANT - Understanding Dashboard Costs:**
 >
 > The "cost" displayed in Usage Analytics is **for tracking and comparison purposes only**.
-> 9Router itself **never charges** you anything. You only pay providers directly (if using paid services).
+> HxRouter itself **never charges** you anything. You only pay providers directly (if using paid services).
 >
 > **Example:** If your dashboard shows "$290 total cost" while using iFlow models, this represents
 > what you would have paid using paid APIs directly. Your actual cost = **$0** (iFlow is free unlimited).
 >
 > Think of it as a "savings tracker" showing how much you're saving by using free models or
-> routing through 9Router!
+> routing through HxRouter!
 
 ### 🌐 Deploy Anywhere
 
@@ -683,15 +694,15 @@ Seamless translation between formats:
 
 ---
 
-### 📊 Understanding 9Router Costs & Billing
+### 📊 Understanding HxRouter Costs & Billing
 
-**9Router Billing Reality:**
+**HxRouter Billing Reality:**
 
-✅ **9Router software = FREE forever** (open source, never charges)  
+✅ **HxRouter software = FREE forever** (open source, never charges)  
 ✅ **Dashboard "costs" = Display/tracking only** (not actual bills)  
 ✅ **You pay providers directly** (subscriptions or API fees)  
 ✅ **FREE providers stay FREE** (iFlow, Kiro, Qwen = $0 unlimited)  
-❌ **9Router never sends invoices** or charges your card
+❌ **HxRouter never sends invoices** or charges your card
 
 **How Cost Display Works:**
 
@@ -714,9 +725,9 @@ Reality Check:
 **Payment Rules:**
 
 - **Subscription providers** (Claude Code, Codex): Pay them directly via their websites
-- **Cheap providers** (GLM, MiniMax): Pay them directly, 9Router just routes
+- **Cheap providers** (GLM, MiniMax): Pay them directly, HxRouter just routes
 - **FREE providers** (iFlow, Kiro, Qwen): Genuinely free forever, no hidden charges
-- **9Router**: Never charges anything, ever
+- **HxRouter**: Never charges anything, ever
 
 ---
 
@@ -795,7 +806,7 @@ Access via: WhatsApp, Telegram, Slack, Discord, iMessage, Signal...
 <details>
 <summary><b>📊 Why does my dashboard show high costs?</b></summary>
 
-The dashboard tracks your token usage and displays **estimated costs** as if you were using paid APIs directly. This is **not actual billing** - it's a reference to show how much you're saving by using free models or existing subscriptions through 9Router.
+The dashboard tracks your token usage and displays **estimated costs** as if you were using paid APIs directly. This is **not actual billing** - it's a reference to show how much you're saving by using free models or existing subscriptions through HxRouter.
 
 **Example:**
 
@@ -809,17 +820,17 @@ The cost display is a "savings tracker" to help you understand your usage patter
 </details>
 
 <details>
-<summary><b>💳 Will I be charged by 9Router?</b></summary>
+<summary><b>💳 Will I be charged by HxRouter?</b></summary>
 
-**No.** 9Router is free, open-source software that runs on your own computer. It never charges you anything.
+**No.** HxRouter is free, open-source software that runs on your own computer. It never charges you anything.
 
 **You only pay:**
 
 - ✅ **Subscription providers** (Claude Code $20/mo, Codex $20-200/mo) → Pay them directly on their websites
-- ✅ **Cheap providers** (GLM, MiniMax) → Pay them directly, 9Router just routes your requests
-- ❌ **9Router itself** → **Never charges anything, ever**
+- ✅ **Cheap providers** (GLM, MiniMax) → Pay them directly, HxRouter just routes your requests
+- ❌ **HxRouter itself** → **Never charges anything, ever**
 
-9Router is a local proxy/router. It doesn't have your credit card, can't send invoices, and has no billing system. It's completely free software.
+HxRouter is a local proxy/router. It doesn't have your credit card, can't send invoices, and has no billing system. It's completely free software.
 
 </details>
 
@@ -834,7 +845,7 @@ These are free services offered by those respective companies:
 - **OpenCode Free**: No-auth passthrough proxy, models auto-fetched from `opencode.ai/zen/v1/models`
 - **Vertex AI**: $300 free credits for new Google Cloud accounts (90 days)
 
-9Router just routes your requests to them - there's no "catch" or future billing. They're truly free services, and 9Router makes them easy to use with fallback support.
+HxRouter just routes your requests to them - there's no "catch" or future billing. They're truly free services, and HxRouter makes them easy to use with fallback support.
 
 **Discontinued free tiers (no longer recommended):**
 
@@ -869,7 +880,7 @@ These are free services offered by those respective companies:
 
 3. **Use subscription providers last:**
    - Only if you already have them
-   - 9Router helps maximize their value through quota tracking
+   - HxRouter helps maximize their value through quota tracking
 
 **Result:** Most users can operate at $0/month using only free tiers!
 
@@ -878,22 +889,22 @@ These are free services offered by those respective companies:
 <details>
 <summary><b>📈 What if my usage suddenly spikes?</b></summary>
 
-9Router's smart fallback prevents surprise charges:
+HxRouter's smart fallback prevents surprise charges:
 
 **Scenario:** You're on a coding sprint and blow through your quotas
 
-**Without 9Router:**
+**Without HxRouter:**
 
 - ❌ Hit rate limit → Work stops → Frustration
 - ❌ Or: Accidentally rack up huge API bills
 
-**With 9Router:**
+**With HxRouter:**
 
 - ✅ Subscription hits limit → Auto-fallback to cheap tier
 - ✅ Cheap tier gets expensive → Auto-fallback to free tier
 - ✅ Never stop coding → Predictable costs
 
-**You're in control:** Set spending limits per provider in dashboard, and 9Router respects them.
+**You're in control:** Set spending limits per provider in dashboard, and HxRouter respects them.
 
 </details>
 
@@ -918,7 +929,7 @@ Models:
   cc/claude-haiku-4-5-20251001
 ```
 
-**Pro Tip:** Use Opus for complex tasks, Sonnet for speed. 9Router tracks quota per model!
+**Pro Tip:** Use Opus for complex tasks, Sonnet for speed. HxRouter tracks quota per model!
 
 ### OpenAI Codex (Plus/Pro)
 
@@ -1030,6 +1041,9 @@ Dashboard → Connect Antigravity
 → Access to tiered reasoning models with automatic quota failover
 
 Models:
+  ag/gemini-3.8-flash-high
+  ag/gemini-3.8-flash-medium
+  ag/gemini-3.8-flash-low
   ag/gemini-3.7-flash-high
   ag/gemini-3.7-flash-medium
   ag/gemini-3.7-flash-low
@@ -1041,7 +1055,7 @@ Models:
   ag/gpt-oss-120b-medium
 ```
 
-**Pro Tip:** Full Gemini 3.7 Flash support with High/Medium/Low reasoning effort tiers, competitive trigger stripping, and direct proxy routing.
+**Pro Tip:** Full Gemini 3.8/3.7 Flash support with High/Medium/Low reasoning effort tiers, competitive trigger stripping, and direct proxy routing.
 
 ### OpenCode Free (No auth, auto-fetch models)
 
@@ -1183,7 +1197,7 @@ Dashboard → CLI Tools → OpenClaw → Select Model → Apply
 }
 ```
 
-> **Note:** OpenClaw only works with local 9Router. Use `127.0.0.1` instead of `localhost` to avoid IPv6 resolution issues.
+> **Note:** OpenClaw only works with local HxRouter. Use `127.0.0.1` instead of `localhost` to avoid IPv6 resolution issues.
 
 ### Cline / Continue / RooCode
 
@@ -1407,7 +1421,7 @@ Notes:
 
 **OAuth token expired**
 
-- Auto-refreshed by 9Router
+- Auto-refreshed by HxRouter
 - If issues persist: Dashboard → Provider → Reconnect
 
 **High costs**
@@ -1473,8 +1487,8 @@ Authorization: Bearer your-api-key
 ## 📧 Support
 
 - **Website**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/Vanszs/HxRouter](https://github.com/Huathy/HxRouter)
-- **Issues**: [github.com/Vanszs/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
+- **GitHub**: [github.com/Huathy/HxRouter](https://github.com/Huathy/HxRouter)
+- **Issues**: [github.com/Huathy/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
 
 ---
 
@@ -1482,13 +1496,13 @@ Authorization: Bearer your-api-key
 
 Thanks to all contributors who helped make HxRouter better!
 
-[![Contributors](https://contrib.rocks/image?repo=Vanszs/HxRouter&max=150&columns=15&anon=1&v=20260309)](https://github.com/Huathy/HxRouter/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Huathy/HxRouter&max=150&columns=15&anon=1&v=20260309)](https://github.com/Huathy/HxRouter/graphs/contributors)
 
 ---
 
 ## 📊 Star Chart
 
-[![Star Chart](https://starchart.cc/Vanszs/HxRouter.svg?variant=adaptive)](https://github.com/Huathy/HxRouter)
+[![Star Chart](https://starchart.cc/Huathy/HxRouter.svg?variant=adaptive)](https://github.com/Huathy/HxRouter)
 
 ## 🔀 Forks
 

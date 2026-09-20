@@ -10,7 +10,6 @@ function maskApiKey(key) {
 }
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
-const RING_CAP = 50;
 const CONN_CACHE_TTL_MS = 30 * 1000;
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
 
@@ -22,14 +21,12 @@ if (!global._statsEmitter) {
   global._statsEmitter.setMaxListeners(50);
 }
 if (!global._pendingTimers) global._pendingTimers = {};
-if (!global._recentRing) global._recentRing = { items: [], initialized: false };
 if (!global._connectionMapCache) global._connectionMapCache = { map: {}, ts: 0 };
 if (!global._statsEmitTimers) global._statsEmitTimers = { pending: null, update: null };
 
 const pendingRequests = global._pendingRequests;
 const lastErrorProvider = global._lastErrorProvider;
 const pendingTimers = global._pendingTimers;
-const recentRing = global._recentRing;
 const connCache = global._connectionMapCache;
 const statsEmitTimers = global._statsEmitTimers;
 
@@ -105,13 +102,6 @@ function aggregateEntryToDay(day, entry) {
   addToCounter(day.byEndpoint, epKey, { ...vals, meta: { endpoint, rawModel: entry.model, provider: entry.provider } });
 }
 
-function pushToRing(entry) {
-  recentRing.items.push(entry);
-  if (recentRing.items.length > RING_CAP) {
-    recentRing.items = recentRing.items.slice(-RING_CAP);
-  }
-}
-
 async function getConnectionMapCached() {
   if (Date.now() - connCache.ts < CONN_CACHE_TTL_MS) return connCache.map;
   try {
@@ -123,21 +113,6 @@ async function getConnectionMapCached() {
     connCache.ts = Date.now();
   } catch {}
   return connCache.map;
-}
-
-async function ensureRingInitialized() {
-  if (recentRing.initialized) return;
-  recentRing.initialized = true;
-  try {
-    const db = await getAdapter();
-    const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, httpStatus, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
-    recentRing.items = rows.reverse().map((r) => ({
-      timestamp: r.timestamp, provider: r.provider, model: r.model, connectionId: r.connectionId,
-      apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost, status: r.status,
-      httpStatus: r.httpStatus ?? null,
-      tokens: parseJson(r.tokens, {}),
-    }));
-  } catch {}
 }
 
 async function calculateCost(provider, model, tokens) {
@@ -226,6 +201,51 @@ function buildPendingRecentRows(connectionMap) {
   return rows;
 }
 
+// Single source of truth for completed recent-request rows. Both
+// getUsageStats() (REST + full SSE) and getActiveRequests() (lightweight SSE)
+// read through this so the two paths can never disagree about which rows
+// exist or which columns they carry.
+export function buildCompletedRecentRows(db, limit) {
+  const rows = db.all(
+    `SELECT timestamp, provider, model, connectionId, tokens, status, httpStatus
+     FROM usageHistory ORDER BY id DESC LIMIT ?`, [limit]);
+  const seen = new Set();
+  return rows
+    .map((r) => {
+      const t = parseJson(r.tokens, {}) || {};
+      return {
+        timestamp: r.timestamp, model: r.model, provider: r.provider || "",
+        promptTokens: t.prompt_tokens || t.input_tokens || 0,
+        completionTokens: t.completion_tokens || t.output_tokens || 0,
+        cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
+        status: r.status || "ok",
+        httpStatus: r.httpStatus ?? null,
+        connectionId: r.connectionId ?? null,
+      };
+    })
+    .filter((e) => {
+      // Keep error rows even with 0 tokens (so 429/502 surface in recent list);
+      // skip only zero-token success rows (likely noise/duplicates).
+      if (e.promptTokens === 0 && e.completionTokens === 0 && e.status !== "error") return false;
+      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
+      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${e.httpStatus}|${minute}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+// Map connectionId → display account name, kept distinct from the pending
+// rows' "Free / No Auth" semantics: historical rows without a key stay empty.
+function withAccount(rows, connectionMap) {
+  return rows.map((r) => {
+    const account = r.connectionId
+      ? (connectionMap[r.connectionId] || `Account ${r.connectionId.slice(0, 8)}...`)
+      : undefined;
+    return { ...r, account };
+  });
+}
+
 export async function getActiveRequests() {
   const activeRequests = [];
   const connectionMap = await getConnectionMapCached();
@@ -244,27 +264,8 @@ export async function getActiveRequests() {
     }
   }
 
-  await ensureRingInitialized();
-  const seen = new Set();
-  const completedRows = [...recentRing.items]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .map((e) => {
-      const t = e.tokens || {};
-      return {
-        timestamp: e.timestamp, model: e.model, provider: e.provider || "",
-        promptTokens: t.prompt_tokens || t.input_tokens || 0,
-        completionTokens: t.completion_tokens || t.output_tokens || 0,
-        status: e.status || "ok",
-      };
-    })
-    .filter((e) => {
-      if (e.promptTokens === 0 && e.completionTokens === 0) return false;
-      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${minute}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  const db = await getAdapter();
+  const completedRows = withAccount(buildCompletedRecentRows(db, 50), connectionMap);
 
   // Pending (in-flight) rows go first so live requests surface at the top.
   const pendingRows = buildPendingRecentRows(connectionMap);
@@ -345,7 +346,6 @@ export async function saveRequestUsage(entry) {
     });
 
     if (inserted) {
-      pushToRing(entry);
       scheduleStatsEvent("update", 250);
     }
   } catch (e) {
@@ -409,30 +409,7 @@ export async function getUsageStats(period = "all") {
   for (const k of allApiKeys) apiKeyMap[k.key] = { name: k.name, id: k.id, createdAt: k.createdAt };
 
   // recentRequests from live history (last 100 entries enough for 20 deduped)
-  const recentRows = db.all(`SELECT timestamp, provider, model, tokens, status, httpStatus FROM usageHistory ORDER BY id DESC LIMIT 100`);
-  const seen = new Set();
-  const completedRecent = recentRows
-    .map((r) => {
-      const t = parseJson(r.tokens, {}) || {};
-      return {
-        timestamp: r.timestamp, model: r.model, provider: r.provider || "",
-        promptTokens: t.prompt_tokens || t.input_tokens || 0,
-        completionTokens: t.completion_tokens || t.output_tokens || 0,
-        cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
-        status: r.status || "ok",
-        httpStatus: r.httpStatus ?? null,
-      };
-    })
-    .filter((e) => {
-      // Keep error rows even with 0 tokens (so 429/502 surface in recent list);
-      // skip only zero-token success rows (likely noise/duplicates).
-      if (e.promptTokens === 0 && e.completionTokens === 0 && e.status !== "error") return false;
-      const minute = e.timestamp ? e.timestamp.slice(0, 16) : "";
-      const key = `${e.model}|${e.provider}|${e.promptTokens}|${e.completionTokens}|${e.httpStatus}|${minute}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  const completedRecent = withAccount(buildCompletedRecentRows(db, 100), connectionMap);
 
   // Pending (in-flight) rows go first so live requests surface at the top.
   const pendingRecent = buildPendingRecentRows(connectionMap);

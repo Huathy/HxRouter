@@ -1,27 +1,30 @@
 
 <div align="center">
-  <img src="./images/9router.png?1" alt="9Router Dashboard" width="800"/>
+  <img src="./images/9router.png?1" alt="HxRouter Dashboard" width="800"/>
   
-  # 9Router - 免费 AI 路由器与 Token 节省器
+  # HxRouter - 免费 AI 路由器与 Token 节省器
   
   **编程永不停歇。使用 RTK + 自动切换到免费/低价 AI 模型，节省 20-40% 的 tokens。**
   
   **将所有 AI 编程工具（Claude Code、Cursor、Antigravity、Copilot、Codex、Gemini、OpenCode、Cline、OpenClaw...）连接到 40+ AI 提供商和 100+ 模型。**
   
-  [![npm](https://img.shields.io/npm/v/9router.svg)](https://www.npmjs.com/package/9router)
-  [![Downloads](https://img.shields.io/npm/dm/9router.svg)](https://www.npmjs.com/package/9router)
-  [![License](https://img.shields.io/npm/l/9router.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+  [![npm](https://img.shields.io/npm/v/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
+  [![Downloads](https://img.shields.io/npm/dm/hxrouter.svg)](https://www.npmjs.com/package/hxrouter)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/vanszs/hxrouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/vanszs/hxrouter)
+  [![GHCR](https://img.shields.io/badge/GHCR-vanszs%2Fhxrouter-blue?logo=github)](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+  [![License](https://img.shields.io/npm/l/hxrouter.svg)](https://github.com/Huathy/HxRouter/blob/main/LICENSE)
 
-  <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-  
-  [🚀 快速开始](#-快速开始) • [💡 功能特点](#-主要功能) • [📖 设置指南](#-设置指南) • [🌐 网站](https://9router.com)
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="vanszs%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-  [🇻🇳 Tiếng Việt](./i18n/README.vi.md) • [🇨🇳 中文](./i18n/README.zh-CN.md) • [🇯🇵 日本語](./i18n/README.ja-JP.md)
+[🚀 快速开始](#-快速开始) • [💡 功能特点](#-主要功能) • [📖 设置指南](#-设置指南) • [🌐 网站](https://9router.com)
+
+[🇻🇳 Tiếng Việt](./i18n/README.vi.md) • [🇨🇳 中文](./i18n/README.zh-CN.md) • [🇯🇵 日本語](./i18n/README.ja-JP.md)
+
 </div>
 
 ---
 
-## 🤔 为什么选择 9Router？
+## 🤔 为什么选择 HxRouter？
 
 **告别浪费金钱、tokens 和触碰限制的困扰：**
 
@@ -31,13 +34,69 @@
 - ❌ 昂贵的 API（每个提供商 $20-50/月）
 - ❌ 需要手动在提供商之间切换
 
-**9Router 解决这一切：**
+**HxRouter 解决这一切：**
 
 - ✅ **RTK Token 节省器** - 自动压缩 tool_result 内容，每次请求节省 20-40% tokens
 - ✅ **充分利用订阅** - 追踪配额，在重置前用尽每一分额度
 - ✅ **自动切换** - 订阅 → 低价 → 免费，零停机时间
 - ✅ **多账户支持** - 按提供商在账户之间轮询
 - ✅ **通用兼容** - 支持 Claude Code、Codex、Cursor、Cline 以及任何 CLI 工具
+
+---
+
+## 📊 对比：HxRouter vs 9Router vs OmniRoute
+
+### 逻辑与后端 — 各自具备的能力
+
+| 功能 | 9Router | OmniRoute | **HxRouter** |
+|---------|---------|-----------|---------------|
+| **Gemini 3.7/3.8 分层支持** | ❌ | ❌ | ✅ High / Med / Low 分层推理路由 |
+| **通用提示词缓存与命中率** | ❌ | ❌ | ✅ 跨 Claude、Codex、Kiro、OpenAI 追踪 |
+| **熔断器** | ❌ | ✅ TypeScript + DB 持久化 | ✅ JS，内存实现（无 DB 依赖） |
+| **账户信号量** | ❌ | ✅ TypeScript | ✅ JS，移植 + 代理感知 |
+| **提供商级失败追踪** | ❌ | ✅ 5s 去重 | ✅ 移植，去重上限 10K |
+| **提供商耗尽检测** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ 移植 + 正则收紧 |
+| **429 不计入熔断** | ❌ N/A | ❌（429 计入） | ✅ 仅 5xx/超时计入 |
+| **代理感知弹性** | ❌ | ❌ | ✅ 按代理的熔断器 + 信号量 + 连接池路由 |
+| **Kimchi CLI 对齐** | ❌ | ❌ | ✅ 5 个模型，来自 models.dev 的每模型上限 |
+| **Kimchi 配额自动恢复** | ❌ | ❌ | ✅ 通过 instrumentation hook 每月自动重置 |
+| **AgentRouter 提供商** | ❌ | ✅ | ✅ |
+| **模型锁定** | ✅ DB 扁平字段 | ✅ 内存 Map | ✅ DB 扁平字段（继承） |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ 继承 |
+| **NVIDIA Kimi 流强制** | ✅ | ✅ | ✅ 继承 |
+| **每 API Key ACL** | ✅ 仅 fork | ❌ | ✅ 继承 |
+| **格式转换** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ 继承 |
+| **Kimi 原生工具解析器** | ✅ | ✅ | ✅ 继承 + 加固 |
+| **组合策略** | 4（fallback/RR/fusion/capacity） | 17 | 4（继承） |
+| **设置缓存（TPS）** | ❌（每请求 3 次同步 DB 读取） | ❌ | ✅ 5s TTL 缓存 |
+| **连接缓存（TPS）** | ❌（每请求 1 次同步 DB 读取） | ❌ | ✅ 2s TTL 缓存 + 失效 |
+| **每提供商互斥锁** | ❌（全局互斥锁） | ❌ | ✅ 每提供商并行选择 |
+| **提供商数量** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7/3.8 |
+
+### HxRouter 独有的能力（9Router 和 OmniRoute 都没有）
+
+1. **Kimchi CLI 对齐** — Kimchi 提供商与官方 Kimchi CLI 完全一致：相同的 5 个模型、能力和温度规则
+2. **Kimchi 配额自动恢复** — 因配额耗尽被停用的账户在每月 1 日自动恢复
+3. **无 DB 的内存熔断器** — 比 OmniRoute 的 DB 版本更简单，无 `domainState.js` 依赖
+4. **代理感知弹性** — 熔断器和信号量按 `provider:proxyHash` 键控，一个坏代理不会阻塞其他代理
+5. **TPS 优化** — 缓存设置 + 缓存连接 + 每提供商互斥锁 = 每请求更少的同步 DB 读取
+
+### v1.0.0 新特性
+
+- **品牌重命名** — VansRouter → HxRouter（npm 包 `hxrouter`、Docker 镜像 `ghcr.io/vanszs/hxrouter`、CLI 命令 `hxrouter`、环境变量前缀 `HXROUTER_`）；UI/落地页 VansAI → HXAI
+- **请求成功率监控** — 概览成功率卡片按阈值着色（≥95% 绿 / ≥80% 黄 / 其余红）、提供商卡片 24h 成功率徽章、状态筛选（成功 / 错误 / 进行中）、进行中请求置顶实时展示
+- **HTTP 状态码追踪** — 用量历史记录 `httpStatus`（schema v9），失败/中止请求也会记录，请求详情新增着色 Code 列（2xx/4xx/5xx）
+- **组合加权轮询** — 每模型权重（1-10），slot 展开法等比例分配（如 3:1）
+- **Playground** — 内置 basic-chat 调试场，支持提供商/组合模型选择，由机器绑定 CLI token 代理路由（`/api/dashboard/chat/completions`）驱动
+- **32 种语言国际化** — 控制面板完整本地化
+- **提供商页面优化** — 启用优先 > 已配置账号排序、10 分钟模型缓存与搜索高亮、兼容协议节点独立分组并携带 `nodeName`
+
+### HxRouter 暂不具备的功能
+
+- OmniRoute 的 17 种组合策略（HxRouter 有 4 种）
+- OmniRoute 带指纹轮换的 `sessionPool`
+- OmniRoute 带复杂度路由和任务适配度评分的 `autoCombo`
+- OmniRoute 的 231 个提供商（HxRouter 有 40+）
 
 ---
 
@@ -51,7 +110,7 @@
        │ http://localhost:20128/v1
        ↓
 ┌─────────────────────────────────────────────┐
-│           9Router（智能路由器）              │
+│           HxRouter（智能路由器）             │
 │  • RTK Token 节省器（减少 tool_result tokens）│
 │  • 格式转换（OpenAI ↔ Claude）              │
 │  • 配额追踪                                  │
@@ -74,8 +133,8 @@
 **1. 全局安装：**
 
 ```bash
-npm install -g 9router
-9router
+npm install -g hxrouter
+hxrouter
 ```
 
 🎉 控制面板在 `http://localhost:20128` 打开
@@ -97,7 +156,7 @@ Claude Code/Codex/OpenClaw/Cursor/Cline 设置：
 
 **替代方案：从源码运行（本仓库）：**
 
-本仓库的包是私有的（`hxrouter-app`），所以源码/Docker 执行是预期的本地开发方式。
+本仓库的包是私有的（`9router-app`），所以源码/Docker 执行是预期的本地开发方式。
 
 ```bash
 cp .env.example .env
@@ -115,6 +174,28 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 默认 URL：
 - 控制面板：`http://localhost:20128/dashboard`
 - OpenAI 兼容 API：`http://localhost:20128/v1`
+
+---
+
+## 🐳 Docker 快速开始
+
+已发布镜像（多平台 `linux/amd64` + `linux/arm64`）：
+
+- Docker Hub：[`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
+- GHCR：[`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+
+```bash
+docker run -d \
+  --name hxrouter \
+  -p 20128:20128 \
+  -v "$HOME/.9router:/app/data" \
+  -e DATA_DIR=/app/data \
+  ghcr.io/vanszs/hxrouter:latest
+```
+
+→ 打开 http://localhost:20128
+
+数据持久化：宿主机 `$HOME/.9router/db/data.sqlite` ↔ 容器内 `/app/data/db/data.sqlite`。
 
 ---
 
@@ -173,13 +254,13 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 </div>
 
-> 🎬 **制作了关于 9Router 的视频？** 提交 [Pull Request](https://github.com/decolua/9router/pulls)，将你的视频添加到此部分 — 我们会合并它！
+> 🎬 **制作了关于 HxRouter 的视频？** 提交 [Pull Request](https://github.com/Huathy/HxRouter/pulls)，将你的视频添加到此部分 — 我们会合并它！
 
 ---
 
 ## 🛠️ 支持的 CLI 工具
 
-9Router 与所有主流 AI 编程工具无缝协作：
+HxRouter 与所有主流 AI 编程工具无缝协作：
 
 <div align="center">
   <table>
@@ -266,6 +347,10 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
       <td align="center" width="120">
         <img src="./public/providers/cursor.webp" width="60" alt="Cursor"/><br/>
         <b>Cursor</b>
+      </td>
+      <td align="center" width="120">
+        <img src="./public/providers/kimchi.webp" width="60" alt="Kimchi"/><br/>
+        <b>Kimchi</b>
       </td>
     </tr>
   </table>
@@ -398,9 +483,12 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 | 🔄 **自动 Token 刷新** | OAuth token 自动刷新 | 无需手动重新登录 |
 | 🎨 **自定义组合** | 创建无限模型组合 | 自定义适合你的切换策略 |
 | 📝 **请求日志** | 调试模式下的完整请求/响应日志 | 轻松排查问题 |
+| 📈 **成功率监控** | 实时成功率统计、每请求 HTTP 状态码、进行中请求追踪 | 快速发现故障提供商 |
 | 💾 **云同步** | 跨设备同步配置 | 处处相同设置 |
 | 📊 **使用分析** | 追踪 tokens、成本、趋势 | 优化开支 |
 | 🌐 **任意部署** | 本地、VPS、Docker、Cloudflare Workers | 灵活部署选项 |
+
+设置 `x-9router-token-saver: off` 请求头可对单次聊天请求绕过所有 token 节省器。
 
 <details>
 <summary><b>📖 功能详情</b></summary>
@@ -433,6 +521,24 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 → 配额用完或出错时自动切换
 ```
 
+### ⚖️ 加权轮询组合
+
+为组合中的每个模型设置权重（1-10），slot 展开法实现等比例分配：
+
+```
+组合："weighted-stack"
+  1. cc/claude-opus-4-7   权重 3   （约 75% 流量）
+  2. glm/glm-5.1          权重 1   （约 25% 流量）
+```
+
+### 📈 请求成功率监控
+
+- 概览页成功率指标卡：≥95% 绿 / ≥80% 黄 / 其余红
+- 提供商卡片与详情页展示 24h 请求成功率徽章
+- 请求详情按状态筛选：成功 / 错误 / 进行中
+- 进行中请求置顶展示，实时旋转图标
+- 每条请求记录 HTTP 状态码（2xx/4xx/5xx 着色），失败与中止请求同样计入用量历史
+
 ### 📊 实时配额追踪
 
 - 每个提供商的 token 消耗
@@ -444,7 +550,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 格式间无缝转换：
 - **OpenAI** ↔ **Claude** ↔ **Gemini** ↔ **Cursor** ↔ **Kiro** ↔ **Vertex** ↔ **Antigravity** ↔ **Ollama** ↔ **OpenAI Responses**
-- 你的 CLI 工具发送 OpenAI 格式 → 9Router 转换 → 提供商接收原生格式
+- 你的 CLI 工具发送 OpenAI 格式 → HxRouter 转换 → 提供商接收原生格式
 - 适用于任何支持自定义 OpenAI 端点的工具
 
 ### 👥 多账户支持
@@ -498,11 +604,11 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 > **💡 重要 - 了解控制面板成本：**
 > 
 > 使用分析中显示的"成本"**仅用于追踪和比较目的**。
-> 9Router 本身**永远不会向你收费**。你只直接向提供商付款（如果使用付费服务）。
+> HxRouter 本身**永远不会向你收费**。你只直接向提供商付款（如果使用付费服务）。
 > 
 > **示例：** 如果你的控制面板显示使用 iFlow 模型时"总成本 $290"，这代表你如果直接使用付费 API 需要支付的金额。你的实际成本 = **$0**（iFlow 免费无限量）。
 > 
-> 把它想象成一个"节省追踪器"，展示你通过使用免费模型或通过 9Router 路由节省了多少钱！
+> 把它想象成一个"节省追踪器"，展示你通过使用免费模型或通过 HxRouter 路由节省了多少钱！
 
 ### 🌐 任意部署
 
@@ -524,7 +630,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 | | Codex (Plus/Pro) | $20-200/月 | 5小时 + 每周 | OpenAI 用户 |
 | | GitHub Copilot | $10-19/月 | 每月 | GitHub 用户 |
 | | Cursor IDE | $20/月 | 每月 | Cursor 用户 |
-| **💰 低价** | GLM-5.1 / GLM-4.7 | $0.6/1M | 每日 10AM | 预算备份 |
+| **💰 低价** | GLM-5.3 / GLM-5.1 / GLM-4.7 | $0.6/1M | 每日 10AM | 预算备份 |
 | | MiniMax M2.7 | $0.2/1M | 5小时滚动 | 最便宜选项 |
 | | Kimi K2.5 | $9/月固定 | 10M tokens/月 | 可预测成本 |
 | **🆓 免费** | Kiro AI | $0 | 无限量 | Claude 4.5 + GLM-5 + MiniMax 免费 |
@@ -535,15 +641,15 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 ---
 
-### 📊 理解 9Router 成本与计费
+### 📊 理解 HxRouter 成本与计费
 
-**9Router 计费真相：**
+**HxRouter 计费真相：**
 
-✅ **9Router 软件 = 永久免费**（开源，绝不收费）  
+✅ **HxRouter 软件 = 永久免费**（开源，绝不收费）  
 ✅ **控制面板"成本" = 仅用于显示/追踪**（不是实际账单）  
 ✅ **你直接向提供商付款**（订阅或 API 费用）  
 ✅ **免费提供商保持免费**（iFlow、Kiro、Qwen = $0 无限量）  
-❌ **9Router 永不发送发票** 或扣款
+❌ **HxRouter 永不发送发票** 或扣款
 
 **成本显示如何工作：**
 
@@ -564,9 +670,9 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 **付款规则：**
 - **订阅提供商**（Claude Code、Codex）：通过他们的网站直接付款
-- **低价提供商**（GLM、MiniMax）：直接付款，9Router 只做路由
+- **低价提供商**（GLM、MiniMax）：直接付款，HxRouter 只做路由
 - **免费提供商**（iFlow、Kiro、Qwen）：真正的永久免费，无隐藏费用
-- **9Router**：从不收取任何费用，永远不会
+- **HxRouter**：从不收取任何费用，永远不会
 
 ---
 
@@ -641,7 +747,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 <details>
 <summary><b>📊 为什么我的控制面板显示高成本？</b></summary>
 
-控制面板追踪你的 token 使用情况，并显示**估算成本**，如同你直接使用付费 API。这**不是实际计费** — 它是一个参考，展示你通过使用免费模型或通过 9Router 路由现有订阅节省了多少钱。
+控制面板追踪你的 token 使用情况，并显示**估算成本**，如同你直接使用付费 API。这**不是实际计费** — 它是一个参考，展示你通过使用免费模型或通过 HxRouter 路由现有订阅节省了多少钱。
 
 **示例：**
 - **控制面板显示：** "$290 总成本"
@@ -654,16 +760,16 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 </details>
 
 <details>
-<summary><b>💳 9Router 会扣我的钱吗？</b></summary>
+<summary><b>💳 HxRouter 会扣我的钱吗？</b></summary>
 
-**不会。** 9Router 是在你自己的电脑上运行的开源软件。它永远不会向你收取任何费用。
+**不会。** HxRouter 是在你自己的电脑上运行的开源软件。它永远不会向你收取任何费用。
 
 **你只需支付：**
 - ✅ **订阅提供商**（Claude Code $20/月、Codex $20-200/月）→ 在他们的网站上直接付款
-- ✅ **低价提供商**（GLM、MiniMax）→ 直接付款，9Router 只是路由你的请求
-- ❌ **9Router 本身** → **永不收费，永远不会**
+- ✅ **低价提供商**（GLM、MiniMax）→ 直接付款，HxRouter 只是路由你的请求
+- ❌ **HxRouter 本身** → **永不收费，永远不会**
 
-9Router 是一个本地代理/路由器。它没有你的信用卡，不能发送发票，也没有计费系统。它是完全免费的软件。
+HxRouter 是一个本地代理/路由器。它没有你的信用卡，不能发送发票，也没有计费系统。它是完全免费的软件。
 
 </details>
 
@@ -677,7 +783,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 - **OpenCode Free**：无认证直连代理，模型从 `opencode.ai/zen/v1/models` 自动获取
 - **Vertex AI**：新 Google Cloud 账户可获得 $300 免费额度（90 天）
 
-9Router 只是路由你的请求到它们 — 没有"陷阱"或未来的计费。它们是真正的免费服务，9Router 让它们易于使用并支持切换。
+HxRouter 只是路由你的请求到它们 — 没有"陷阱"或未来的计费。它们是真正的免费服务，HxRouter 让它们易于使用并支持切换。
 
 **已停止的免费等级（不再推荐）：**
 - ❌ **iFlow**：曾是免费无限量，现在改为付费（2026）
@@ -707,7 +813,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 3. **最后使用订阅提供商：**
    - 仅当你已有订阅时
-   - 9Router 通过配额追踪帮助最大化其价值
+   - HxRouter 通过配额追踪帮助最大化其价值
 
 **结果：** 大多数用户可以仅使用免费等级以 $0/月运行！
 
@@ -716,20 +822,20 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 <details>
 <summary><b>📈 如果我的使用量突然激增怎么办？</b></summary>
 
-9Router 的智能切换可以防止意外费用：
+HxRouter 的智能切换可以防止意外费用：
 
 **场景：** 你正在进行编码冲刺，用尽了配额
 
-**没有 9Router：**
+**没有 HxRouter：**
 - ❌ 达到速率限制 → 工作停止 → 沮丧
 - ❌ 或者：不慎累积大量 API 账单
 
-**有 9Router：**
+**有 HxRouter：**
 - ✅ 订阅达到限制 → 自动切换到低价等级
 - ✅ 低价等级变得昂贵 → 自动切换到免费等级
 - ✅ 编程永不停歇 → 可预测的成本
 
-**你掌控一切：** 在控制面板中设置每个提供商的支出限制，9Router 会遵守它们。
+**你掌控一切：** 在控制面板中设置每个提供商的支出限制，HxRouter 会遵守它们。
 
 </details>
 
@@ -754,7 +860,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
   cc/claude-haiku-4-5-20251001
 ```
 
-**专业提示：** 复杂任务使用 Opus，追求速度使用 Sonnet。9Router 按模型追踪配额！
+**专业提示：** 复杂任务使用 Opus，追求速度使用 Sonnet。HxRouter 按模型追踪配额！
 
 ### OpenAI Codex (Plus/Pro)
 
@@ -803,7 +909,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 <details>
 <summary><b>💰 低价提供商（备份）</b></summary>
 
-### GLM-5.1 / GLM-4.7（每日重置，$0.6/1M）
+### GLM-5.3 / GLM-5.1 / GLM-4.7（每日重置，$0.6/1M）
 
 1. 注册：[Zhipu AI](https://open.bigmodel.cn/)
 2. 从编程计划获取 API key
@@ -811,9 +917,9 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
    - 提供商：`glm`
    - API Key：`your-key`
 
-**使用：** `glm/glm-5.1`、`glm/glm-5`、`glm/glm-4.7`
+**使用：** `glm/glm-5.3`、`glm/glm-5.1`、`glm/glm-5`、`glm/glm-4.7`
 
-**专业提示：** 编程计划提供 3 倍配额，成本仅为 1/7！每日 10:00 AM 重置。
+**专业提示：** 编程计划提供 3 倍配额，成本仅为 1/7！每日 10:00 AM 重置。支持编码基准优化的 GLM-5.3。
 
 ### MiniMax M2.7（5小时重置，$0.20/1M）
 
@@ -857,6 +963,30 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 ```
 
 **专业提示：** Claude 最佳免费选项。无需 API key，无需付款，完全无限量。
+
+### Antigravity（Google Cloud Code / Gemini 3.8 & 3.7 & Claude）
+
+```bash
+控制面板 → 连接 Antigravity
+→ Google OAuth 登录
+→ 分层推理模型，自动配额切换
+
+模型：
+  ag/gemini-3.8-flash-high
+  ag/gemini-3.8-flash-medium
+  ag/gemini-3.8-flash-low
+  ag/gemini-3.7-flash-high
+  ag/gemini-3.7-flash-medium
+  ag/gemini-3.7-flash-low
+  ag/gemini-3.6-flash-high
+  ag/gemini-3.6-flash-medium
+  ag/gemini-3.6-flash-low
+  ag/claude-sonnet-4-6
+  ag/claude-opus-4-6-thinking
+  ag/gpt-oss-120b-medium
+```
+
+**专业提示：** 完整支持 Gemini 3.8/3.7 Flash 的 High/Medium/Low 推理力度分层、竞品触发词剥离和直连代理路由。
 
 ### OpenCode Free（无需认证，自动获取模型）
 
@@ -998,7 +1128,7 @@ codex "your prompt"
 }
 ```
 
-> **注意：** OpenClaw 仅适用于本地 9Router。使用 `127.0.0.1` 而不是 `localhost` 以避免 IPv6 解析问题。
+> **注意：** OpenClaw 仅适用于本地 HxRouter。使用 `127.0.0.1` 而不是 `localhost` 以避免 IPv6 解析问题。
 
 ### Cline / Continue / RooCode
 
@@ -1018,8 +1148,8 @@ Model：cc/claude-opus-4-7
 
 ```bash
 # 克隆并安装
-git clone https://github.com/decolua/9router.git
-cd 9router
+git clone https://github.com/Huathy/HxRouter.git
+cd HxRouter
 npm install
 npm run build
 
@@ -1040,37 +1170,37 @@ npm run start
 
 # 或使用 PM2
 npm install -g pm2
-pm2 start npm --name 9router -- start
+pm2 start npm --name hxrouter -- start
 pm2 save
 pm2 startup
 ```
 
 ### Docker
 
-```bash
-# 构建镜像（从仓库根目录）
-docker build -t 9router .
+已发布镜像（多平台 `linux/amd64` + `linux/arm64`）：
 
-# 运行容器（当前设置使用的命令）
+- Docker Hub：[`vanszs/hxrouter`](https://hub.docker.com/r/vanszs/hxrouter)
+- GHCR：[`ghcr.io/vanszs/hxrouter`](https://github.com/Huathy/HxRouter/pkgs/container/hxrouter)
+
+**快速开始（使用已发布镜像）：**
+
+```bash
 docker run -d \
-  --name 9router \
+  --name hxrouter \
   -p 20128:20128 \
-  --env-file /root/dev/9router/.env \
-  -v 9router-data:/app/data \
-  -v 9router-usage:/root/.9router \
-  9router
+  -v "$HOME/.9router:/app/data" \
+  -e DATA_DIR=/app/data \
+  ghcr.io/vanszs/hxrouter:latest
 ```
 
-便携命令（如果你已经在仓库根目录）：
+**从源码构建（开发）：**
 
 ```bash
-docker run -d \
-  --name 9router \
-  -p 20128:20128 \
-  --env-file ./.env \
-  -v 9router-data:/app/data \
-  -v 9router-usage:/root/.9router \
-  9router
+git clone https://github.com/Huathy/HxRouter.git
+cd HxRouter/app
+docker build -t hxrouter .
+docker run -d --name hxrouter -p 20128:20128 \
+  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data hxrouter
 ```
 
 容器默认值：
@@ -1080,10 +1210,13 @@ docker run -d \
 常用命令：
 
 ```bash
-docker logs -f 9router
-docker restart 9router
-docker stop 9router && docker rm 9router
+docker logs -f hxrouter
+docker restart hxrouter
+docker stop hxrouter && docker rm hxrouter
+docker pull ghcr.io/vanszs/hxrouter:latest   # 更新到最新
 ```
+
+数据持久化：宿主机 `$HOME/.9router/db/data.sqlite` ↔ 容器内 `/app/data/db/data.sqlite`。
 
 ### 环境变量
 
@@ -1091,7 +1224,7 @@ docker stop 9router && docker rm 9router
 |----------|---------|-------------|
 | `JWT_SECRET` | 自动生成（`~/.9router/jwt-secret`） | 用于控制面板 auth cookie 的 JWT 签名密钥（设置可在多实例间共享） |
 | `INITIAL_PASSWORD` | `123456` | 当没有保存的哈希时首次登录的密码 |
-| `DATA_DIR` | `~/.9router` | 主应用数据库位置（`db.json`） |
+| `DATA_DIR` | `~/.9router` | 主应用数据位置（SQLite 位于 `$DATA_DIR/db/data.sqlite`） |
 | `PORT` | 框架默认值 | 服务端口（示例中为 `20128`） |
 | `HOSTNAME` | 框架默认值 | 绑定主机（Docker 默认为 `0.0.0.0`） |
 | `NODE_ENV` | 运行时默认值 | 设置 `production` 用于部署 |
@@ -1105,6 +1238,7 @@ docker stop 9router && docker rm 9router
 | `AUTH_COOKIE_SECURE` | `false` | 强制 `Secure` auth cookie（在 HTTPS 反向代理后面设置为 `true`） |
 | `REQUIRE_API_KEY` | `false` | 在 `/v1/*` 路由上强制使用 Bearer API key（面向互联网部署时推荐） |
 | `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` | 空 | 用于上游提供商调用的可选出站代理 |
+| `SEARXNG_URL` | `http://localhost:8888/search` | 内置免认证 SearXNG 网络搜索提供商的端点 |
 
 注意：
 - 也支持小写代理变量：`http_proxy`、`https_proxy`、`all_proxy`、`no_proxy`。
@@ -1114,8 +1248,8 @@ docker stop 9router && docker rm 9router
 
 ### 运行时文件和存储
 
-- 主应用状态：`${DATA_DIR}/db.json`（提供商、组合、别名、密钥、设置），由 `src/lib/localDb.js` 管理。
-- 使用历史和日志：`${DATA_DIR}/usage.json` 和 `${DATA_DIR}/log.txt`，由 `src/lib/usageDb.js` 管理。
+- 主应用状态：`${DATA_DIR}/db/data.sqlite`（SQLite — 提供商、组合、别名、密钥、设置、使用历史）。
+- 自动备份：`${DATA_DIR}/db/backups/`。
 - 可选的请求/翻译器日志：`ENABLE_REQUEST_LOGS=true` 时位于 `<repo>/logs/...`。
 - `${DATA_DIR}` 和 `~/.9router` 在 Docker 容器中解析到同一位置 — 符号链接 `/root/.9router -> /app/data` 在构建时创建。
 
@@ -1155,7 +1289,19 @@ docker stop 9router && docker rm 9router
 - `cu/gpt-5.3-codex`
 - `cu/kimi-k2.5`
 
+**Antigravity（`ag/`）** - 免费分层推理：
+- `ag/gemini-3.8-flash-high`
+- `ag/gemini-3.8-flash-medium`
+- `ag/gemini-3.8-flash-low`
+- `ag/gemini-3.7-flash-high`
+- `ag/gemini-3.7-flash-medium`
+- `ag/gemini-3.7-flash-low`
+- `ag/claude-sonnet-4-6`
+- `ag/claude-opus-4-6-thinking`
+- `ag/gpt-oss-120b-medium`
+
 **GLM（`glm/`）** - $0.6/1M：
+- `glm/glm-5.3`
 - `glm/glm-5.1`
 - `glm/glm-5`
 - `glm/glm-4.7`
@@ -1201,7 +1347,7 @@ docker stop 9router && docker rm 9router
 - 添加组合：`cc/claude-opus-4-7 → glm/glm-5.1 → kr/claude-sonnet-4.5`
 
 **OAuth token 已过期**
-- 9Router 自动刷新
+- HxRouter 自动刷新
 - 如果问题持续：控制面板 → 提供商 → 重新连接
 
 **高成本**
@@ -1263,22 +1409,22 @@ Authorization: Bearer your-api-key
 ## 📧 支持
 
 - **网站**：[9router.com](https://9router.com)
-- **GitHub**：[github.com/decolua/9router](https://github.com/decolua/9router)
-- **问题**：[github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**：[github.com/Huathy/HxRouter](https://github.com/Huathy/HxRouter)
+- **问题**：[github.com/Huathy/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
 
 ---
 
 ## 👥 贡献者
 
-感谢所有帮助改进 9Router 的贡献者！
+感谢所有帮助改进 HxRouter 的贡献者！
 
-[![Contributors](https://contrib.rocks/image?repo=decolua/9router&max=150&columns=15&anon=1&v=20260309)](https://github.com/decolua/9router/graphs/contributors)
+[![Contributors](https://contrib.rocks/image?repo=Huathy/HxRouter&max=150&columns=15&anon=1&v=20260309)](https://github.com/Huathy/HxRouter/graphs/contributors)
 
 ---
 
 ## 📊 Star 图表
 
-[![Star Chart](https://starchart.cc/decolua/9router.svg?variant=adaptive)](https://starchart.cc/decolua/9router)
+[![Star Chart](https://starchart.cc/Huathy/HxRouter.svg?variant=adaptive)](https://github.com/Huathy/HxRouter)
 
 
 
