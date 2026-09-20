@@ -43,38 +43,48 @@
 
 ---
 
-## 📊 Comparison: HxRouter vs 9Router vs OmniRoute
+## 📊 Comparison: 9Router → OmniRoute → VansRouter → HxRouter
+
+> Lineage order: **9Router** (upstream original) → **OmniRoute** (full-featured TypeScript fork) and **VansRouter** (fork that keeps the JS implementation) → **HxRouter** (this repo, continued from VansRouter). The table follows that order; the VansRouter column reflects what its README publicly claims, and the HxRouter column marks what it inherits from VansRouter.
 
 ### Logic & Backend — what each has
 
-| Feature | 9Router | OmniRoute | **HxRouter** |
-|---------|---------|-----------|---------------|
-| **Gemini 3.7/3.8 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing |
-| **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI |
-| **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) |
-| **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware |
-| **Provider-level failure tracking** | ❌ | ✅ with 5s dedup | ✅ ported, with dedup bound 10K |
-| **Provider exhaustion detection** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ ported + tightened regex |
-| **429 excluded from breaker** | ❌ N/A | ❌ (429 counts) | ✅ Only 5xx/timeout counts |
-| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore + pool routing |
-| **Kimchi CLI alignment** | ❌ | ❌ | ✅ 5 models, per-model caps from models.dev |
-| **Kimchi quota auto-reactivation** | ❌ | ❌ | ✅ monthly auto-reset via instrumentation hook |
-| **AgentRouter provider** | ❌ | ✅ | ✅ |
-| **Model lockout** | ✅ DB flat field | ✅ in-memory Map | ✅ DB flat field (inherited) |
-| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ inherited |
-| **NVIDIA Kimi stream coercion** | ✅ | ✅ | ✅ inherited |
-| **Per-API-key ACL** | ✅ fork-only | ❌ | ✅ inherited |
-| **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ inherited |
-| **Kimi native tool parser** | ✅ | ✅ | ✅ inherited + hardened |
-| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 17 | 4 (inherited) |
-| **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache |
-| **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation |
-| **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection |
-| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7/3.8 |
+| Feature | 9Router | OmniRoute | VansRouter | **HxRouter** |
+|---------|---------|-----------|------------|---------------|
+| **Gemini 3.7/3.8 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing | ✅ inherited (adds Gemini 3.8 Flash tiers) |
+| **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI | ✅ inherited |
+| **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) | ✅ inherited |
+| **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware | ✅ inherited |
+| **Provider-level failure tracking** | ❌ | ✅ with 5s dedup | ✅ ported, with dedup bound 10K | ✅ inherited |
+| **Provider exhaustion detection** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ ported + tightened regex | ✅ inherited |
+| **429 excluded from breaker** | ❌ N/A | ❌ (429 counts) | ✅ Only 5xx/timeout counts | ✅ inherited |
+| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore + pool routing | ✅ inherited |
+| **Kimchi CLI alignment** | ❌ | ❌ | ✅ 5 models, per-model caps from models.dev | ✅ inherited |
+| **Kimchi quota auto-reactivation** | ❌ | ❌ | ✅ monthly auto-reset via instrumentation hook | ✅ inherited |
+| **AgentRouter provider** | ❌ | ✅ | ✅ | ✅ inherited |
+| **Model lockout** | ✅ DB flat field | ✅ in-memory Map | ✅ DB flat field (inherited) | ✅ inherited |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ inherited | ✅ inherited |
+| **NVIDIA Kimi stream coercion** | ✅ | ✅ | ✅ inherited | ✅ inherited |
+| **Per-API-key ACL** | ✅ fork-only | ❌ | ✅ inherited | ✅ inherited |
+| **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ inherited | ✅ inherited |
+| **Kimi native tool parser** | ✅ | ✅ | ✅ inherited + hardened | ✅ inherited |
+| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 17 | 4 (inherited) | 4 (inherited) |
+| **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache | ✅ inherited |
+| **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation | ✅ inherited |
+| **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection | ✅ inherited |
+| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ inherited (40+ + AgentRouter + Antigravity 3.7/3.8) |
+| **Request success-rate monitoring** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges, status filter (success / error / pending), in-flight requests pinned with live spinners |
+| **HTTP status code tracking** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — `httpStatus` recorded in usage history (schema v9), failed/aborted requests logged, color-coded Code column (2xx/4xx/5xx) |
+| **Weighted round-robin combos** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — per-model weight (1-10), slot-expansion proportional distribution (e.g. 3:1), weight input in the combo editor |
+| **Playground** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — sidebar basic-chat playground with provider/combo model picker, backed by a machine-bound CLI-token proxy route (`/api/dashboard/chat/completions`) |
+| **Provider & model-picker UX** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — enable-first > configured-account sorting, 10-min model cache with search highlighting, custom-protocol nodes grouped separately with `nodeName` |
+| **Unified recent-request data source** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — ring buffer removed, Provider/Account columns, merge guard so partial SSE pushes no longer drop rows |
 
-### What HxRouter has that neither 9Router nor OmniRoute has
+> The VansRouter column is taken from its public `README.md` comparison table (its `README.zh-CN.md` has not synced it). HxRouter descends from VansRouter, so inherited rows are marked "✅ inherited"; the rows marked "✅ new in HxRouter" are HxRouter additions over VansRouter (v1.0.0, summarized from the commit history and detailed below).
 
-1. **Kimchi CLI alignment** — 9router's Kimchi provider masquerades as the official Kimchi CLI, with exactly the same 5 models, capabilities, and temperature rules
+### What VansRouter claims and neither 9Router nor OmniRoute has (inherited by HxRouter)
+
+1. **Kimchi CLI alignment** — the Kimchi provider masquerades as the official Kimchi CLI, with exactly the same 5 models, capabilities, and temperature rules
 2. **Kimchi quota auto-reactivation** — accounts deactivated due to quota exhaustion automatically reactivate at the 1st of each month
 3. **In-memory circuit breaker without DB** — simpler than OmniRoute's DB-backed version, no `domainState.js` dependency
 4. **Proxy-aware resilience** — circuit breaker and semaphore keyed per `provider:proxyHash` so one dead proxy doesn't block others
@@ -91,10 +101,10 @@
 
 ### What HxRouter does NOT have (yet)
 
-- OmniRoute's 17 combo strategies (HxRouter has 4)
+- OmniRoute's 17 combo strategies (VansRouter and HxRouter each have 4)
 - OmniRoute's `sessionPool` with fingerprint rotation
 - OmniRoute's `autoCombo` with complexity routing and task fitness scoring
-- OmniRoute's 231 providers (HxRouter has 40+)
+- OmniRoute's 231 providers (VansRouter and HxRouter each have 40+)
 
 ---
 
@@ -1503,9 +1513,17 @@ Thanks to all contributors who helped make HxRouter better!
 
 [![Star Chart](https://starchart.cc/Huathy/HxRouter.svg?variant=adaptive)](https://github.com/Huathy/HxRouter)
 
-## 🔀 Forks
+## 🔀 Lineage & Forks
+
+In derivation order: **9Router → OmniRoute / VansRouter → HxRouter**.
+
+**[9Router](https://github.com/decolua/9router)** — the upstream original: a free AI router and token saver that pairs RTK with automatic fallback to free/low-cost AI models to save 20-40% tokens per request, connecting Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, and OpenClaw to 40+ providers and 100+ models. Node.js/JS implementation.
 
 **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — A full-featured TypeScript fork of 9Router. Adds 36+ providers, 4-tier auto-fallback, multi-modal APIs (images, embeddings, audio, TTS), circuit breaker, semantic cache, LLM evaluations, and a polished dashboard. 368+ unit tests. Available via npm and Docker.
+
+**[VansRouter](https://github.com/Vanszs/VansRouter)** — a fork of 9Router maintained by Vanszs that keeps the Node.js/JS implementation. Its `README.md` publicly claims, beyond 9Router/OmniRoute: Gemini 3.7 tiered reasoning, universal prompt cache + hit rate, an in-memory circuit breaker without DB, account semaphore, provider-level failure tracking and exhaustion detection, 429 excluded from the breaker, proxy-aware resilience, Kimchi CLI alignment and quota auto-reactivation, and TPS cache optimizations (its CHANGELOG also adds Gemini 3.8 Flash tiers). Distributed via the `vansrouter` npm package (repo package name `vansrouter-app`) and Docker/GHCR images.
+
+**[HxRouter](https://github.com/Huathy/HxRouter)** (this repo) — continued from VansRouter (this repository was VansRouter before being renamed to HxRouter). It inherits that feature set and adds, in v1.0.0, request success-rate monitoring, HTTP status code tracking, weighted round-robin combos, and a built-in Playground (see the comparison and "What's New in v1.0.0" above).
 
 ---
 

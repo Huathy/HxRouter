@@ -44,36 +44,46 @@
 
 ---
 
-## 📊 对比：HxRouter vs 9Router vs OmniRoute
+## 📊 对比：9Router → OmniRoute → VansRouter → HxRouter
+
+> 派生顺序：**9Router**（上游原版）→ **OmniRoute**（全功能 TypeScript 分支）与 **VansRouter**（保持 JS 实现的分支）→ **HxRouter**（本仓库，延续自 VansRouter）。下表按此顺序排列；VansRouter 列为其 README 公开声称的能力，HxRouter 列标注与 VansRouter 的继承关系及自身新增。
 
 ### 逻辑与后端 — 各自具备的能力
 
-| 功能 | 9Router | OmniRoute | **HxRouter** |
-|---------|---------|-----------|---------------|
-| **Gemini 3.7/3.8 分层支持** | ❌ | ❌ | ✅ High / Med / Low 分层推理路由 |
-| **通用提示词缓存与命中率** | ❌ | ❌ | ✅ 跨 Claude、Codex、Kiro、OpenAI 追踪 |
-| **熔断器** | ❌ | ✅ TypeScript + DB 持久化 | ✅ JS，内存实现（无 DB 依赖） |
-| **账户信号量** | ❌ | ✅ TypeScript | ✅ JS，移植 + 代理感知 |
-| **提供商级失败追踪** | ❌ | ✅ 5s 去重 | ✅ 移植，去重上限 10K |
-| **提供商耗尽检测** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ 移植 + 正则收紧 |
-| **429 不计入熔断** | ❌ N/A | ❌（429 计入） | ✅ 仅 5xx/超时计入 |
-| **代理感知弹性** | ❌ | ❌ | ✅ 按代理的熔断器 + 信号量 + 连接池路由 |
-| **Kimchi CLI 对齐** | ❌ | ❌ | ✅ 5 个模型，来自 models.dev 的每模型上限 |
-| **Kimchi 配额自动恢复** | ❌ | ❌ | ✅ 通过 instrumentation hook 每月自动重置 |
-| **AgentRouter 提供商** | ❌ | ✅ | ✅ |
-| **模型锁定** | ✅ DB 扁平字段 | ✅ 内存 Map | ✅ DB 扁平字段（继承） |
-| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ 继承 |
-| **NVIDIA Kimi 流强制** | ✅ | ✅ | ✅ 继承 |
-| **每 API Key ACL** | ✅ 仅 fork | ❌ | ✅ 继承 |
-| **格式转换** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ 继承 |
-| **Kimi 原生工具解析器** | ✅ | ✅ | ✅ 继承 + 加固 |
-| **组合策略** | 4（fallback/RR/fusion/capacity） | 17 | 4（继承） |
-| **设置缓存（TPS）** | ❌（每请求 3 次同步 DB 读取） | ❌ | ✅ 5s TTL 缓存 |
-| **连接缓存（TPS）** | ❌（每请求 1 次同步 DB 读取） | ❌ | ✅ 2s TTL 缓存 + 失效 |
-| **每提供商互斥锁** | ❌（全局互斥锁） | ❌ | ✅ 每提供商并行选择 |
-| **提供商数量** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7/3.8 |
+| 功能 | 9Router | OmniRoute | VansRouter | **HxRouter** |
+|---------|---------|-----------|------------|---------------|
+| **Gemini 3.7/3.8 分层支持** | ❌ | ❌ | ✅ High / Med / Low 分层推理路由 | ✅ 继承（新增 Gemini 3.8 Flash 分层） |
+| **通用提示词缓存与命中率** | ❌ | ❌ | ✅ 跨 Claude、Codex、Kiro、OpenAI 追踪 | ✅ 继承 |
+| **熔断器** | ❌ | ✅ TypeScript + DB 持久化 | ✅ JS，内存实现（无 DB 依赖） | ✅ 继承 |
+| **账户信号量** | ❌ | ✅ TypeScript | ✅ JS，移植 + 代理感知 | ✅ 继承 |
+| **提供商级失败追踪** | ❌ | ✅ 5s 去重 | ✅ 移植，去重上限 10K | ✅ 继承 |
+| **提供商耗尽检测** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ 移植 + 正则收紧 | ✅ 继承 |
+| **429 不计入熔断** | ❌ N/A | ❌（429 计入） | ✅ 仅 5xx/超时计入 | ✅ 继承 |
+| **代理感知弹性** | ❌ | ❌ | ✅ 按代理的熔断器 + 信号量 + 连接池路由 | ✅ 继承 |
+| **Kimchi CLI 对齐** | ❌ | ❌ | ✅ 5 个模型，来自 models.dev 的每模型上限 | ✅ 继承 |
+| **Kimchi 配额自动恢复** | ❌ | ❌ | ✅ 通过 instrumentation hook 每月自动重置 | ✅ 继承 |
+| **AgentRouter 提供商** | ❌ | ✅ | ✅ | ✅ 继承 |
+| **模型锁定** | ✅ DB 扁平字段 | ✅ 内存 Map | ✅ DB 扁平字段（继承） | ✅ 继承 |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ 继承 | ✅ 继承 |
+| **NVIDIA Kimi 流强制** | ✅ | ✅ | ✅ 继承 | ✅ 继承 |
+| **每 API Key ACL** | ✅ 仅 fork | ❌ | ✅ 继承 | ✅ 继承 |
+| **格式转换** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ 继承 | ✅ 继承 |
+| **Kimi 原生工具解析器** | ✅ | ✅ | ✅ 继承 + 加固 | ✅ 继承 |
+| **组合策略** | 4（fallback/RR/fusion/capacity） | 17 | 4（继承） | 4（继承） |
+| **设置缓存（TPS）** | ❌（每请求 3 次同步 DB 读取） | ❌ | ✅ 5s TTL 缓存 | ✅ 继承 |
+| **连接缓存（TPS）** | ❌（每请求 1 次同步 DB 读取） | ❌ | ✅ 2s TTL 缓存 + 失效 | ✅ 继承 |
+| **每提供商互斥锁** | ❌（全局互斥锁） | ❌ | ✅ 每提供商并行选择 | ✅ 继承 |
+| **提供商数量** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ 继承（40+ + AgentRouter + Antigravity 3.7/3.8） |
+| **请求成功率监控** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 成功率指标卡按阈值着色（≥95% 绿 / ≥80% 黄 / 其余红）、24h 成功率徽章、状态筛选（成功 / 错误 / 进行中）、进行中请求置顶实时展示 |
+| **HTTP 状态码追踪** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 用量历史记录 `httpStatus`（schema v9）、失败/中止请求同样记录、Code 列按 2xx/4xx/5xx 着色 |
+| **组合加权轮询** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 每模型权重（1-10）、slot 展开法等比例分配（如 3:1）、组合编辑弹窗新增权重输入 |
+| **Playground 调试场** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 侧边栏 basic-chat 调试场，支持提供商/组合模型选择，由机器绑定 CLI token 代理路由（`/api/dashboard/chat/completions`）驱动 |
+| **提供商与模型选择体验** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 启用优先 > 已配置账号排序、10 分钟模型缓存与搜索高亮、兼容协议节点按 `nodeName` 独立分组 |
+| **近期请求统一数据源** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 移除环形缓冲、新增 Provider/Account 列、合并逻辑防止 SSE 部分推送丢行 |
 
-### HxRouter 独有的能力（9Router 和 OmniRoute 都没有）
+> VansRouter 列取自其 `README.md` 的公开对比表（其 `README.zh-CN.md` 未同步该表）；HxRouter 由 VansRouter 延续而来，故继承项标注「✅ 继承」；标注「✅ HxRouter 新增」的行即 HxRouter 相对 VansRouter 的改进（v1.0.0，由提交记录归纳，详见下方）。
+
+### VansRouter 声称具备、而 9Router 与 OmniRoute 没有的能力（HxRouter 继承）
 
 1. **Kimchi CLI 对齐** — Kimchi 提供商与官方 Kimchi CLI 完全一致：相同的 5 个模型、能力和温度规则
 2. **Kimchi 配额自动恢复** — 因配额耗尽被停用的账户在每月 1 日自动恢复
@@ -92,10 +102,10 @@
 
 ### HxRouter 暂不具备的功能
 
-- OmniRoute 的 17 种组合策略（HxRouter 有 4 种）
+- OmniRoute 的 17 种组合策略（VansRouter 与 HxRouter 各有 4 种）
 - OmniRoute 带指纹轮换的 `sessionPool`
 - OmniRoute 带复杂度路由和任务适配度评分的 `autoCombo`
-- OmniRoute 的 231 个提供商（HxRouter 有 40+）
+- OmniRoute 的 231 个提供商（VansRouter 与 HxRouter 各有 40+）
 
 ---
 
@@ -1427,9 +1437,17 @@ Authorization: Bearer your-api-key
 
 
 
-## 🔀 分支
+## 🔀 血统与分支
+
+按派生顺序：**9Router → OmniRoute / VansRouter → HxRouter**。
+
+**[9Router](https://github.com/decolua/9router)** — 上游原版，免费 AI 路由器与 Token 节省器：用 RTK + 自动切换到免费/低价 AI 模型，每次请求节省 20-40% tokens，并把 Claude Code、Cursor、Antigravity、Copilot、Codex、Gemini、OpenCode、Cline、OpenClaw 等工具接入 40+ 提供商和 100+ 模型。Node.js/JS 实现。
 
 **[OmniRoute](https://github.com/diegosouzapw/OmniRoute)** — 9Router 的全功能 TypeScript 分支。增加了 36+ 提供商、4 层自动切换、多模态 API（图像、嵌入、音频、TTS）、断路器、语义缓存、LLM 评估和精美的控制面板。368+ 单元测试。可通过 npm 和 Docker 使用。
+
+**[VansRouter](https://github.com/Vanszs/VansRouter)** — 9Router 的 fork（由 Vanszs 维护），保持 Node.js/JS 实现。其 `README.md` 公开声称相对 9Router/OmniRoute 的能力：Gemini 3.7 分层推理、通用提示词缓存与命中率、无 DB 内存熔断器、账户信号量、提供商级失败追踪与耗尽检测、429 不计入熔断、代理感知弹性、Kimchi CLI 对齐与配额自动恢复、TPS 缓存优化等（其 CHANGELOG 另含 Gemini 3.8 Flash 分层）。提供 npm 包 `vansrouter`（仓库包名 `vansrouter-app`）与 Docker/GHCR 镜像。
+
+**[HxRouter](https://github.com/Huathy/HxRouter)**（本仓库）— 延续自 VansRouter（本仓库前身即 VansRouter，后重命名为 HxRouter），完整继承上述能力，并在 v1.0.0 中新增请求成功率监控、HTTP 状态码追踪、组合加权轮询、内置 Playground 等（详见上方「对比」与「v1.0.0 新特性」）。
 
 ---
 
