@@ -21,7 +21,17 @@ import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/prov
 // Force-stop FE animation if a provider stays active longer than this
 const FE_ACTIVE_TIMEOUT_MS = 60000;
 const FE_ACTIVE_TICK_MS = 1000;
-const FIT_VIEW_OPTS = { padding: 0.2, duration: 200 };
+// minZoom keeps the ring from auto-fitting into unreadable micro-text when many
+// providers are configured; the user can pan for the overflow instead of squinting.
+const FIT_VIEW_OPTS = { padding: 0.2, duration: 200, minZoom: 0.75 };
+
+// Fixed chip sizes. The center stays 100x40; providers are compact 80x35 by
+// default and scale up while a request is flowing through them.
+const ROUTER_NODE_W = 100;
+const ROUTER_NODE_H = 40;
+const PROVIDER_NODE_W = 80;
+const PROVIDER_NODE_H = 35;
+const PROVIDER_ACTIVE_SCALE = 1.35;
 
 // Kame + electric particles along active edges
 const KAME_PARTICLE_COUNT = 6;
@@ -31,17 +41,21 @@ function getProviderConfig(providerId) {
   return AI_PROVIDERS[providerId] || { color: "#6b7280", name: providerId };
 }
 
-// Custom provider node - rectangle with image + name
+// Custom provider node - compact fixed chip; scales up while active so the
+// label stays legible instead of shrinking with the ring.
 function ProviderNode({ data }) {
   const { providerId, label, color, imageUrl, textIcon, active } = data;
   const [imgError, setImgError] = useState(false);
   return (
     <div
-      className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg border-2 transition-all duration-300 bg-bg"
+      className="relative flex items-center gap-1.5 rounded-lg border-2 transition-all duration-300 bg-bg"
       style={{
+        width: PROVIDER_NODE_W,
+        height: PROVIDER_NODE_H,
+        padding: "0 7px",
         borderColor: active ? color : "var(--color-border)",
-        boxShadow: active ? `0 0 16px ${color}40` : "none",
-        minWidth: "150px",
+        boxShadow: active ? `0 0 16px ${color}55` : "none",
+        transform: active ? `scale(${PROVIDER_ACTIVE_SCALE})` : "scale(1)",
       }}
     >
       <Handle type="target" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
@@ -51,22 +65,22 @@ function ProviderNode({ data }) {
 
       {/* Provider icon */}
       <div
-        className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-        style={{ backgroundColor: `${color}15` }}
+        className="rounded-md flex items-center justify-center shrink-0"
+        style={{ width: 20, height: 20, backgroundColor: `${color}15` }}
       >
         {providerId === "a6api" || providerId === "a6api-cli" ? (
           <span
             className="a6api-custom-logo"
             style={{
-              width: "24px",
-              height: "24px",
+              width: "15px",
+              height: "15px",
               borderRadius: "50%",
               display: "grid",
               placeItems: "center",
               position: "relative",
               overflow: "hidden",
               color: "var(--navy, #1F2937)",
-              fontSize: "9px",
+              fontSize: "6px",
               fontWeight: "bold",
               letterSpacing: 0,
               background: "radial-gradient(circle at 34% 28%, rgba(255, 255, 255, .38), transparent 22%), conic-gradient(from 210deg, #3157ff, #16b8a6, #74c86a, #3157ff)",
@@ -80,9 +94,9 @@ function ProviderNode({ data }) {
           <Image
             src={imageUrl}
             alt={label}
-            className="w-6 h-6 rounded-sm object-contain"
-            width={24}
-            height={24}
+            className="w-4 h-4 rounded-sm object-contain"
+            width={16}
+            height={16}
             unoptimized
             onError={() => {
               const m = imageUrl?.match(/^\/providers\/([^/]+)\.(png|webp)$/i);
@@ -91,13 +105,13 @@ function ProviderNode({ data }) {
             }}
           />
         ) : (
-          <span className="text-sm font-bold" style={{ color }}>{textIcon}</span>
+          <span className="text-[9px] font-bold" style={{ color }}>{textIcon}</span>
         )}
       </div>
 
       {/* Provider name */}
       <span
-        className="text-base font-medium truncate"
+        className="min-w-0 flex-1 truncate text-[10px] font-medium leading-none"
         style={{ color: active ? color : "var(--color-text)" }}
       >
         {label}
@@ -105,7 +119,7 @@ function ProviderNode({ data }) {
 
       {/* Active indicator */}
       {active && (
-        <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute -top-1 -right-1 flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
           <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }} />
         </span>
@@ -120,11 +134,12 @@ function RouterNode({ data }) {
   const powering = (data.activeCount || 0) > 0;
   return (
     <div
-      className={`relative z-[1] flex items-center justify-center px-5 py-3 rounded-xl border-2 min-w-[130px] ${
+      className={`relative z-[1] flex items-center justify-center gap-1.5 rounded-xl border-2 ${
         powering
           ? "topology-router-core border-yellow-300 bg-gradient-to-br from-primary/30 via-yellow-400/20 to-cyan-400/25"
           : "border-primary bg-primary/5 shadow-md"
       }`}
+      style={{ width: ROUTER_NODE_W, height: ROUTER_NODE_H }}
     >
       <Handle type="source" position={Position.Top} id="top" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Bottom} id="bottom" className="!bg-transparent !border-0 !w-0 !h-0" />
@@ -134,17 +149,17 @@ function RouterNode({ data }) {
       <img
         src="/favicon.svg"
         alt="HXAI"
-        className={`w-6 h-6 mr-2 ${powering ? "topology-router-icon" : ""}`}
+        className={`w-5 h-5 ${powering ? "topology-router-icon" : ""}`}
         loading="lazy"
         decoding="async"
-        width={24}
-        height={24}
+        width={20}
+        height={20}
       />
       <span className={`text-sm font-bold ${powering ? "topology-router-label text-yellow-300" : "text-primary"}`}>
         HXAI
       </span>
       {data.activeCount > 0 && (
-        <span className="ml-2 px-1.5 py-0.5 rounded-full bg-yellow-400 text-black text-xs font-bold topology-router-badge">
+        <span className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-yellow-400 text-black text-[10px] font-bold topology-router-badge">
           {data.activeCount}
         </span>
       )}
@@ -279,23 +294,25 @@ TopologyEdge.propTypes = {
 const nodeTypes = { provider: ProviderNode, router: RouterNode };
 const edgeTypes = { topology: TopologyEdge };
 
-// Place N nodes evenly along an ellipse around the router center.
+// Place N nodes evenly along a circle around the router center.
 function buildLayout(providers, activeSet, lastSet, errorSet) {
-  const nodeW = 180;
-  const nodeH = 30;
-  const routerW = 120;
-  const routerH = 44;
-  const nodeGap = 24;
+  const nodeW = PROVIDER_NODE_W;
+  const nodeH = PROVIDER_NODE_H;
+  const routerW = ROUTER_NODE_W;
+  const routerH = ROUTER_NODE_H;
+  const nodeGap = 20;
 
   const count = providers.length;
 
-  // Compute rx so arc spacing between nodes >= nodeW + nodeGap
-  const minRx = ((nodeW + nodeGap) * count) / (2 * Math.PI);
-  const rx = Math.max(320, minRx);
-  const ry = Math.max(200, rx * 0.55); // ellipse ratio ~0.55
+  // Reserve room for the scaled-up chip so an active node never collides with
+  // its neighbors. Radius grows with provider count; the fitView minZoom floor
+  // keeps labels readable and lets the user pan across the overflow.
+  const nodeSpacing = PROVIDER_NODE_W * PROVIDER_ACTIVE_SCALE + nodeGap;
+  const minRadius = (nodeSpacing * count) / (2 * Math.PI);
+  const radius = Math.max(150, minRadius);
   if (count === 0) {
     return {
-      nodes: [{ id: "router", type: "router", position: { x: 0, y: 0 }, data: { activeCount: 0 }, draggable: false }],
+      nodes: [{ id: "router", type: "router", position: { x: -routerW / 2, y: -routerH / 2 }, data: { activeCount: 0 }, draggable: false }],
       edges: [],
     };
   }
@@ -335,8 +352,8 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
 
     // Distribute evenly starting from top (−π/2), clockwise
     const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
-    const cx = rx * Math.cos(angle);
-    const cy = ry * Math.sin(angle);
+    const cx = radius * Math.cos(angle);
+    const cy = radius * Math.sin(angle);
 
     // Pick router handle closest to the node direction
     let sourceHandle, targetHandle;
@@ -356,6 +373,8 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
       position: { x: cx - nodeW / 2, y: cy - nodeH / 2 },
       data,
       draggable: false,
+      // Keep the enlarged active chip above its idle neighbors
+      zIndex: active ? 10 : 0,
     });
 
     edges.push({

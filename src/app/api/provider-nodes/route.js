@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { randomUUID } from "node:crypto";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export async function POST(request) {
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
       });
+      notifyModelCatalogChanged("provider-node-created");
       return NextResponse.json({ node }, { status: 201 });
     }
 
@@ -75,6 +77,7 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
       });
+      notifyModelCatalogChanged("provider-node-created");
       return NextResponse.json({ node }, { status: 201 });
     }
 
@@ -96,6 +99,7 @@ export async function POST(request) {
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
       });
+      notifyModelCatalogChanged("provider-node-created");
       return NextResponse.json({ node }, { status: 201 });
     }
 

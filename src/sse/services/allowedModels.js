@@ -14,6 +14,7 @@ import {
   getModelAliases,
   getCachedProviderModels,
   saveCachedProviderModels,
+  getSettings,
 } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
@@ -356,12 +357,13 @@ async function fetchCompatibleModelIds(connection) {
 }
 
 async function loadDbData() {
-  const [connRes, comboRes, customRes, aliasRes, disabledRes] = await Promise.allSettled([
+  const [connRes, comboRes, customRes, aliasRes, disabledRes, settingsRes] = await Promise.allSettled([
     getProviderConnections(),
     getCombos(),
     getCustomModels(),
     getModelAliases(),
     getDisabledModels(),
+    getSettings(),
   ]);
 
   const connections = connRes.status === "fulfilled" && Array.isArray(connRes.value)
@@ -371,21 +373,27 @@ async function loadDbData() {
   const customModels = customRes.status === "fulfilled" && Array.isArray(customRes.value) ? customRes.value : [];
   const modelAliases = aliasRes.status === "fulfilled" && aliasRes.value ? aliasRes.value : {};
   const disabledByAlias = disabledRes.status === "fulfilled" && disabledRes.value ? disabledRes.value : {};
+  const disabledProviders = new Set(
+    settingsRes.status === "fulfilled" && Array.isArray(settingsRes.value?.disabledProviders)
+      ? settingsRes.value.disabledProviders
+      : []
+  );
 
   const dbAvailable = connRes.status === "fulfilled" || comboRes.status === "fulfilled";
   const isDisabled = (alias, modelId) => Array.isArray(disabledByAlias[alias]) && disabledByAlias[alias].includes(modelId);
 
   const activeConnectionByProvider = new Map();
   for (const conn of connections) {
+    if (disabledProviders.has(conn.provider)) continue;
     if (!activeConnectionByProvider.has(conn.provider)) {
       activeConnectionByProvider.set(conn.provider, conn);
     }
   }
 
-  return { connections, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable };
+  return { connections, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, disabledProviders };
 }
 
-async function buildAllModelEntries(kindFilter, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, options = {}) {
+async function buildAllModelEntries(kindFilter, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, options = {}, disabledProviders = new Set()) {
   const skipDynamicFetch = options.skipDynamicFetch === true;
   kindFilter = new Set(kindFilter);
   const entries = [];
@@ -406,6 +414,7 @@ async function buildAllModelEntries(kindFilter, combos, customModels, modelAlias
     for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
       const providerId = aliasToProviderId[alias] || alias;
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      if (disabledProviders.has(providerId)) continue;
       for (const model of providerModels) {
         if (!kindFilter.has(modelKind(model))) continue;
         if (isDisabled(alias, model.id)) continue;
@@ -414,6 +423,7 @@ async function buildAllModelEntries(kindFilter, combos, customModels, modelAlias
     }
     for (const [providerId, providerInfo] of Object.entries(AI_PROVIDERS)) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      if (disabledProviders.has(providerId)) continue;
       const alias = getProviderAlias(providerId) || providerInfo.alias || providerId;
       appendConfiguredMediaModels(entries, providerInfo, alias, kindFilter, isDisabled);
     }
@@ -443,10 +453,11 @@ async function buildAllModelEntries(kindFilter, combos, customModels, modelAlias
   }
 
   const noAuthProviders = Object.entries(AI_PROVIDERS).filter(([providerId, providerInfo]) =>
+    !disabledProviders.has(providerId) &&
     !activeConnectionByProvider.has(providerId) && providerMatchesKinds(providerId, kindFilter) && (
       providerInfo.noAuth ||
       (kindFilter.has("webSearch") && (providerInfo.searchConfig || providerInfo.searchViaChat)) ||
-      (kindFilter.has("webFetch") && providerInfo.fetchConfig)
+      (kindFilter.has("webFetch") && (providerInfo.fetchConfig))
     )
   );
   const noAuthResults = await Promise.allSettled(
@@ -659,8 +670,8 @@ export async function buildModelsList(kindFilter, options = {}) {
     return cached.models;
   }
 
-  const { combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable } = await loadDbData();
-  let entries = await buildAllModelEntries(kindFilter, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, options);
+  const { combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, disabledProviders } = await loadDbData();
+  let entries = await buildAllModelEntries(kindFilter, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, options, disabledProviders);
 
   const seen = new Set();
   const dedupedModels = [];
@@ -715,8 +726,8 @@ async function getAllowedModelIds() {
   const now = Date.now();
   if (_allowedCache && now < _allowedCacheExpiry) return _allowedCache;
 
-  const { combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable } = await loadDbData();
-  const entries = await buildAllModelEntries(ALL_KINDS, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable);
+  const { combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, disabledProviders } = await loadDbData();
+  const entries = await buildAllModelEntries(ALL_KINDS, combos, customModels, modelAliases, isDisabled, activeConnectionByProvider, dbAvailable, {}, disabledProviders);
 
   const allIds = new Set();
   for (const entry of entries) {

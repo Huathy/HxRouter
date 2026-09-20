@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Card from "./Card";
 import Select from "./Select";
 import Badge from "./Badge";
+import Toggle from "./Toggle";
 
 const NONE_PROXY_POOL_VALUE = "__none__";
 
@@ -12,6 +13,7 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
   const [proxyPoolId, setProxyPoolId] = useState(NONE_PROXY_POOL_VALUE);
   const [rotateStrategy, setRotateStrategy] = useState("none");
   const [targetProxyPoolIds, setTargetProxyPoolIds] = useState([]);
+  const [providerDisabled, setProviderDisabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -27,9 +29,33 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
       setProxyPoolId(override.proxyPoolId || NONE_PROXY_POOL_VALUE);
       setRotateStrategy(override.rotateStrategy || "none");
       setTargetProxyPoolIds(Array.isArray(override.targetProxyPoolIds) ? override.targetProxyPoolIds : []);
+      const disabled = Array.isArray(settingsData.disabledProviders) ? settingsData.disabledProviders : [];
+      setProviderDisabled(disabled.includes(providerId));
     }).catch(() => {});
     return () => controller.abort();
   }, [providerId]);
+
+  const handleProviderToggle = async (enabled) => {
+    setProviderDisabled(!enabled);
+    try {
+      const res = await fetch("/api/settings", { cache: "no-store" });
+      const data = res.ok ? await res.json() : {};
+      const current = Array.isArray(data.disabledProviders) ? data.disabledProviders : [];
+      const next = enabled
+        ? current.filter((id) => id !== providerId)
+        : Array.from(new Set([...current, providerId]));
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabledProviders: next }),
+      });
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1500);
+    } catch (e) {
+      console.log("Save provider enabled state error:", e);
+      setProviderDisabled(!enabled);
+    }
+  };
 
   const handleSave = async (updatedFields) => {
     setSaving(true);
@@ -109,6 +135,17 @@ export default function NoAuthProxyCard({ providerId, isFreeNoAuth = true }) {
           <p className="text-xs text-text-muted">
             Configure how traffic for this provider is routed through proxy pools.
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted font-medium">
+            {providerDisabled ? "Disabled" : "Enabled"}
+          </span>
+          <Toggle
+            size="sm"
+            checked={!providerDisabled}
+            onChange={handleProviderToggle}
+            title={providerDisabled ? "Enable provider" : "Disable provider"}
+          />
         </div>
         {savedFlash && <Badge variant="success" size="sm">Saved</Badge>}
       </div>

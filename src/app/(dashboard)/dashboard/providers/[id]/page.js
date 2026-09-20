@@ -76,6 +76,7 @@ export default function ProviderDetailPage() {
   const [liveModels, setLiveModels] = useState([]);
   const [kiloFreeModels, setKiloFreeModels] = useState([]);
   const [disabledModelIds, setDisabledModelIds] = useState([]);
+  const [disabledProviders, setDisabledProviders] = useState([]);
   const [confirmState, setConfirmState] = useState(null);
   const [noticeState, setNoticeState] = useState(null);
   const [showAgRiskModal, setShowAgRiskModal] = useState(false);
@@ -321,6 +322,7 @@ export default function ProviderDetailPage() {
       const nodesData = await nodesRes.json();
       const proxyPoolsData = await proxyPoolsRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      setDisabledProviders(Array.isArray(settingsData.disabledProviders) ? settingsData.disabledProviders : []);
       const statsData = statsRes.ok ? await statsRes.json() : {};
       // Extract this provider's request success/fail from byProvider (24h).
       const byProvider = statsData.byProvider || {};
@@ -938,6 +940,31 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Toggle this provider on/off. Writes the provider-level kill switch to
+  // settings (covers no-auth providers with no connection row) and flips every
+  // connection of this provider so the list page stays consistent.
+  const handleToggleProvider = async (newActive) => {
+    const nextDisabled = newActive
+      ? disabledProviders.filter((id) => id !== providerId)
+      : Array.from(new Set([...disabledProviders, providerId]));
+    setDisabledProviders(nextDisabled);
+    setConnections((prev) => prev.map((c) => ({ ...c, isActive: newActive })));
+    await Promise.allSettled([
+      ...connections.map((c) =>
+        fetch(`/api/providers/${c.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: newActive }),
+        }),
+      ),
+      fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabledProviders: nextDisabled }),
+      }),
+    ]);
+  };
+
   const handleSwapPriority = async (index1, index2) => {
     // Optimistic update state
     const newConnections = [...connections];
@@ -964,6 +991,9 @@ export default function ProviderDetailPage() {
   };
 
   const selectedConnections = connections.filter((conn) => selectedConnectionIds.includes(conn.id));
+
+  const allConnectionsDisabled = connections.length > 0 && connections.every((conn) => conn.isActive === false);
+  const providerDisabled = disabledProviders.includes(providerId) || allConnectionsDisabled;
 
   const { currentPage: connectionPageClamped, totalPages: connectionTotalPages, items: pagedConnections, start: pagedStart } = computeConnectionPagination(connections, connectionPage);
   const allSelected = connections.length > 0 && selectedConnectionIds.length === connections.length;
@@ -1534,6 +1564,19 @@ export default function ProviderDetailPage() {
               </div>
             )}
           </div>
+          {!isFreeNoAuth && (
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <span className="hidden text-xs text-text-muted sm:inline">
+                {providerDisabled ? "Disabled" : "Enabled"}
+              </span>
+              <Toggle
+                size="sm"
+                checked={!providerDisabled}
+                onChange={() => handleToggleProvider(providerDisabled)}
+                title={providerDisabled ? "Enable provider" : "Disable provider"}
+              />
+            </div>
+          )}
         </div>
       </div>
 

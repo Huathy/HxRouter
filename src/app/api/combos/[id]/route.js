@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getComboById, updateCombo, deleteCombo, getComboByName } from "@/lib/localDb";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 // Validate combo name: only a-z, A-Z, 0-9, -, _
 const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
@@ -73,6 +74,7 @@ export async function PUT(request, { params }) {
     if (prev?.name) resetComboRotation(prev.name);
     if (combo.name && combo.name !== prev?.name) resetComboRotation(combo.name);
     invalidateAllowedModelsCache();
+    notifyModelCatalogChanged("combo-updated");
 
     return NextResponse.json(combo);
   } catch (error) {
@@ -96,6 +98,7 @@ export async function DELETE(request, { params }) {
 
     if (prev?.name) resetComboRotation(prev.name);
     invalidateAllowedModelsCache();
+    notifyModelCatalogChanged("combo-deleted");
     
     return NextResponse.json({ success: true });
   } catch (error) {

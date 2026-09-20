@@ -5,6 +5,7 @@ import {
   updateProviderConnection,
   deleteProviderConnection,
 } from "@/models";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 function normalizeProxyConfig(body = {}) {
   const hasAnyProxyField =
@@ -188,6 +189,7 @@ export async function PUT(request, { params }) {
     }
 
     const updated = await updateProviderConnection(id, updateData);
+    notifyModelCatalogChanged("provider-updated");
 
     // Hide sensitive fields
     const result = { ...updated };
@@ -212,6 +214,8 @@ export async function DELETE(request, { params }) {
     if (!deleted) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
+
+    notifyModelCatalogChanged("provider-deleted");
 
     return NextResponse.json({ message: "Connection deleted successfully" });
   } catch (error) {

@@ -9,6 +9,7 @@ import {
 } from "@/shared/constants/providers";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 export async function POST(request) {
   try {
@@ -66,6 +67,7 @@ export async function POST(request) {
     }
 
     const results = await createProviderConnectionsBulk(items);
+    notifyModelCatalogChanged("providers-created-bulk");
     return NextResponse.json({ results }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error.message || "Failed to create provider connections" }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Badge, Button } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
@@ -14,8 +14,12 @@ const STORAGE_KEYS = {
 };
 
 const MODELS_CACHE_KEY = "basic-chat.modelsCache.v2";
-const MODELS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-const MAX_VISIBLE_MODELS = 10;
+// The local cache is never treated as stale-by-age: it seeds the first paint and
+// is replaced by background refreshes driven by the change stream, a periodic
+// timer, and window focus.
+const MODELS_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const MODELS_CHANGE_DEBOUNCE_MS = 400;
+const MAX_VISIBLE_MODELS = 8;
 
 function createId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -433,7 +437,7 @@ function readLocalGroups() {
   if (typeof window === "undefined") return null;
   try {
     const cached = safeParse(globalThis.localStorage.getItem(MODELS_CACHE_KEY), null);
-    if (cached && Array.isArray(cached.groups) && (Date.now() - cached.fetchedAt) < MODELS_CACHE_TTL) {
+    if (cached && Array.isArray(cached.groups)) {
       return cached.groups;
     }
   } catch {
@@ -452,8 +456,10 @@ function writeLocalGroups(groups) {
 }
 
 function buildGroupsSignature(groups) {
+  // Include the model ids, not just counts: editing a provider can swap models
+  // without changing how many there are, and that must still refresh the UI.
   return (Array.isArray(groups) ? groups : [])
-    .map((group) => `${group.providerId}:${group.models.length}`)
+    .map((group) => `${group.providerId}:[${(group.models || []).map((model) => model.id).join(",")}]`)
     .join("|");
 }
 
@@ -499,91 +505,134 @@ export default function BasicChatPageClient() {
   const groupsSignatureRef = useRef("");
   const modelMenuRef = useRef(null);
   const historyMenuRef = useRef(null);
+  const mountedRef = useRef(false);
+  const refreshSeqRef = useRef(0);
+  const changeDebounceRef = useRef(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
+  const refreshGroups = useCallback(async ({ refresh = false, silent = true } = {}) => {
+    const seq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = seq;
 
-    async function loadData() {
+    if (!silent) {
+      setLoadingData(true);
       setLoadError("");
-
-      // 1. Render from the local cache immediately so the UI is usable while
-      // the network refresh runs in the background.
-      const localGroups = readLocalGroups();
-      if (localGroups) {
-        groupsSignatureRef.current = buildGroupsSignature(localGroups);
-        setProviderGroups(localGroups);
-        setLoadingData(false);
-      } else {
-        setLoadingData(true);
-      }
-
-      try {
-        const { groups, noProviders } = await fetchAndBuildGroups({ signal: controller.signal });
-        if (cancelled) return;
-
-        if (noProviders) {
-          setProviderGroups([]);
-          setLoadError("No providers or combos configured yet.");
-          return;
-        }
-
-        // Compare a cheap signature instead of re-serializing both full group
-        // lists; the background refresh returns a new array reference even when
-        // the contents are unchanged, which would otherwise force a re-render.
-        const signature = buildGroupsSignature(groups);
-        if (signature !== groupsSignatureRef.current) {
-          groupsSignatureRef.current = signature;
-          setProviderGroups(groups);
-          writeLocalGroups(groups);
-        }
-
-        if (groups.length === 0) {
-          setLoadError("Providers connected but no models available.");
-        }
-      } catch (error) {
-        if (cancelled) return;
-        // Keep the cached UI on failure; only surface the error when there is
-        // nothing usable to show.
-        if (!localGroups) {
-          setLoadError(textValue(error?.message) || "Failed to load providers/models.");
-          setProviderGroups([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingData(false);
-      }
     }
 
-    loadData();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, []);
-
-  const handleRefreshModels = async () => {
-    setLoadingData(true);
-    setLoadError("");
     try {
-      const { groups, noProviders } = await fetchAndBuildGroups({ refresh: true });
+      const { groups, noProviders } = await fetchAndBuildGroups({ refresh });
+      // A newer refresh superseded this one, or the page unmounted.
+      if (!mountedRef.current || seq !== refreshSeqRef.current) return;
+
       if (noProviders) {
         groupsSignatureRef.current = "";
         setProviderGroups([]);
         setLoadError("No providers or combos configured yet.");
         return;
       }
-      groupsSignatureRef.current = buildGroupsSignature(groups);
-      setProviderGroups(groups);
-      writeLocalGroups(groups);
-      if (groups.length === 0) {
-        setLoadError("Providers connected but no models available.");
+
+      // Only re-render when the visible contents actually changed; write the
+      // cache on every successful refresh so it never holds a stale list.
+      const signature = buildGroupsSignature(groups);
+      if (signature !== groupsSignatureRef.current || !silent) {
+        groupsSignatureRef.current = signature;
+        setProviderGroups(groups);
       }
+      if (groups.length > 0) writeLocalGroups(groups);
+      setLoadError(groups.length === 0 ? "Providers connected but no models available." : "");
     } catch (error) {
-      setLoadError(textValue(error?.message) || "Failed to refresh models.");
+      if (!mountedRef.current || seq !== refreshSeqRef.current) return;
+      // Keep the cached UI on a background failure; only surface the error when
+      // the user explicitly asked for a refresh.
+      if (!silent) setLoadError(textValue(error?.message) || "Failed to refresh models.");
     } finally {
-      setLoadingData(false);
+      if (mountedRef.current && seq === refreshSeqRef.current) setLoadingData(false);
     }
-  };
+  }, []);
+
+  // Seed from the local cache, then always refresh once from the network.
+  useEffect(() => {
+    mountedRef.current = true;
+
+    const seedFromCache = () => {
+      const localGroups = readLocalGroups();
+      const hasCache = Array.isArray(localGroups) && localGroups.length > 0;
+      if (hasCache) {
+        groupsSignatureRef.current = buildGroupsSignature(localGroups);
+        setProviderGroups(localGroups);
+        setLoadingData(false);
+      } else {
+        setLoadingData(true);
+      }
+      return hasCache;
+    };
+
+    const hasCache = seedFromCache();
+    refreshGroups({ silent: hasCache });
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [refreshGroups]);
+
+  // Refresh immediately when a provider/combo/model edit is broadcast by the
+  // server, so the dropdown reflects dashboard edits without a manual reload.
+  useEffect(() => {
+    if (!isHydrated || typeof EventSource === "undefined") return undefined;
+
+    let source;
+    try {
+      source = new EventSource("/api/models/events");
+    } catch {
+      return undefined;
+    }
+
+    const scheduleRefresh = () => {
+      if (changeDebounceRef.current) clearTimeout(changeDebounceRef.current);
+      changeDebounceRef.current = setTimeout(() => {
+        changeDebounceRef.current = null;
+        refreshGroups({ silent: true });
+      }, MODELS_CHANGE_DEBOUNCE_MS);
+    };
+
+    source.onmessage = (event) => {
+      if (!event?.data) return;
+      const payload = safeParse(event.data, null);
+      if (payload?.type === "changed") scheduleRefresh();
+    };
+    // The browser reconnects EventSource automatically, so transient errors and
+    // reconnects need no handling here.
+
+    return () => {
+      if (changeDebounceRef.current) {
+        clearTimeout(changeDebounceRef.current);
+        changeDebounceRef.current = null;
+      }
+      source.close();
+    };
+  }, [isHydrated, refreshGroups]);
+
+  // Periodic refresh plus a refresh whenever the tab becomes visible again,
+  // covering edits made on another device that the change stream can't reach.
+  useEffect(() => {
+    if (!isHydrated) return undefined;
+
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      refreshGroups({ silent: true });
+    };
+
+    const interval = setInterval(tick, MODELS_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", tick);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [isHydrated, refreshGroups]);
+
+  const handleRefreshModels = () => refreshGroups({ refresh: true, silent: false });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1064,11 +1113,23 @@ export default function BasicChatPageClient() {
                     const hiddenCount = group.models.length - visibleModels.length;
                     return (
                       <div key={group.providerId} className="mb-2 rounded-[16px] border border-white/10 bg-black/20 p-2">
-                        <div className="flex items-center justify-between px-2 py-2">
-                          <p className={`text-sm font-semibold ${group.groupMatches ? "text-blue-200" : "text-white"}`}>
+                        <div className="flex items-center justify-between gap-2 px-2 py-2">
+                          <p className={`min-w-0 truncate text-sm font-semibold ${group.groupMatches ? "text-blue-200" : "text-white"}`}>
                             {highlightMatch(group.providerName, modelSearch)}
                           </p>
-                          <Badge size="sm" variant="default">{group.models.length}</Badge>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Badge size="sm" variant="default">{group.models.length}</Badge>
+                            {group.models.length > MAX_VISIBLE_MODELS ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.providerId]: !prev[group.providerId] }))}
+                                className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 transition hover:bg-white/8 hover:text-white"
+                              >
+                                <span className={`material-symbols-outlined text-[16px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
+                                {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                           {visibleModels.map((model) => {
@@ -1091,16 +1152,6 @@ export default function BasicChatPageClient() {
                             );
                           })}
                         </div>
-                        {group.models.length > MAX_VISIBLE_MODELS ? (
-                          <button
-                            type="button"
-                            onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.providerId]: !prev[group.providerId] }))}
-                            className="mt-2 flex w-full items-center justify-center gap-1 rounded-[12px] border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:bg-white/8 hover:text-white"
-                          >
-                            <span className={`material-symbols-outlined text-[16px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
-                            {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
-                          </button>
-                        ) : null}
                       </div>
                     );
                   })}

@@ -9,6 +9,7 @@ import {
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,8 @@ export async function POST(request) {
       isActive: true,
       testStatus: testStatus || "unknown",
     });
+
+    notifyModelCatalogChanged("provider-created");
 
     // Hide sensitive fields
     const result = { ...newConnection };

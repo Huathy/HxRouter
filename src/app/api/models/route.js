@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias } from "@/models";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { getSettings } from "@/lib/localDb";
 import { AI_MODELS } from "@/shared/constants/config";
-import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
+import { AI_PROVIDERS, getProviderAlias, resolveProviderId } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { fetchModelsFetcherIds } from "@/sse/services/allowedModels.js";
 
@@ -11,9 +12,14 @@ export async function GET() {
   try {
     const modelAliases = await getModelAliases();
     const disabled = await getDisabledModels();
+    const settings = await getSettings();
+    const disabledProviders = new Set(settings.disabledProviders || []);
+    const isProviderDisabled = (providerIdOrAlias) =>
+      disabledProviders.has(resolveProviderId(providerIdOrAlias));
 
     const models = AI_MODELS
       .filter((m) => {
+        if (isProviderDisabled(m.provider)) return false;
         const alias = getProviderAlias(m.provider) || m.provider;
         const list = disabled[alias] || disabled[m.provider] || [];
         return !list.includes(m.model);
@@ -43,6 +49,7 @@ export async function GET() {
     let extra = [];
     for (const [providerId, providerInfo] of Object.entries(AI_PROVIDERS)) {
       if (!providerInfo?.noAuth || !providerInfo?.modelsFetcher) continue;
+      if (isProviderDisabled(providerId)) continue;
       const fetcherIds = await fetchModelsFetcherIds(providerId, providerInfo);
       if (!fetcherIds.length) continue;
       const providerAlias = getProviderAlias(providerId) || providerInfo.alias || providerId;

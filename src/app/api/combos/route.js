@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
 import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 import { validateContextLength } from "./[id]/route.js";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export async function POST(request) {
 
     const combo = await createCombo({ name, models: models || [], kind: kind || null, context_length: contextLength });
     invalidateAllowedModelsCache();
+    notifyModelCatalogChanged("combo-created");
 
     return NextResponse.json(combo, { status: 201 });
   } catch (error) {

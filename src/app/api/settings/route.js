@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { invalidateAllowedModelsCache } from "@/sse/services/allowedModels.js";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +96,13 @@ export async function PATCH(request) {
       Object.prototype.hasOwnProperty.call(body, "comboStrategies")
     ) {
       resetComboRotation();
+    }
+
+    // Provider enable/disable changes must drop the cached model list so
+    // disabled providers disappear from /v1/models immediately.
+    if (Object.prototype.hasOwnProperty.call(body, "disabledProviders")) {
+      invalidateAllowedModelsCache();
+      notifyModelCatalogChanged("disabled-providers-updated");
     }
 
     if (

@@ -60,10 +60,18 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     // Resolve alias to provider ID (e.g., "kc" -> "kilocode")
     const providerId = resolveProviderId(provider);
+    const settings = await getSettings();
+
+    // Provider-level kill switch set from the dashboard. Applies to every
+    // provider, including no-auth free ones (opencode, mimo-free, ...) that
+    // have no connection row to toggle.
+    if ((settings.disabledProviders || []).includes(providerId)) {
+      log.warn("AUTH", `${providerId} is disabled by user setting`);
+      return null;
+    }
 
     // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
     if (FREE_PROVIDERS[providerId]?.noAuth) {
-      const settings = await getSettings();
       const override = (settings.providerStrategies || {})[providerId] || {};
       const strategy = override.rotateStrategy || "none";
       let pickedId = override.proxyPoolId || null;
@@ -98,7 +106,6 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     }
 
     let connections = await getProviderConnections({ provider: providerId, isActive: true });
-    const settings = await getSettings();
     connections = filterConnectionsForModel(providerId, connections, model, settings);
     log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
 

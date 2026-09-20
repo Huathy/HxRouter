@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomModels, addCustomModel, addCustomModelsBulk, deleteCustomModel } from "@/models";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export async function POST(request) {
     const body = await request.json();
     if (Array.isArray(body?.models)) {
       const addedCount = await addCustomModelsBulk(body.models);
+      notifyModelCatalogChanged("custom-models-added-bulk");
       return NextResponse.json({ success: true, count: addedCount });
     }
     const { providerAlias, id, type, name } = body || {};
@@ -27,6 +29,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const added = await addCustomModel({ providerAlias, id, type: type || "llm", name });
+    notifyModelCatalogChanged("custom-model-added");
     return NextResponse.json({ success: true, added });
   } catch (error) {
     console.log("Error adding custom model:", error);
@@ -45,6 +48,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     await deleteCustomModel({ providerAlias, id, type });
+    notifyModelCatalogChanged("custom-model-deleted");
     return NextResponse.json({ success: true });
   } catch (error) {
     console.log("Error deleting custom model:", error);

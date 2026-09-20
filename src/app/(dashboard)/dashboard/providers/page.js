@@ -101,6 +101,7 @@ export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
   const [providerNodes, setProviderNodes] = useState([]);
   const [providerStatsMap, setProviderStatsMap] = useState({});
+  const [disabledProviders, setDisabledProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAllApikey, setShowAllApikey] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
@@ -144,18 +145,23 @@ export default function ProvidersPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [connectionsRes, nodesRes, statsRes] = await Promise.all([
+        const [connectionsRes, nodesRes, statsRes, settingsRes] = await Promise.all([
           fetch("/api/providers", { cache: "no-store" }),
           fetch("/api/provider-nodes", { cache: "no-store" }),
           fetch("/api/usage/stats?period=24h", { cache: "no-store" }),
+          fetch("/api/settings", { cache: "no-store" }),
         ]);
 
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
         const statsData = statsRes.ok ? await statsRes.json() : {};
+        const settingsData = settingsRes.ok ? await settingsRes.json() : {};
         if (connectionsRes.ok)
           setConnections(connectionsData.connections || []);
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+        setDisabledProviders(
+          Array.isArray(settingsData.disabledProviders) ? settingsData.disabledProviders : [],
+        );
         // Build providerId -> { successCount, failCount, total, reqRate }
         const byProvider = statsData.byProvider || {};
         const map = {};
@@ -207,8 +213,10 @@ export default function ProvidersPage() {
 
     const error = errorConns.length;
     const total = providerConnections.length;
+    const providerDisabled = disabledProviders.includes(providerId);
     const allDisabled =
-      total > 0 && providerConnections.every((c) => c.isActive === false);
+      providerDisabled ||
+      (total > 0 && providerConnections.every((c) => c.isActive === false));
 
     const latestError = errorConns.sort(
       (a, b) => new Date(b.lastErrorAt || 0) - new Date(a.lastErrorAt || 0),
@@ -218,9 +226,11 @@ export default function ProvidersPage() {
       ? getRelativeTime(latestError.lastErrorAt)
       : null;
 
-    // 排序辅助：启用的提供商优先于禁用的；已配置账号的优先于未配置的
+    // 排序辅助：分组顺序为 已启用 → 已停用 → 未配置。
+    // 未配置（无任何账号）的提供商始终排在最后，无论其启用状态。
     const enabled = !allDisabled;
     const configured = total > 0;
+    const rank = !configured ? 2 : enabled ? 0 : 1;
 
     // Request success/fail rate from usage stats (last 24h). Lowercase match
     // because usageRepo stores provider ids as-is (often lowercase) but the
@@ -231,16 +241,15 @@ export default function ProvidersPage() {
     const reqTotal = reqStats?.total || 0;
     const reqRate = reqStats?.reqRate ?? null;
 
-    return { connected, error, total, errorCode, errorTime, allDisabled, enabled, configured, reqSuccess, reqFail, reqTotal, reqRate };
-  }, [connections, providerStatsMap]);
+    return { connected, error, total, errorCode, errorTime, allDisabled, enabled, configured, rank, providerDisabled, reqSuccess, reqFail, reqTotal, reqRate };
+  }, [connections, providerStatsMap, disabledProviders]);
 
-  // 排序辅助：1) 启用优先 2) 已配置账号优先，其余交给调用方 tiebreaker
+  // 排序辅助：按分组 rank 排序（0 已启用、1 已停用、2 未配置），其余交给调用方 tiebreaker
   const makeSortComparator = useCallback(
     (getAuthTypes) => ([ka, a], [kb, b]) => {
       const sa = getProviderStats(ka, getAuthTypes(ka, a));
       const sb = getProviderStats(kb, getAuthTypes(kb, b));
-      if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
-      if (sa.configured !== sb.configured) return sb.configured - sa.configured;
+      if (sa.rank !== sb.rank) return sa.rank - sb.rank;
       return 0;
     },
     [getProviderStats],
@@ -266,25 +275,36 @@ export default function ProvidersPage() {
     [makeSortComparator, getProviderStats],
   );
 
-  // Toggle all connections for a provider on/off. authType may be a single
-  // string or an array (kiro counts oauth + api_key/apikey together).
+  // Toggle a provider on/off. Sets the provider-level kill switch (so no-auth
+  // free providers with no connection row can be disabled too) and also flips
+  // every connection of this provider so the detail page stays consistent.
+  // authType may be a single string or an array (kiro counts oauth + api_key/apikey together).
   const handleToggleProvider = async (providerId, authType, newActive) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
     const matches = (c) =>
       c.provider === providerId && authTypes.includes(c.authType);
     const providerConns = connections.filter(matches);
+    const nextDisabled = newActive
+      ? disabledProviders.filter((id) => id !== providerId)
+      : Array.from(new Set([...disabledProviders, providerId]));
+    setDisabledProviders(nextDisabled);
     setConnections((prev) =>
       prev.map((c) => (matches(c) ? { ...c, isActive: newActive } : c)),
     );
-    await Promise.allSettled(
-      providerConns.map((c) =>
+    await Promise.allSettled([
+      ...providerConns.map((c) =>
         fetch(`/api/providers/${c.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ isActive: newActive }),
         }),
       ),
-    );
+      fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disabledProviders: nextDisabled }),
+      }),
+    ]);
   };
 
   const handleBatchTest = async (mode, providerId = null) => {
@@ -326,9 +346,7 @@ export default function ProvidersPage() {
       .sort((a, b) => {
         const sa = getProviderStats(a.id, "apikey");
         const sb = getProviderStats(b.id, "apikey");
-        if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
-        if (sa.configured !== sb.configured) return sb.configured - sa.configured;
-        return 0;
+        return sa.rank - sb.rank;
       });
   }, [providerNodes, matchSearch, getProviderStats]);
 
@@ -345,9 +363,7 @@ export default function ProvidersPage() {
       .sort((a, b) => {
         const sa = getProviderStats(a.id, "apikey");
         const sb = getProviderStats(b.id, "apikey");
-        if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
-        if (sa.configured !== sb.configured) return sb.configured - sa.configured;
-        return 0;
+        return sa.rank - sb.rank;
       });
   }, [providerNodes, matchSearch, getProviderStats]);
 
@@ -844,23 +860,21 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle, circuit
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
-              <div
-                className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggle(!allDisabled ? false : true);
-                }}
-              >
-                <Toggle
-                  size="sm"
-                  checked={!allDisabled}
-                  onChange={() => {}}
-                  title={allDisabled ? "Enable provider" : "Disable provider"}
-                />
-              </div>
-            )}
+            <div
+              className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle(!allDisabled ? false : true);
+              }}
+            >
+              <Toggle
+                size="sm"
+                checked={!allDisabled}
+                onChange={() => {}}
+                title={allDisabled ? "Enable provider" : "Disable provider"}
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -979,23 +993,21 @@ function ApiKeyProviderCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
-              <div
-                className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggle(!allDisabled ? false : true);
-                }}
-              >
-                <Toggle
-                  size="sm"
-                  checked={!allDisabled}
-                  onChange={() => {}}
-                  title={allDisabled ? "Enable provider" : "Disable provider"}
-                />
-              </div>
-            )}
+            <div
+              className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle(!allDisabled ? false : true);
+              }}
+            >
+              <Toggle
+                size="sm"
+                checked={!allDisabled}
+                onChange={() => {}}
+                title={allDisabled ? "Enable provider" : "Disable provider"}
+              />
+            </div>
           </div>
         </div>
       </Card>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, deleteModelAlias } from "@/models";
+import { notifyModelCatalogChanged } from "@/lib/modelCatalogEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export async function PUT(request) {
     }
 
     await setModelAlias(alias, model);
+    notifyModelCatalogChanged("model-alias-set");
 
     return NextResponse.json({ success: true, model, alias });
   } catch (error) {
@@ -44,6 +46,7 @@ export async function DELETE(request) {
     }
 
     await deleteModelAlias(alias);
+    notifyModelCatalogChanged("model-alias-deleted");
 
     return NextResponse.json({ success: true });
   } catch (error) {
