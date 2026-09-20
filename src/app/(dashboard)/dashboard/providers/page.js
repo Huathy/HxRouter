@@ -119,24 +119,14 @@ export default function ProvidersPage() {
     return () => unregisterSearch();
   }, [registerSearch, unregisterSearch]);
 
-  const matchSearch = (name) => {
-    if (!searchQuery.trim()) return true;
-    if (!name) return false;
-    return name.toLowerCase().includes(searchQuery.trim().toLowerCase());
-  };
-
-  const sortByPriority = (entries, authType) =>
-    [...entries].sort(([ka, a], [kb, b]) => {
-      const pa = a.priority ?? 999;
-      const pb = b.priority ?? 999;
-      if (pa !== pb) return pa - pb;
-      const sa = getProviderStats(ka, authType);
-      const sb = getProviderStats(kb, authType);
-      const ca = sa.connected > 0 ? 1 : 0;
-      const cb = sb.connected > 0 ? 1 : 0;
-      if (ca !== cb) return cb - ca;
-      return (a.name || "").localeCompare(b.name || "");
-    });
+  const matchSearch = useCallback(
+    (name) => {
+      if (!searchQuery.trim()) return true;
+      if (!name) return false;
+      return name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+    },
+    [searchQuery],
+  );
 
   const sortItemsByPriority = (items, authType) =>
     [...items].sort((a, b) => {
@@ -228,6 +218,10 @@ export default function ProvidersPage() {
       ? getRelativeTime(latestError.lastErrorAt)
       : null;
 
+    // 排序辅助：启用的提供商优先于禁用的；已配置账号的优先于未配置的
+    const enabled = !allDisabled;
+    const configured = total > 0;
+
     // Request success/fail rate from usage stats (last 24h). Lowercase match
     // because usageRepo stores provider ids as-is (often lowercase) but the
     // provider registry keys may differ in case.
@@ -237,8 +231,40 @@ export default function ProvidersPage() {
     const reqTotal = reqStats?.total || 0;
     const reqRate = reqStats?.reqRate ?? null;
 
-    return { connected, error, total, errorCode, errorTime, allDisabled, reqSuccess, reqFail, reqTotal, reqRate };
+    return { connected, error, total, errorCode, errorTime, allDisabled, enabled, configured, reqSuccess, reqFail, reqTotal, reqRate };
   }, [connections, providerStatsMap]);
+
+  // 排序辅助：1) 启用优先 2) 已配置账号优先，其余交给调用方 tiebreaker
+  const makeSortComparator = useCallback(
+    (getAuthTypes) => ([ka, a], [kb, b]) => {
+      const sa = getProviderStats(ka, getAuthTypes(ka, a));
+      const sb = getProviderStats(kb, getAuthTypes(kb, b));
+      if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
+      if (sa.configured !== sb.configured) return sb.configured - sa.configured;
+      return 0;
+    },
+    [getProviderStats],
+  );
+
+  const sortByPriority = useCallback(
+    (entries, authType) =>
+      [...entries].sort((pairA, pairB) => {
+        const primary = makeSortComparator(() => authType)(pairA, pairB);
+        if (primary !== 0) return primary;
+        const [ka, a] = pairA;
+        const [kb, b] = pairB;
+        const pa = a.priority ?? 999;
+        const pb = b.priority ?? 999;
+        if (pa !== pb) return pa - pb;
+        const sa = getProviderStats(ka, authType);
+        const sb = getProviderStats(kb, authType);
+        const ca = sa.connected > 0 ? 1 : 0;
+        const cb = sb.connected > 0 ? 1 : 0;
+        if (ca !== cb) return cb - ca;
+        return (a.name || "").localeCompare(b.name || "");
+      }),
+    [makeSortComparator, getProviderStats],
+  );
 
   // Toggle all connections for a provider on/off. authType may be a single
   // string or an array (kiro counts oauth + api_key/apikey together).
@@ -296,8 +322,15 @@ export default function ProvidersPage() {
         textIcon: "OC",
         apiType: node.apiType,
       }))
-      .filter((p) => matchSearch(p.name));
-  }, [providerNodes, matchSearch]);
+      .filter((p) => matchSearch(p.name))
+      .sort((a, b) => {
+        const sa = getProviderStats(a.id, "apikey");
+        const sb = getProviderStats(b.id, "apikey");
+        if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
+        if (sa.configured !== sb.configured) return sb.configured - sa.configured;
+        return 0;
+      });
+  }, [providerNodes, matchSearch, getProviderStats]);
 
   const anthropicCompatibleProviders = useMemo(() => {
     return providerNodes
@@ -308,21 +341,35 @@ export default function ProvidersPage() {
         color: "#D97757",
         textIcon: "AC",
       }))
-      .filter((p) => matchSearch(p.name));
-  }, [providerNodes, matchSearch]);
+      .filter((p) => matchSearch(p.name))
+      .sort((a, b) => {
+        const sa = getProviderStats(a.id, "apikey");
+        const sb = getProviderStats(b.id, "apikey");
+        if (sa.enabled !== sb.enabled) return sb.enabled - sa.enabled;
+        if (sa.configured !== sb.configured) return sb.configured - sa.configured;
+        return 0;
+      });
+  }, [providerNodes, matchSearch, getProviderStats]);
 
   const oauthEntries = useMemo(() => {
     return sortByPriority(
       Object.entries(OAUTH_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)),
       "oauth",
     );
-  }, [matchSearch]);
+  }, [matchSearch, sortByPriority]);
 
   const freeEntries = useMemo(() => {
     return Object.entries(FREE_PROVIDERS)
       .filter(([, info]) => !info.hidden && matchSearch(info.name))
-      .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
-  }, [matchSearch]);
+      .sort((pairA, pairB) => {
+        const [ka, a] = pairA;
+        const [kb, b] = pairB;
+        const authTypesOf = (key) => (key === "kiro" ? ["oauth", "apikey", "api_key"] : "oauth");
+        const primary = makeSortComparator(authTypesOf)(pairA, pairB);
+        if (primary !== 0) return primary;
+        return (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0);
+      });
+  }, [matchSearch, makeSortComparator]);
 
   // Free Tier cards may be OAuth-only (e.g. Kimchi) or dual-auth. Use the
   // registry auth modes instead of assuming every card is API-key-only.
@@ -334,7 +381,11 @@ export default function ProvidersPage() {
           matchSearch(info.name) &&
           (info.serviceKinds ?? ["llm"]).includes("llm"),
       )
-      .sort(([ka, a], [kb, b]) => {
+      .sort((pairA, pairB) => {
+        const primary = makeSortComparator(getProviderAuthTypes)(pairA, pairB);
+        if (primary !== 0) return primary;
+        const [ka, a] = pairA;
+        const [kb, b] = pairB;
         const pa = a.priority ?? 999;
         const pb = b.priority ?? 999;
         if (pa !== pb) return pa - pb;
@@ -345,9 +396,9 @@ export default function ProvidersPage() {
         if (ca !== cb) return ca - cb;
         return (a.name || "").localeCompare(b.name || "");
       });
-  }, [matchSearch, getProviderStats]);
+  }, [matchSearch, getProviderStats, makeSortComparator]);
 
-  // API Key: connected providers first, then alphabetical by name
+  // API Key: enabled first, then configured, then connected, then alphabetical
   const apikeyEntries = useMemo(() => {
     return Object.entries(APIKEY_PROVIDERS)
       .filter(
@@ -356,13 +407,17 @@ export default function ProvidersPage() {
           (info.serviceKinds ?? ["llm"]).includes("llm") &&
           matchSearch(info.name),
       )
-      .sort(([ka, a], [kb, b]) => {
+      .sort((pairA, pairB) => {
+        const primary = makeSortComparator(() => "apikey")(pairA, pairB);
+        if (primary !== 0) return primary;
+        const [ka] = pairA;
+        const [kb] = pairB;
         const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1;
         const cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
         if (ca !== cb) return ca - cb;
-        return (a.name || "").localeCompare(b.name || "");
+        return (pairA[1].name || "").localeCompare(pairB[1].name || "");
       });
-  }, [matchSearch, getProviderStats]);
+  }, [matchSearch, getProviderStats, makeSortComparator]);
 
   const webCookieEntries = useMemo(() => {
     return Object.entries(WEB_COOKIE_PROVIDERS)
@@ -371,13 +426,17 @@ export default function ProvidersPage() {
           !info.hidden &&
           matchSearch(info.name),
       )
-      .sort(([ka, a], [kb, b]) => {
+      .sort((pairA, pairB) => {
+        const primary = makeSortComparator(() => "cookie")(pairA, pairB);
+        if (primary !== 0) return primary;
+        const [ka] = pairA;
+        const [kb] = pairB;
         const ca = getProviderStats(ka, "cookie").total > 0 ? 0 : 1;
         const cb = getProviderStats(kb, "cookie").total > 0 ? 0 : 1;
         if (ca !== cb) return ca - cb;
-        return (a.name || "").localeCompare(b.name || "");
+        return (pairA[1].name || "").localeCompare(pairB[1].name || "");
       });
-  }, [matchSearch, getProviderStats]);
+  }, [matchSearch, getProviderStats, makeSortComparator]);
   const isApikeySearching = !!searchQuery.trim();
   const visibleApikeyEntries =
     isApikeySearching || showAllApikey

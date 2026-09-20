@@ -63,13 +63,18 @@ export async function GET() {
     // Hide sensitive fields, enrich name for compatible providers
     const safeConnections = connections.map(c => {
       const isCompatible = isOpenAICompatibleProvider(c.provider) || isAnthropicCompatibleProvider(c.provider);
+      // 兼容节点：node name 来自 providerNodes（"商汤"），account name 来自 c.name（"huathy"）
+      const nodeName = isCompatible
+        ? (nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || null)
+        : null;
       const name = isCompatible
-        ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
+        ? (c.name || nodeName || c.provider)
         : c.name;
       const providerDef = AI_PROVIDERS[c.provider];
       return {
         ...c,
         name,
+        nodeName,
         alias: providerDef?.alias || null,
         apiKey: undefined,
         accessToken: undefined,

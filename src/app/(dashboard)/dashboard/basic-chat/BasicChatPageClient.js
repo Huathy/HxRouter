@@ -13,6 +13,9 @@ const STORAGE_KEYS = {
   draft: "basic-chat.draft",
 };
 
+const MODELS_CACHE_KEY = "basic-chat.modelsCache";
+const MODELS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 function createId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `chat_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -126,6 +129,8 @@ function cloneSession(session) {
 }
 
 function getProviderLabel(connection) {
+  // 兼容协议节点：优先 node 级名称（如"商汤"），其次账号名 fallback
+  if (connection?.nodeName) return connection.nodeName;
   return connection?.name || humanize(connection?.provider || connection?.id || "provider");
 }
 
@@ -182,6 +187,166 @@ function dedupeModels(models) {
   return Array.from(map.values());
 }
 
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightMatch(text, query) {
+  const q = query.trim();
+  if (!q) return text;
+  const re = new RegExp(`(${escapeRegex(q)})`, "ig");
+  const parts = String(text).split(re);
+  const qLower = q.toLowerCase();
+  return parts.map((part, index) =>
+    part.toLowerCase() === qLower
+      ? <mark key={index} className="rounded bg-yellow-400/30 px-0.5 text-yellow-100">{part}</mark>
+      : <span key={index}>{part}</span>
+  );
+}
+
+function resolveGroupKey(connection) {
+  const rawProvider = connection.provider || connection.id;
+  // 兼容协议节点：按 connection 自身分组，避免所有同类节点合并成一个"Anthropic/OpenAI Compatible"分组
+  if (isOpenAICompatibleProvider(rawProvider) || isAnthropicCompatibleProvider(rawProvider)) {
+    const label = getProviderLabel(connection);
+    return { key: rawProvider, name: label, rawProvider };
+  }
+  return { key: rawProvider, name: null, rawProvider };
+}
+
+async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
+  const [providersRes, combosRes] = await Promise.all([
+    fetch("/api/providers", { cache: "no-store", signal }),
+    fetch("/api/combos", { cache: "no-store", signal }),
+  ]);
+  const providersData = await providersRes.json().catch(() => ({}));
+  const combosData = await combosRes.json().catch(() => ({}));
+
+  const connections = Array.isArray(providersData.connections)
+    ? providersData.connections.filter((connection) => connection?.isActive === true)
+    : [];
+  const combos = Array.isArray(combosData.combos)
+    ? combosData.combos.filter((combo) => !combo.kind || combo.kind === "llm")
+    : [];
+
+  if (connections.length === 0 && combos.length === 0) {
+    return { groups: [], noProviders: true };
+  }
+
+  const providersMap = new Map(
+    (Array.isArray(providersData.providers) ? providersData.providers : []).map((provider) => [provider.id, provider])
+  );
+
+  const providerMap = new Map();
+
+  const ensureGroup = (connection) => {
+    const { key, name, rawProvider } = resolveGroupKey(connection);
+    if (!providerMap.has(key)) {
+      providerMap.set(key, {
+        providerId: key,
+        providerName: name || providersMap.get(rawProvider)?.displayName || getProviderLabel(connection),
+        providerType: key,
+        connections: [],
+        models: [],
+      });
+    }
+    const group = providerMap.get(key);
+    group.connections.push(connection);
+    return group;
+  };
+
+  const liveResults = await Promise.all(
+    connections.map(async (connection) => {
+      try {
+        const url = refresh
+          ? `/api/providers/${connection.id}/models?refresh=1`
+          : `/api/providers/${connection.id}/models`;
+        const response = await fetch(url, { cache: "no-store", signal });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return { connection, models: [], live: false };
+        const models = parseProviderModelsPayload(data)
+          .flatMap((model) => { const m = normalizeLiveModel(model, connection); return m ? [m] : []; });
+        return { connection, models, live: models.length > 0 };
+      } catch {
+        return { connection, models: [], live: false };
+      }
+    })
+  );
+
+  for (const result of liveResults) {
+    const group = ensureGroup(result.connection);
+    if (result.live) {
+      // Live upstream succeeded: use only live models, never mix in the static catalog.
+      group.models.push(...result.models);
+      continue;
+    }
+    // Live failed: fall back to the static catalog for this provider.
+    const { rawProvider } = resolveGroupKey(result.connection);
+    const staticModels = getModelsByProviderId(rawProvider)
+      .flatMap((model) => { const m = normalizeStaticModel(model, result.connection); return m ? [m] : []; });
+    group.models.push(...staticModels);
+  }
+
+  const comboModels = combos
+    .filter((combo) => Array.isArray(combo.models) && combo.models.length > 0)
+    .map((combo) => ({
+      id: `combo/${combo.name}`,
+      requestModel: `combo/${combo.name}`,
+      name: combo.name,
+      providerId: "combo",
+      providerName: "Combos",
+      source: "combo",
+    }));
+
+  const normalized = Array.from(providerMap.values())
+    .reduce((acc, group) => {
+      const models = dedupeModels(group.models).sort((a, b) => a.name.localeCompare(b.name));
+      if (models.length > 0) acc.push({ ...group, models });
+      return acc;
+    }, [])
+    .sort((a, b) => a.providerName.localeCompare(b.providerName));
+
+  if (comboModels.length > 0) {
+    normalized.unshift({
+      providerId: "combo",
+      providerName: "Combos",
+      providerType: "combo",
+      connections: [],
+      models: dedupeModels(comboModels).sort((a, b) => a.name.localeCompare(b.name)),
+    });
+  }
+
+  return { groups: normalized, noProviders: false };
+}
+
+function readLocalGroups() {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = safeParse(globalThis.localStorage.getItem(MODELS_CACHE_KEY), null);
+    if (cached && Array.isArray(cached.groups) && (Date.now() - cached.fetchedAt) < MODELS_CACHE_TTL) {
+      return cached.groups;
+    }
+  } catch {
+    // Ignore storage errors.
+  }
+  return null;
+}
+
+function writeLocalGroups(groups) {
+  if (typeof window === "undefined") return;
+  try {
+    globalThis.localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), groups }));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function buildGroupsSignature(groups) {
+  return (Array.isArray(groups) ? groups : [])
+    .map((group) => `${group.providerId}:${group.models.length}`)
+    .join("|");
+}
+
 export default function BasicChatPageClient() {
   const [providerGroups, setProviderGroups] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -215,10 +380,12 @@ export default function BasicChatPageClient() {
   const [streamingText, setStreamingText] = useState("");
   const [isHydrated] = useState(() => typeof window !== "undefined");
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [modelSearch, setModelSearch] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const initializedRef = useRef(false);
+  const groupsSignatureRef = useRef("");
   const modelMenuRef = useRef(null);
   const historyMenuRef = useRef(null);
 
@@ -227,122 +394,47 @@ export default function BasicChatPageClient() {
     let cancelled = false;
 
     async function loadData() {
-      setLoadingData(true);
       setLoadError("");
 
-      try {
-        const [providersRes, combosRes] = await Promise.all([
-          fetch("/api/providers", { cache: "no-store", signal: controller.signal }),
-          fetch("/api/combos", { cache: "no-store", signal: controller.signal }),
-        ]);
-        const providersData = await providersRes.json().catch(() => ({}));
-        const combosData = await combosRes.json().catch(() => ({}));
-        const connections = Array.isArray(providersData.connections)
-          ? providersData.connections.filter((connection) => connection?.isActive !== false)
-          : [];
-        const combos = Array.isArray(combosData.combos)
-          ? combosData.combos.filter((combo) => !combo.kind || combo.kind === "llm")
-          : [];
+      // 1. Render from the local cache immediately so the UI is usable while
+      // the network refresh runs in the background.
+      const localGroups = readLocalGroups();
+      if (localGroups) {
+        groupsSignatureRef.current = buildGroupsSignature(localGroups);
+        setProviderGroups(localGroups);
+        setLoadingData(false);
+      } else {
+        setLoadingData(true);
+      }
 
-        if (connections.length === 0 && combos.length === 0) {
-          if (!cancelled) {
-            setProviderGroups([]);
-            setLoadError("No providers or combos configured yet.");
-          }
+      try {
+        const { groups, noProviders } = await fetchAndBuildGroups({ signal: controller.signal });
+        if (cancelled) return;
+
+        if (noProviders) {
+          setProviderGroups([]);
+          setLoadError("No providers or combos configured yet.");
           return;
         }
 
-        const providerMap = new Map();
-
-        for (const connection of connections) {
-          const providerId = connection.provider || connection.id;
-          const providerName = getProviderLabel(connection);
-          const providerType = isOpenAICompatibleProvider(providerId)
-            ? "openai-compatible"
-            : isAnthropicCompatibleProvider(providerId)
-              ? "anthropic-compatible"
-              : providerId;
-
-          if (!providerMap.has(providerId)) {
-            providerMap.set(providerId, {
-              providerId,
-              providerName,
-              providerType,
-              connections: [],
-              models: [],
-            });
-          }
-
-          const group = providerMap.get(providerId);
-          group.providerName = group.providerName || providerName;
-          group.providerType = group.providerType || providerType;
-          group.connections.push(connection);
-
-          const staticModels = getModelsByProviderId(providerId)
-            .flatMap((model) => { const m = normalizeStaticModel(model, connection); return m ? [m] : []; });
-          group.models.push(...staticModels);
+        // Compare a cheap signature instead of re-serializing both full group
+        // lists; the background refresh returns a new array reference even when
+        // the contents are unchanged, which would otherwise force a re-render.
+        const signature = buildGroupsSignature(groups);
+        if (signature !== groupsSignatureRef.current) {
+          groupsSignatureRef.current = signature;
+          setProviderGroups(groups);
+          writeLocalGroups(groups);
         }
 
-        const liveResults = await Promise.all(
-          connections.map(async (connection) => {
-            try {
-              const response = await fetch(`/api/providers/${connection.id}/models`, { cache: "no-store", signal: controller.signal });
-              const data = await response.json().catch(() => ({}));
-              if (!response.ok) return { connection, models: [] };
-              const models = parseProviderModelsPayload(data)
-                .flatMap((model) => { const m = normalizeLiveModel(model, connection); return m ? [m] : []; });
-              return { connection, models };
-            } catch {
-              return { connection, models: [] };
-            }
-          })
-        );
-
-        for (const result of liveResults) {
-          const providerId = result.connection.provider || result.connection.id;
-          const group = providerMap.get(providerId);
-          if (!group) continue;
-          group.models.push(...result.models);
-        }
-
-        // Combos as a separate group: each combo becomes a selectable "model" via combo/<name>.
-        const comboModels = combos
-          .filter((combo) => Array.isArray(combo.models) && combo.models.length > 0)
-          .map((combo) => ({
-            id: `combo/${combo.name}`,
-            requestModel: `combo/${combo.name}`,
-            name: combo.name,
-            providerId: "combo",
-            providerName: "Combos",
-            source: "combo",
-          }));
-
-        const normalized = Array.from(providerMap.values())
-          .reduce((acc, group) => {
-            const models = dedupeModels(group.models).sort((a, b) => a.name.localeCompare(b.name));
-            if (models.length > 0) acc.push({ ...group, models });
-            return acc;
-          }, [])
-          .sort((a, b) => a.providerName.localeCompare(b.providerName));
-
-        if (comboModels.length > 0) {
-          normalized.unshift({
-            providerId: "combo",
-            providerName: "Combos",
-            providerType: "combo",
-            connections: [],
-            models: dedupeModels(comboModels).sort((a, b) => a.name.localeCompare(b.name)),
-          });
-        }
-
-        if (!cancelled) {
-          setProviderGroups(normalized);
-          if (normalized.length === 0) {
-            setLoadError("Providers connected but no models available.");
-          }
+        if (groups.length === 0) {
+          setLoadError("Providers connected but no models available.");
         }
       } catch (error) {
-        if (!cancelled) {
+        if (cancelled) return;
+        // Keep the cached UI on failure; only surface the error when there is
+        // nothing usable to show.
+        if (!localGroups) {
           setLoadError(textValue(error?.message) || "Failed to load providers/models.");
           setProviderGroups([]);
         }
@@ -357,6 +449,30 @@ export default function BasicChatPageClient() {
       controller.abort();
     };
   }, []);
+
+  const handleRefreshModels = async () => {
+    setLoadingData(true);
+    setLoadError("");
+    try {
+      const { groups, noProviders } = await fetchAndBuildGroups({ refresh: true });
+      if (noProviders) {
+        groupsSignatureRef.current = "";
+        setProviderGroups([]);
+        setLoadError("No providers or combos configured yet.");
+        return;
+      }
+      groupsSignatureRef.current = buildGroupsSignature(groups);
+      setProviderGroups(groups);
+      writeLocalGroups(groups);
+      if (groups.length === 0) {
+        setLoadError("Providers connected but no models available.");
+      }
+    } catch (error) {
+      setLoadError(textValue(error?.message) || "Failed to refresh models.");
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -385,6 +501,20 @@ export default function BasicChatPageClient() {
     }
     return map;
   }, [providerGroups]);
+
+  const filteredProviderGroups = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase();
+    if (!q) return providerGroups;
+    return providerGroups
+      .map((group) => ({
+        ...group,
+        models: group.models.filter((model) =>
+          model.name.toLowerCase().includes(q) ||
+          model.requestModel.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((group) => group.models.length > 0);
+  }, [providerGroups, modelSearch]);
 
   const activeProviderGroup = useMemo(() => {
     return providerGroups.find((group) => group.providerId === activeProviderId) || providerGroups[0] || null;
@@ -762,7 +892,10 @@ export default function BasicChatPageClient() {
           <div ref={modelMenuRef} className="relative">
             <button
               type="button"
-              onClick={() => setModelMenuOpen((value) => !value)}
+              onClick={() => {
+                setModelMenuOpen((value) => !value);
+                setModelSearch("");
+              }}
               className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/8"
             >
               <div className="min-w-0">
@@ -775,19 +908,40 @@ export default function BasicChatPageClient() {
             </button>
 
             {modelMenuOpen ? (
-              <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(520px,calc(100vw-2rem))] overflow-hidden rounded-[20px] border border-white/10 bg-[#262626] shadow-2xl shadow-black/50">
+              <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(1000px,calc(100vw-2rem))] overflow-hidden rounded-[20px] border border-white/10 bg-[#262626] shadow-2xl shadow-black/50">
                 <div className="border-b border-white/10 px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.22em] text-white/45">Models</p>
-                  <p className="text-sm text-white/75">From connected providers & combos</p>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-white/45">search</span>
+                    <input
+                      type="text"
+                      value={modelSearch}
+                      onChange={(event) => setModelSearch(event.target.value)}
+                      placeholder="Search models..."
+                      autoFocus
+                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRefreshModels}
+                      disabled={loadingData}
+                      title="Refresh model list"
+                      className="rounded-full p-1 text-white/45 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
+                    >
+                      <span className={`material-symbols-outlined text-[18px] ${loadingData ? "animate-spin" : ""}`}>refresh</span>
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-white/45">From connected providers & combos</p>
                 </div>
                 <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
-                  {providerGroups.map((group) => (
+                  {filteredProviderGroups.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-white/45">No models matched &ldquo;{modelSearch}&rdquo;.</div>
+                  ) : filteredProviderGroups.map((group) => (
                     <div key={group.providerId} className="mb-2 rounded-[16px] border border-white/10 bg-black/20 p-2">
                       <div className="flex items-center justify-between px-2 py-2">
                         <p className="text-sm font-semibold text-white">{group.providerName}</p>
                         <Badge size="sm" variant="default">{group.models.length}</Badge>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                         {group.models.map((model) => {
                           const isActive = model.id === activeModelId;
                           return (
@@ -799,8 +953,8 @@ export default function BasicChatPageClient() {
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium text-white">{model.name}</p>
-                                  <p className="truncate text-[11px] text-white/45">{model.requestModel}</p>
+                                  <p className="truncate text-sm font-medium text-white">{highlightMatch(model.name, modelSearch)}</p>
+                                  <p className="truncate text-[11px] text-white/45">{highlightMatch(model.requestModel, modelSearch)}</p>
                                 </div>
                                 {isActive ? <span className="material-symbols-outlined text-[18px] text-blue-300">check_circle</span> : null}
                               </div>
