@@ -19,6 +19,9 @@ export async function register() {
 
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync");
     startModelCatalogSync();
+
+    const { startModelPricingSync } = await import("@/lib/pricingCatalog/sync");
+    startModelPricingSync();
   }
 
   // Skip in development: `next dev` bundles instrumentation with webpack and

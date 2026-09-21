@@ -17,6 +17,7 @@ import {
   getSettings,
 } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { fetchKiloFreeModels } from "@/lib/kiloFreeModels";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
@@ -511,6 +512,17 @@ async function buildConnectedProviderIds(providerId, conn, kindFilter, customMod
 
   if (isPassthroughProvider && !hasExplicitEnabledModels) {
     rawModelIds = providerModels.map((m) => m.id);
+  }
+
+  // Kilo Code's free catalog is dynamic. Merge AFTER the passthrough resets above
+  // (kilocode is passthroughModels) so free ids are not clobbered. Disabled
+  // filtering is applied downstream via isDisabled(outputAlias/staticAlias, id).
+  if (providerId === "kilocode" && !hasExplicitEnabledModels) {
+    const freeModels = await fetchKiloFreeModels();
+    const freeIds = freeModels
+      .map((m) => m?.id)
+      .filter((id) => typeof id === "string" && id.trim() !== "");
+    rawModelIds = Array.from(new Set([...rawModelIds, ...freeIds]));
   }
 
   const liveResolver = LIVE_MODEL_RESOLVERS[providerId];

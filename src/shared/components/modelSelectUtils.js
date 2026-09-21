@@ -29,6 +29,7 @@ export function computeGroupedModels({
   modelAliases,
   allProviders,
   cursorModels = [],
+  kiloFreeModels = [],
 }) {
   const groups = {};
 
@@ -114,6 +115,14 @@ export function computeGroupedModels({
           ...aliasModels.filter((m) => !registeredLlms.some((registered) => registered.value === m.value)),
           ...hardcoded,
         ];
+      }
+
+      if (providerId === "kilocode" && !(kindFilter && TYPED_KINDS.has(kindFilter))) {
+        const freeEntries = (Array.isArray(kiloFreeModels) ? kiloFreeModels : [])
+          .filter((m) => m?.id && (!getModelKind(m) || getModelKind(m) === "llm"))
+          .map((m) => ({ id: m.id, name: m.name || m.id, value: `${alias}/${m.id}`, kind: "llm" }))
+          .filter((m) => !combined.some((c) => c.value === m.value));
+        combined = [...combined, ...freeEntries];
       }
 
       if (combined.length > 0) {

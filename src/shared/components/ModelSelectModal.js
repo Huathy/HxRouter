@@ -49,6 +49,7 @@ export default function ModelSelectModal({
   const [customModels, setCustomModels] = useState([]);
   const [disabledModels, setDisabledModels] = useState({});
   const [cursorModels, setCursorModels] = useState([]);
+  const [kiloFreeModels, setKiloFreeModels] = useState([]);
 
   // Cursor exposes the usable catalog per account. Keep the static catalog only
   // as a fallback, since it quickly becomes stale and different accounts can
@@ -133,6 +134,22 @@ export default function ModelSelectModal({
     return () => { cancelled = true; };
   }, [isOpen]);
 
+  // Kilo Code's free catalog is dynamic; the default endpoint response already
+  // excludes disabled ids, matching what the combo picker should offer.
+  const kiloConnectionActive = useMemo(
+    () => activeProviders.some((p) => p.provider === "kilocode"),
+    [activeProviders],
+  );
+  useEffect(() => {
+    if (!isOpen || !kiloConnectionActive) return undefined;
+    let cancelled = false;
+    fetch("/api/providers/kilo/free-models", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => { if (!cancelled && Array.isArray(data.models)) setKiloFreeModels(data.models); })
+      .catch(() => { if (!cancelled) setKiloFreeModels([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, kiloConnectionActive]);
+
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);
 
   const groupedModels = useMemo(() => computeGroupedModels({
@@ -145,7 +162,8 @@ export default function ModelSelectModal({
     modelAliases,
     allProviders,
     cursorModels,
-  }), [filteredActiveProviders, activeProviders, kindFilter, providerNodes, customModels, disabledModels, modelAliases, allProviders, cursorModels]);
+    kiloFreeModels,
+  }), [filteredActiveProviders, activeProviders, kindFilter, providerNodes, customModels, disabledModels, modelAliases, allProviders, cursorModels, kiloFreeModels]);
 
 
 
