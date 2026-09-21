@@ -125,3 +125,4 @@ next-env.d.ts
 graphify-out/*
 .next-analyze/*
 docs/plans
+kilo.json

@@ -6,6 +6,7 @@ import { AI_MODELS } from "@/shared/constants/config";
 import { AI_PROVIDERS, getProviderAlias, resolveProviderId } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 import { fetchModelsFetcherIds } from "@/sse/services/allowedModels.js";
+import { fetchKiloFreeModels } from "@/lib/kiloFreeModels";
 
 // GET /api/models - Get models with aliases
 export async function GET() {
@@ -43,6 +44,36 @@ export async function GET() {
           },
         };
       });
+
+    // Kilo Code exposes a dynamic free catalog on top of its 8 hardcoded models.
+    // Inject the enabled free models into the same array so the ACL dialog and
+    // the combo model picker see the full enabled catalog.
+    if (!isProviderDisabled("kilocode")) {
+      const providerAlias = getProviderAlias("kilocode") || "kc";
+      const disabledKilo = new Set([
+        ...(disabled[providerAlias] || []),
+        ...(disabled["kilocode"] || []),
+      ]);
+      try {
+        const allFree = await fetchKiloFreeModels();
+        for (const m of allFree) {
+          if (!m?.id || disabledKilo.has(m.id)) continue;
+          const fullModel = `kilocode/${m.id}`;
+          if (models.some((x) => x.fullModel === fullModel)) continue;
+          models.push({
+            provider: providerAlias,
+            model: m.id,
+            name: m.name || m.id,
+            fullModel,
+            routedModel: `${providerAlias}/${m.id}`,
+            alias: modelAliases[fullModel] || m.id,
+            caps: {},
+          });
+        }
+      } catch (error) {
+        console.log("Kilo free models injection failed:", error);
+      }
+    }
 
     // Include dynamic fetcher models for noAuth/passthrough providers (e.g. opencode)
     // so the ACL dialog can list models for providers whose catalog is not static.

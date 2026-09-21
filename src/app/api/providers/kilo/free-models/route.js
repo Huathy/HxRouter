@@ -1,48 +1,26 @@
 import { NextResponse } from "next/server";
+import {
+  fetchEnabledKiloFreeModels,
+  fetchKiloFreeModels,
+  isKiloFreeModelsCacheFresh,
+} from "@/lib/kiloFreeModels";
 
-const KILO_MODELS_URL = "https://api.kilo.ai/api/gateway/models";
-
-// In-memory cache with TTL
-let cachedModels = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-export async function GET() {
-  const now = Date.now();
-
-  // Return cached result if still valid
-  if (cachedModels && now - cacheTimestamp < CACHE_TTL_MS) {
-    return NextResponse.json({ models: cachedModels, cached: true });
-  }
+// GET /api/providers/kilo/free-models
+//   (default)   -> enabled free models (full catalog minus disabled ids)
+//   ?all=1      -> full free catalog (for the provider detail page Disabled list)
+//   ?refresh=1  -> bypass the in-memory cache and re-fetch upstream
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const forceRefresh = searchParams.get("refresh") === "1";
+  const includeAll = searchParams.get("all") === "1";
+  const cached = !forceRefresh && isKiloFreeModelsCacheFresh();
 
   try {
-    const res = await fetch(KILO_MODELS_URL, {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Kilo API returned ${res.status}`);
-    }
-
-    const json = await res.json();
-    const allModels = json.data || [];
-
-    const freeModels = allModels.reduce((acc, m) => {
-      if (m.isFree === true) acc.push({ id: m.id, name: m.name, isFree: true, context_length: m.context_length || 0 });
-      return acc;
-    }, []);
-
-    cachedModels = freeModels;
-    cacheTimestamp = now;
-
-    return NextResponse.json({ models: freeModels, cached: false });
+    const models = includeAll
+      ? await fetchKiloFreeModels({ refresh: forceRefresh })
+      : await fetchEnabledKiloFreeModels({ refresh: forceRefresh });
+    return NextResponse.json({ models, cached });
   } catch (error) {
-    // Return cached data if available, even if expired
-    if (cachedModels) {
-      return NextResponse.json({ models: cachedModels, cached: true, warning: error.message });
-    }
-
     return NextResponse.json(
       { models: [], error: `Failed to fetch Kilo models: ${error.message}` },
       { status: 502 }

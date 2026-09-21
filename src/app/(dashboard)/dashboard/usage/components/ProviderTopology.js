@@ -31,7 +31,7 @@ const ROUTER_NODE_W = 100;
 const ROUTER_NODE_H = 40;
 const PROVIDER_NODE_W = 80;
 const PROVIDER_NODE_H = 35;
-const PROVIDER_ACTIVE_SCALE = 1.35;
+const PROVIDER_ACTIVE_SCALE = 1.15;
 
 // Kame + electric particles along active edges
 const KAME_PARTICLE_COUNT = 6;
@@ -66,7 +66,7 @@ function ProviderNode({ data }) {
       {/* Provider icon */}
       <div
         className="rounded-md flex items-center justify-center shrink-0"
-        style={{ width: 20, height: 20, backgroundColor: `${color}15` }}
+        style={{ width: 24, height: 24, backgroundColor: `${color}15` }}
       >
         {providerId === "a6api" || providerId === "a6api-cli" ? (
           <span
@@ -94,9 +94,9 @@ function ProviderNode({ data }) {
           <Image
             src={imageUrl}
             alt={label}
-            className="w-4 h-4 rounded-sm object-contain"
-            width={16}
-            height={16}
+            className="w-5 h-5 rounded-sm object-contain"
+            width={20}
+            height={20}
             unoptimized
             onError={() => {
               const m = imageUrl?.match(/^\/providers\/([^/]+)\.(png|webp)$/i);
@@ -105,13 +105,13 @@ function ProviderNode({ data }) {
             }}
           />
         ) : (
-          <span className="text-[9px] font-bold" style={{ color }}>{textIcon}</span>
+          <span className="text-[11px] font-bold" style={{ color }}>{textIcon}</span>
         )}
       </div>
 
       {/* Provider name */}
       <span
-        className="min-w-0 flex-1 truncate text-[10px] font-medium leading-none"
+        className="min-w-0 flex-1 truncate text-[12px] font-medium leading-none"
         style={{ color: active ? color : "var(--color-text)" }}
       >
         {label}
@@ -149,13 +149,13 @@ function RouterNode({ data }) {
       <img
         src="/favicon.svg"
         alt="HXAI"
-        className={`w-5 h-5 ${powering ? "topology-router-icon" : ""}`}
+        className={`w-6 h-6 ${powering ? "topology-router-icon" : ""}`}
         loading="lazy"
         decoding="async"
-        width={20}
-        height={20}
+        width={24}
+        height={24}
       />
-      <span className={`text-sm font-bold ${powering ? "topology-router-label text-yellow-300" : "text-primary"}`}>
+      <span className={`text-lg font-bold ${powering ? "topology-router-label text-yellow-300" : "text-primary"}`}>
         HXAI
       </span>
       {data.activeCount > 0 && (
@@ -309,7 +309,7 @@ function buildLayout(providers, activeSet, lastSet, errorSet) {
   // keeps labels readable and lets the user pan across the overflow.
   const nodeSpacing = PROVIDER_NODE_W * PROVIDER_ACTIVE_SCALE + nodeGap;
   const minRadius = (nodeSpacing * count) / (2 * Math.PI);
-  const radius = Math.max(150, minRadius);
+  const radius = Math.max(120, minRadius);
   if (count === 0) {
     return {
       nodes: [{ id: "router", type: "router", position: { x: -routerW / 2, y: -routerH / 2 }, data: { activeCount: 0 }, draggable: false }],

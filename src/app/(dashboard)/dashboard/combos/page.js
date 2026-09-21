@@ -297,37 +297,26 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
               {combo.models.length === 0 ? (
                 <span className="text-xs text-text-muted italic">No models</span>
               ) : (
-                combo.models.slice(0, 3).map((model, index) => (
+                combo.models.map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
-                    <span>{model}</span>
+                    <span className="truncate max-w-[220px]">{model}</span>
+                    {isRoundRobin && (
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={weights[model] ?? 1}
+                        onChange={(e) => handleWeightChange(model, e.target.value)}
+                        className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        title={`Weight for ${model}`}
+                      />
+                    )}
                     {isRoundRobin && weights[model] ? <span className="text-primary">×{weights[model]}</span> : null}
                     <CapacityBadges caps={getCaps?.(model)} />
                   </code>
                 ))
               )}
-              {combo.models.length > 3 && (
-                <span className="text-[10px] text-text-muted">+{combo.models.length - 3} more</span>
-              )}
             </div>
-            {/* Round-robin: per-model weight inputs */}
-            {isRoundRobin && combo.models.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium text-text-muted">Weights</span>
-                {combo.models.map((model) => (
-                  <label key={model} className="inline-flex items-center gap-1 rounded border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-1.5 py-0.5" title={`Weight for ${model}`}>
-                    <span className="font-mono text-[10px] text-text-muted truncate max-w-[110px]">{model}</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={weights[model] ?? 1}
-                      onChange={(e) => handleWeightChange(model, e.target.value)}
-                      className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
             {/* Fusion: judge picker (Auto = first model) */}
             {isFusion && (
               <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -413,7 +402,7 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
   );
 }
 
-function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove }) {
+function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown, onRemove, showWeight = false, weight = 1, onWeightChange }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -477,6 +466,19 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
         >
           {model}
         </div>
+      )}
+
+      {/* Weight */}
+      {showWeight && (
+        <input
+          type="number"
+          min="1"
+          max="10"
+          value={weight}
+          onChange={(e) => onWeightChange?.(e.target.value)}
+          className="w-7 shrink-0 rounded border border-border bg-surface px-0.5 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+          title={`Weight for ${model}`}
+        />
       )}
 
       {/* Priority arrows */}
@@ -679,6 +681,9 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
                       onMoveUp={() => handleMoveUp(index)}
                       onMoveDown={() => handleMoveDown(index)}
                       onRemove={() => handleRemoveModel(index)}
+                      showWeight={isEdit && isRoundRobin && !!onSetStrategy}
+                      weight={weights[model] ?? 1}
+                      onWeightChange={(raw) => handleWeightChange(model, raw)}
                     />
                   ))}
                 </div>
@@ -695,29 +700,6 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
               Add Model
             </button>
           </div>
-
-          {/* Round-robin weight inputs (edit mode only) */}
-          {isEdit && isRoundRobin && models.length > 0 && onSetStrategy && (
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Strategy</label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium text-text-muted">Weights</span>
-                {models.map((model) => (
-                  <label key={model} className="inline-flex items-center gap-1 rounded border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-1.5 py-0.5" title={`Weight for ${model}`}>
-                    <span className="font-mono text-[10px] text-text-muted truncate max-w-[110px]">{model}</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={weights[model] ?? 1}
-                      onChange={(e) => handleWeightChange(model, e.target.value)}
-                      className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">

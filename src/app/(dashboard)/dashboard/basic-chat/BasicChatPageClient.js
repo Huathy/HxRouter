@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   sessions: "basic-chat.sessions",
   activeSessionId: "basic-chat.activeSessionId",
   activeProviderId: "basic-chat.activeProviderId",
+  activeModelId: "basic-chat.activeModelId",
   draft: "basic-chat.draft",
 };
 
@@ -299,7 +300,10 @@ async function fetchAndBuildGroups({ refresh = false, signal } = {}) {
   let kiloFreeModels = [];
   if (connections.some((connection) => (connection.provider || connection.id) === "kilocode")) {
     try {
-      const response = await fetch("/api/providers/kilo/free-models", { cache: "no-store", signal });
+      const url = refresh
+        ? "/api/providers/kilo/free-models?refresh=1"
+        : "/api/providers/kilo/free-models";
+      const response = await fetch(url, { cache: "no-store", signal });
       const data = await response.json().catch(() => ({}));
       if (response.ok && Array.isArray(data.models)) kiloFreeModels = data.models;
     } catch {
@@ -485,7 +489,10 @@ export default function BasicChatPageClient() {
     if (typeof window === "undefined") return "";
     return globalThis.localStorage.getItem(STORAGE_KEYS.activeProviderId) || "";
   });
-  const [activeModelId, setActiveModelId] = useState("");
+  const [activeModelId, setActiveModelId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return globalThis.localStorage.getItem(STORAGE_KEYS.activeModelId) || "";
+  });
   const [draft, setDraft] = useState(() => {
     if (typeof window === "undefined") return "";
     return globalThis.localStorage.getItem(STORAGE_KEYS.draft) || "";
@@ -708,11 +715,12 @@ export default function BasicChatPageClient() {
       globalThis.localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
       globalThis.localStorage.setItem(STORAGE_KEYS.activeSessionId, activeSessionId);
       globalThis.localStorage.setItem(STORAGE_KEYS.activeProviderId, activeProviderId);
+      globalThis.localStorage.setItem(STORAGE_KEYS.activeModelId, activeModelId);
       globalThis.localStorage.setItem(STORAGE_KEYS.draft, draft);
     } catch {
       // Ignore storage errors.
     }
-  }, [isHydrated, sessions, activeSessionId, activeProviderId, draft]);
+  }, [isHydrated, sessions, activeSessionId, activeProviderId, activeModelId, draft]);
 
   useEffect(() => {
     if (!isHydrated || loadingData || initializedRef.current) return;

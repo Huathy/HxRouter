@@ -300,10 +300,12 @@ export default function ProviderDetailPage() {
     }
   }, []);
 
-  // Fetch free models from Kilo API for kilocode provider
+  // Fetch free models from Kilo API for kilocode provider.
+  // `?all=1` returns the full catalog (including disabled ids) so the Disabled
+  // section can list and restore them; enabled/disabled split happens below.
   useEffect(() => {
     if (providerId !== "kilocode") return;
-    fetch("/api/providers/kilo/free-models")
+    fetch("/api/providers/kilo/free-models?all=1")
       .then((res) => res.json())
       .then((data) => { if (data.models?.length) setKiloFreeModels(data.models); })
       .catch(() => {});
@@ -1327,6 +1329,27 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Unified model list for this provider: hardcoded + Kilo free, deduplicated
+  // against registered custom models. Shared by the models section and the
+  // "Disable All" action so both operate on the exact same id set.
+  const computeModelsDisplay = () => {
+    const customModelRows = getProviderCustomModelRows({
+      customModels,
+      modelAliases,
+      providerAlias: providerStorageAlias,
+      builtInModels: models,
+      type: "llm",
+    });
+    const customRowIds = new Set(customModelRows.map((row) => row.id));
+    const allModels = [
+      ...models,
+      ...kiloFreeModels.filter(
+        (fm) => !models.some((m) => m.id === fm.id) && !customRowIds.has(fm.id)
+      ),
+    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
+    return { customModelRows, allModels, disabledSet: new Set(disabledModelIds) };
+  };
+
   const renderModelsSection = () => {
     if (isCompatible) {
       return (
@@ -1346,27 +1369,22 @@ export default function ProviderDetailPage() {
         />
       );
     }
-    // Combine hardcoded models with Kilo free models (deduplicated)
+    // Combine hardcoded models with Kilo free models (deduplicated against both
+    // hardcoded and registered custom models).
     // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
-    const allModels = [
-      ...models,
-      ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-    ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; });
-    const disabledSet = new Set(disabledModelIds);
+    const { customModelRows, allModels, disabledSet } = computeModelsDisplay();
     const displayModels = allModels.filter((m) => !disabledSet.has(m.id));
-    const disabledDisplayModels = allModels.filter((m) => disabledSet.has(m.id));
-    const customModelRows = getProviderCustomModelRows({
-      customModels,
-      modelAliases,
-      providerAlias: providerStorageAlias,
-      builtInModels: models,
-      type: "llm",
-    });
+    const availableCustomRows = customModelRows.filter((row) => !disabledSet.has(row.id));
+    const disabledCustomRows = customModelRows.filter((row) => disabledSet.has(row.id));
+    const disabledDisplayModels = [
+      ...allModels.filter((m) => disabledSet.has(m.id)),
+      ...disabledCustomRows.map((row) => ({ id: row.id, name: row.name, isFree: false })),
+    ];
 
     return (
       <div className="flex flex-wrap gap-3">
         {/* Custom models first */}
-        {customModelRows.map((model) => (
+        {availableCustomRows.map((model) => (
           <ModelRow
             key={`${model.source}-${model.fullModel}`}
             model={{ id: model.id, name: model.name }}
@@ -1387,6 +1405,7 @@ export default function ProviderDetailPage() {
             isTesting={testingModelIds.has(model.id)}
             isCustom
             isFree={false}
+            onDisable={() => handleDisableModel(model.id)}
             caps={getCaps(`${providerId}/${model.id}`)}
             thinkingSuffix={resolveThinkingSuffix(model.id)}
           />
@@ -1942,11 +1961,12 @@ export default function ProviderDetailPage() {
             )}
           </div>
           {!isCompatible && (() => {
-            const allIds = [
-              ...models,
-              ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
-            ].filter((m) => { const k = getModelKind(m); return !k || k === "llm"; }).map((m) => m.id);
-            const activeIds = allIds.filter((id) => !disabledModelIds.includes(id));
+            const { allModels: displayModelList, customModelRows, disabledSet } = computeModelsDisplay();
+            const allIds = Array.from(new Set([
+              ...displayModelList.map((m) => m.id),
+              ...customModelRows.map((row) => row.id),
+            ]));
+            const activeIds = allIds.filter((id) => !disabledSet.has(id));
             return (
               <div className="flex gap-2">
                 {disabledModelIds.length > 0 && (
