@@ -49,36 +49,36 @@
 
 ### Logic & Backend — what each has
 
-| Feature | 9Router | OmniRoute | VansRouter | **HxRouter** |
+| Feature | 9Router | VansRouter | HxRouter | OmniRoute |
 |---------|---------|-----------|------------|---------------|
-| **Gemini 3.7/3.8 Tiered Support** | ❌ | ❌ | ✅ High / Med / Low tiered reasoning routing | ✅ inherited (adds Gemini 3.8 Flash tiers) |
-| **Universal Prompt Cache & Hit Rate** | ❌ | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI | ✅ inherited |
-| **Circuit breaker** | ❌ | ✅ TypeScript + DB persistence | ✅ JS, in-memory (no DB dependency) | ✅ inherited |
-| **Account semaphore** | ❌ | ✅ TypeScript | ✅ JS, ported + proxy-aware | ✅ inherited |
-| **Provider-level failure tracking** | ❌ | ✅ with 5s dedup | ✅ ported, with dedup bound 10K | ✅ inherited |
-| **Provider exhaustion detection** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ ported + tightened regex | ✅ inherited |
-| **429 excluded from breaker** | ❌ N/A | ❌ (429 counts) | ✅ Only 5xx/timeout counts | ✅ inherited |
-| **Proxy-aware resilience** | ❌ | ❌ | ✅ per-proxy breaker + semaphore + pool routing | ✅ inherited |
-| **Kimchi CLI alignment** | ❌ | ❌ | ✅ 5 models, per-model caps from models.dev | ✅ inherited |
-| **Kimchi quota auto-reactivation** | ❌ | ❌ | ✅ monthly auto-reset via instrumentation hook | ✅ inherited |
-| **AgentRouter provider** | ❌ | ✅ | ✅ | ✅ inherited |
-| **Model lockout** | ✅ DB flat field | ✅ in-memory Map | ✅ DB flat field (inherited) | ✅ inherited |
-| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ inherited | ✅ inherited |
-| **NVIDIA Kimi stream coercion** | ✅ | ✅ | ✅ inherited | ✅ inherited |
-| **Per-API-key ACL** | ✅ fork-only | ❌ | ✅ inherited | ✅ inherited |
-| **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ inherited | ✅ inherited |
-| **Kimi native tool parser** | ✅ | ✅ | ✅ inherited + hardened | ✅ inherited |
-| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 17 | 4 (inherited) | 4 (inherited) |
-| **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ❌ | ✅ 5s TTL cache | ✅ inherited |
-| **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ❌ | ✅ 2s TTL cache + invalidation | ✅ inherited |
-| **Per-provider mutex** | ❌ (global mutex) | ❌ | ✅ per-provider parallel selection | ✅ inherited |
-| **Provider count** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ inherited (40+ + AgentRouter + Antigravity 3.7/3.8) |
-| **Request success-rate monitoring** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges, status filter (success / error / pending), in-flight requests pinned with live spinners |
-| **HTTP status code tracking** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — `httpStatus` recorded in usage history (schema v9), failed/aborted requests logged, color-coded Code column (2xx/4xx/5xx) |
-| **Weighted round-robin combos** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — per-model weight (1-10), slot-expansion proportional distribution (e.g. 3:1), weight input in the combo editor |
-| **Playground** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — sidebar basic-chat playground with provider/combo model picker, backed by a machine-bound CLI-token proxy route (`/api/dashboard/chat/completions`) |
-| **Provider & model-picker UX** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — enable-first > configured-account sorting, 10-min model cache with search highlighting, custom-protocol nodes grouped separately with `nodeName` |
-| **Unified recent-request data source** | ❌ | ❌ | ❌ | ✅ **new in HxRouter** — ring buffer removed, Provider/Account columns, merge guard so partial SSE pushes no longer drop rows |
+| **Gemini 3.7/3.8 Tiered Support** | ❌ | ✅ High / Med / Low tiered reasoning routing | ✅ inherited (adds Gemini 3.8 Flash tiers) | ❌ |
+| **Universal Prompt Cache & Hit Rate** | ❌ | ✅ Tracked across Claude, Codex, Kiro, OpenAI | ✅ inherited | ❌ |
+| **Circuit breaker** | ❌ | ✅ JS, in-memory (no DB dependency) | ✅ inherited | ✅ TypeScript + DB persistence |
+| **Account semaphore** | ❌ | ✅ JS, ported + proxy-aware | ✅ inherited | ✅ TypeScript |
+| **Provider-level failure tracking** | ❌ | ✅ ported, with dedup bound 10K | ✅ inherited | ✅ with 5s dedup |
+| **Provider exhaustion detection** | ❌ | ✅ ported + tightened regex | ✅ inherited | ✅ `isProviderExhaustedReason()` |
+| **429 excluded from breaker** | ❌ N/A | ✅ Only 5xx/timeout counts | ✅ inherited | ❌ (429 counts) |
+| **Proxy-aware resilience** | ❌ | ✅ per-proxy breaker + semaphore + pool routing | ✅ inherited | ❌ |
+| **Kimchi CLI alignment** | ❌ | ✅ 5 models, per-model caps from models.dev | ✅ inherited | ❌ |
+| **Kimchi quota auto-reactivation** | ❌ | ✅ monthly auto-reset via instrumentation hook | ✅ inherited | ❌ |
+| **AgentRouter provider** | ❌ | ✅ | ✅ inherited | ✅ |
+| **Model lockout** | ✅ DB flat field | ✅ DB flat field (inherited) | ✅ inherited | ✅ in-memory Map |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ inherited | ✅ inherited | ✅ |
+| **NVIDIA Kimi stream coercion** | ✅ | ✅ inherited | ✅ inherited | ✅ |
+| **Per-API-key ACL** | ✅ fork-only | ✅ inherited | ✅ inherited | ❌ |
+| **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ inherited | ✅ inherited | ✅ |
+| **Kimi native tool parser** | ✅ | ✅ inherited + hardened | ✅ inherited | ✅ |
+| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 4 (inherited) | 4 (inherited) | 17 |
+| **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ✅ 5s TTL cache | ✅ inherited | ❌ |
+| **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ✅ 2s TTL cache + invalidation | ✅ inherited | ❌ |
+| **Per-provider mutex** | ❌ (global mutex) | ✅ per-provider parallel selection | ✅ inherited | ❌ |
+| **Provider count** | 40+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ inherited (40+ + AgentRouter + Antigravity 3.7/3.8) | 231+ |
+| **Request success-rate monitoring** | ❌ | ❌ | ✅ **new in HxRouter** — success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges, status filter (success / error / pending), in-flight requests pinned with live spinners | ❌ |
+| **HTTP status code tracking** | ❌ | ❌ | ✅ **new in HxRouter** — `httpStatus` recorded in usage history (schema v9), failed/aborted requests logged, color-coded Code column (2xx/4xx/5xx) | ❌ |
+| **Weighted round-robin combos** | ❌ | ❌ | ✅ **new in HxRouter** — per-model weight (1-10), slot-expansion proportional distribution (e.g. 3:1), weight input in the combo editor | ❌ |
+| **Playground** | ❌ | ❌ | ✅ **new in HxRouter** — sidebar basic-chat playground with provider/combo model picker, backed by a machine-bound CLI-token proxy route (`/api/dashboard/chat/completions`) | ❌ |
+| **Provider & model-picker UX** | ❌ | ❌ | ✅ **new in HxRouter** — enable-first > configured-account sorting, 10-min model cache with search highlighting, custom-protocol nodes grouped separately with `nodeName` | ❌ |
+| **Unified recent-request data source** | ❌ | ❌ | ✅ **new in HxRouter** — ring buffer removed, Provider/Account columns, merge guard so partial SSE pushes no longer drop rows | ❌ |
 
 > The VansRouter column is taken from its public `README.md` comparison table (its `README.zh-CN.md` has not synced it). HxRouter descends from VansRouter, so inherited rows are marked "✅ inherited"; the rows marked "✅ new in HxRouter" are HxRouter additions over VansRouter (v1.0.0, summarized from the commit history and detailed below).
 

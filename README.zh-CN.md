@@ -50,36 +50,36 @@
 
 ### 逻辑与后端 — 各自具备的能力
 
-| 功能 | 9Router | OmniRoute | VansRouter | **HxRouter** |
+| 功能 | 9Router | VansRouter | **HxRouter** | OmniRoute |
 |---------|---------|-----------|------------|---------------|
-| **Gemini 3.7/3.8 分层支持** | ❌ | ❌ | ✅ High / Med / Low 分层推理路由 | ✅ 继承（新增 Gemini 3.8 Flash 分层） |
-| **通用提示词缓存与命中率** | ❌ | ❌ | ✅ 跨 Claude、Codex、Kiro、OpenAI 追踪 | ✅ 继承 |
-| **熔断器** | ❌ | ✅ TypeScript + DB 持久化 | ✅ JS，内存实现（无 DB 依赖） | ✅ 继承 |
-| **账户信号量** | ❌ | ✅ TypeScript | ✅ JS，移植 + 代理感知 | ✅ 继承 |
-| **提供商级失败追踪** | ❌ | ✅ 5s 去重 | ✅ 移植，去重上限 10K | ✅ 继承 |
-| **提供商耗尽检测** | ❌ | ✅ `isProviderExhaustedReason()` | ✅ 移植 + 正则收紧 | ✅ 继承 |
-| **429 不计入熔断** | ❌ N/A | ❌（429 计入） | ✅ 仅 5xx/超时计入 | ✅ 继承 |
-| **代理感知弹性** | ❌ | ❌ | ✅ 按代理的熔断器 + 信号量 + 连接池路由 | ✅ 继承 |
-| **Kimchi CLI 对齐** | ❌ | ❌ | ✅ 5 个模型，来自 models.dev 的每模型上限 | ✅ 继承 |
-| **Kimchi 配额自动恢复** | ❌ | ❌ | ✅ 通过 instrumentation hook 每月自动重置 | ✅ 继承 |
-| **AgentRouter 提供商** | ❌ | ✅ | ✅ | ✅ 继承 |
-| **模型锁定** | ✅ DB 扁平字段 | ✅ 内存 Map | ✅ DB 扁平字段（继承） | ✅ 继承 |
-| **RTK + Caveman + Ponytail** | ✅ | ✅ | ✅ 继承 | ✅ 继承 |
-| **NVIDIA Kimi 流强制** | ✅ | ✅ | ✅ 继承 | ✅ 继承 |
-| **每 API Key ACL** | ✅ 仅 fork | ❌ | ✅ 继承 | ✅ 继承 |
-| **格式转换** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ | ✅ 继承 | ✅ 继承 |
-| **Kimi 原生工具解析器** | ✅ | ✅ | ✅ 继承 + 加固 | ✅ 继承 |
-| **组合策略** | 4（fallback/RR/fusion/capacity） | 17 | 4（继承） | 4（继承） |
-| **设置缓存（TPS）** | ❌（每请求 3 次同步 DB 读取） | ❌ | ✅ 5s TTL 缓存 | ✅ 继承 |
-| **连接缓存（TPS）** | ❌（每请求 1 次同步 DB 读取） | ❌ | ✅ 2s TTL 缓存 + 失效 | ✅ 继承 |
-| **每提供商互斥锁** | ❌（全局互斥锁） | ❌ | ✅ 每提供商并行选择 | ✅ 继承 |
-| **提供商数量** | 40+ | 231+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ 继承（40+ + AgentRouter + Antigravity 3.7/3.8） |
-| **请求成功率监控** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 成功率指标卡按阈值着色（≥95% 绿 / ≥80% 黄 / 其余红）、24h 成功率徽章、状态筛选（成功 / 错误 / 进行中）、进行中请求置顶实时展示 |
-| **HTTP 状态码追踪** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 用量历史记录 `httpStatus`（schema v9）、失败/中止请求同样记录、Code 列按 2xx/4xx/5xx 着色 |
-| **组合加权轮询** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 每模型权重（1-10）、slot 展开法等比例分配（如 3:1）、组合编辑弹窗新增权重输入 |
-| **Playground 调试场** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 侧边栏 basic-chat 调试场，支持提供商/组合模型选择，由机器绑定 CLI token 代理路由（`/api/dashboard/chat/completions`）驱动 |
-| **提供商与模型选择体验** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 启用优先 > 已配置账号排序、10 分钟模型缓存与搜索高亮、兼容协议节点按 `nodeName` 独立分组 |
-| **近期请求统一数据源** | ❌ | ❌ | ❌ | ✅ **HxRouter 新增** — 移除环形缓冲、新增 Provider/Account 列、合并逻辑防止 SSE 部分推送丢行 |
+| **Gemini 3.7/3.8 分层支持** | ❌ | ✅ High / Med / Low 分层推理路由 | ✅ 继承（新增 Gemini 3.8 Flash 分层） | ❌ |
+| **通用提示词缓存与命中率** | ❌ | ✅ 跨 Claude、Codex、Kiro、OpenAI 追踪 | ✅ 继承 | ❌ |
+| **熔断器** | ❌ | ✅ JS，内存实现（无 DB 依赖） | ✅ 继承 | ✅ TypeScript + DB 持久化 |
+| **账户信号量** | ❌ | ✅ JS，移植 + 代理感知 | ✅ 继承 | ✅ TypeScript |
+| **提供商级失败追踪** | ❌ | ✅ 移植，去重上限 10K | ✅ 继承 | ✅ 5s 去重 |
+| **提供商耗尽检测** | ❌ | ✅ 移植 + 正则收紧 | ✅ 继承 | ✅ `isProviderExhaustedReason()` |
+| **429 不计入熔断** | ❌ N/A | ✅ 仅 5xx/超时计入 | ✅ 继承 | ❌（429 计入） |
+| **代理感知弹性** | ❌ | ✅ 按代理的熔断器 + 信号量 + 连接池路由 | ✅ 继承 | ❌ |
+| **Kimchi CLI 对齐** | ❌ | ✅ 5 个模型，来自 models.dev 的每模型上限 | ✅ 继承 | ❌ |
+| **Kimchi 配额自动恢复** | ❌ | ✅ 通过 instrumentation hook 每月自动重置 | ✅ 继承 | ❌ |
+| **AgentRouter 提供商** | ❌ | ✅ | ✅ 继承 | ✅ |
+| **模型锁定** | ✅ DB 扁平字段 | ✅ DB 扁平字段（继承） | ✅ 继承 | ✅ 内存 Map |
+| **RTK + Caveman + Ponytail** | ✅ | ✅ 继承 | ✅ 继承 | ✅ |
+| **NVIDIA Kimi 流强制** | ✅ | ✅ 继承 | ✅ 继承 | ✅ |
+| **每 API Key ACL** | ✅ 仅 fork | ✅ 继承 | ✅ 继承 | ❌ |
+| **格式转换** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ 继承 | ✅ 继承 | ✅ |
+| **Kimi 原生工具解析器** | ✅ | ✅ 继承 + 加固 | ✅ 继承 | ✅ |
+| **组合策略** | 4（fallback/RR/fusion/capacity） | 4（继承） | 4（继承） | 17 |
+| **设置缓存（TPS）** | ❌（每请求 3 次同步 DB 读取） | ✅ 5s TTL 缓存 | ✅ 继承 | ❌ |
+| **连接缓存（TPS）** | ❌（每请求 1 次同步 DB 读取） | ✅ 2s TTL 缓存 + 失效 | ✅ 继承 | ❌ |
+| **每提供商互斥锁** | ❌（全局互斥锁） | ✅ 每提供商并行选择 | ✅ 继承 | ❌ |
+| **提供商数量** | 40+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ 继承（40+ + AgentRouter + Antigravity 3.7/3.8） | 231+ |
+| **请求成功率监控** | ❌ | ❌ | ✅ **HxRouter 新增** — 成功率指标卡按阈值着色（≥95% 绿 / ≥80% 黄 / 其余红）、24h 成功率徽章、状态筛选（成功 / 错误 / 进行中）、进行中请求置顶实时展示 | ❌ |
+| **HTTP 状态码追踪** | ❌ | ❌ | ✅ **HxRouter 新增** — 用量历史记录 `httpStatus`（schema v9）、失败/中止请求同样记录、Code 列按 2xx/4xx/5xx 着色 | ❌ |
+| **组合加权轮询** | ❌ | ❌ | ✅ **HxRouter 新增** — 每模型权重（1-10）、slot 展开法等比例分配（如 3:1）、组合编辑弹窗新增权重输入 | ❌ |
+| **Playground 调试场** | ❌ | ❌ | ✅ **HxRouter 新增** — 侧边栏 basic-chat 调试场，支持提供商/组合模型选择，由机器绑定 CLI token 代理路由（`/api/dashboard/chat/completions`）驱动 | ❌ |
+| **提供商与模型选择体验** | ❌ | ❌ | ✅ **HxRouter 新增** — 启用优先 > 已配置账号排序、10 分钟模型缓存与搜索高亮、兼容协议节点按 `nodeName` 独立分组 | ❌ |
+| **近期请求统一数据源** | ❌ | ❌ | ✅ **HxRouter 新增** — 移除环形缓冲、新增 Provider/Account 列、合并逻辑防止 SSE 部分推送丢行 | ❌ |
 
 > VansRouter 列取自其 `README.md` 的公开对比表（其 `README.zh-CN.md` 未同步该表）；HxRouter 由 VansRouter 延续而来，故继承项标注「✅ 继承」；标注「✅ HxRouter 新增」的行即 HxRouter 相对 VansRouter 的改进（v1.0.0，由提交记录归纳，详见下方）。
 
