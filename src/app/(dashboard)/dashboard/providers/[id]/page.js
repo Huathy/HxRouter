@@ -69,6 +69,7 @@ export default function ProviderDetailPage() {
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
+  const [providerWeights, setProviderWeights] = useState({});
   const [strictModelAssignment, setStrictModelAssignment] = useState(false);
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
@@ -347,6 +348,7 @@ export default function ProviderDetailPage() {
       const override = (settingsData.providerStrategies || {})[providerId] || {};
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
+      setProviderWeights(override.weights || {});
       setStrictModelAssignment(override.strictModelAssignment === true);
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
@@ -478,6 +480,46 @@ export default function ProviderDetailPage() {
   const handleStickyLimitChange = (value) => {
     setProviderStickyLimit(value);
     saveProviderStrategy("round-robin", value);
+  };
+
+  const saveProviderWeights = async (next) => {
+    try {
+      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const current = settingsData.providerStrategies || {};
+      const override = { ...(current[providerId] || {}) };
+      const clean = {};
+      for (const [id, w] of Object.entries(next)) {
+        const n = parseInt(w, 10);
+        if (Number.isFinite(n) && n >= 1) clean[id] = Math.min(n, 10);
+      }
+      if (Object.keys(clean).length) override.weights = clean;
+      else delete override.weights;
+
+      const updated = { ...current };
+      if (Object.keys(override).length === 0) {
+        delete updated[providerId];
+      } else {
+        updated[providerId] = override;
+      }
+
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerStrategies: updated }),
+      });
+    } catch (error) {
+      console.log("Error saving provider weights:", error);
+    }
+  };
+
+  const handleWeightChange = (connId, raw) => {
+    const n = parseInt(raw, 10);
+    const next = { ...providerWeights };
+    if (!Number.isFinite(n) || n < 1) delete next[connId];
+    else next[connId] = Math.min(n, 10);
+    setProviderWeights(next);
+    saveProviderWeights(next);
   };
 
   const saveThinkingConfig = async (mode) => {
@@ -1201,6 +1243,9 @@ export default function ProviderDetailPage() {
                 modelAssignmentOptions={providerId === "freebuff" ? assignmentModels : null}
                 onModelAssignmentChange={providerId === "freebuff" ? (model) => handleModelAssignment(conn.id, model) : null}
                 strictModelAssignment={strictModelAssignment}
+                showWeight={providerStrategy === "round-robin"}
+                weight={providerWeights[conn.id] ?? 1}
+                onWeightChange={(v) => handleWeightChange(conn.id, v)}
               />
             </div>
           </div>

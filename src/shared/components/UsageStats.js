@@ -99,7 +99,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
         <div className="flex-1 flex items-center justify-center text-text-muted text-sm">No requests yet.</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <table className="w-full min-w-[420px] border-collapse text-xs">
+          <table className="w-full min-w-[560px] border-collapse text-xs">
             <thead className="sticky top-0 bg-bg z-10">
               <tr className="border-b border-border">
                 <th className="py-1.5 text-left font-semibold text-text-muted w-2"><span className="sr-only">Status</span></th>
@@ -107,6 +107,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                 <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Provider</th>
                 <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Account</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
+                <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">Speed</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
               </tr>
             </thead>
@@ -114,6 +115,9 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
               {requests.map((r, i) => {
                 const ok = !r.status || r.status === "ok" || r.status === "success";
                 const inFlight = r.inFlight === true;
+                const totalTok = (r.promptTokens || 0) + (r.completionTokens || 0);
+                const lat = Number.isFinite(r.latencyMs) ? r.latencyMs : 0;
+                const tps = lat > 0 ? totalTok / lat * 1000 : null;
                 return (
                   <tr key={`${r.timestamp}-${r.model}-${i}-${inFlight ? "p" : "c"}`} className={`hover:bg-bg-subtle transition-colors ${inFlight ? "bg-primary/5" : ""}`}>
                     <td className="py-1.5">
@@ -157,6 +161,17 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                           {" "}
                           <span className="text-success">{fmt(r.completionTokens)}↓</span>
                         </>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-right whitespace-nowrap">
+                      {inFlight || lat <= 0 ? (
+                        <span className="text-text-muted">—</span>
+                      ) : (
+                        <span className="font-mono text-[10px] leading-tight block">
+                          {(lat / 1000).toFixed(1)}s
+                          <br />
+                          {tps != null ? `${tps.toFixed(1)} t/s` : ""}
+                        </span>
                       )}
                     </td>
                     <td className="py-1.5 text-right text-text-muted whitespace-nowrap">
@@ -335,8 +350,14 @@ function SuccessRateBadge({ rate }) {
 function SpeedCell({ latencyMs, tokensPerSecond }) {
   if (latencyMs == null) return <span className="text-text-muted">—</span>;
   return (
-    <span className="whitespace-nowrap font-mono text-xs">
-      {latencyMs.toFixed(1)}ms{tokensPerSecond != null ? ` / ${tokensPerSecond.toFixed(1)} t/s` : ""}
+    <span className="font-mono text-xs leading-tight">
+      {(latencyMs / 1000).toFixed(1)}s
+      {tokensPerSecond != null ? (
+        <>
+          <br />
+          {tokensPerSecond.toFixed(1)} t/s
+        </>
+      ) : null}
     </span>
   );
 }
@@ -675,13 +696,17 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Model pie chart + Recent Requests */}
       {loading ? topologySkeleton : (
-        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-2">
-          <ModelPieChart
-            byModel={stats.byModel || {}}
-            activeRequests={stats.activeRequests || []}
-            last10Minutes={stats.last10Minutes || []}
-          />
-          <RecentRequests requests={stats.recentRequests || []} providerNodeNames={providerNodeNames} />
+        <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <ModelPieChart
+              byModel={stats.byModel || {}}
+              activeRequests={stats.activeRequests || []}
+              last10Minutes={stats.last10Minutes || []}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <RecentRequests requests={stats.recentRequests || []} providerNodeNames={providerNodeNames} />
+          </div>
         </div>
       )}
 

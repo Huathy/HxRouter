@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import Modal from "./Modal";
 import ProviderIcon from "./ProviderIcon";
 import CapacityBadges from "./CapacityBadges";
@@ -18,6 +18,132 @@ const PROVIDER_ORDER = [
 
 // Providers that need no auth — always show in model selector
 const NO_AUTH_PROVIDER_IDS = Object.keys(FREE_PROVIDERS).filter(id => FREE_PROVIDERS[id].noAuth);
+
+function ModelButton({ model, isSelected, isPlaceholder, addedModelValues, onSelect, getCaps }) {
+  return (
+    <button
+      key={model.value}
+      onClick={() => onSelect(model)}
+      title={isPlaceholder ? "Select to pre-fill, then edit model ID in the input" : undefined}
+      className={`
+        px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
+        ${isPlaceholder
+          ? "border-dashed border-border text-text-muted hover:border-primary/50 hover:text-primary bg-surface italic"
+          : isSelected
+            ? "bg-primary text-white border-primary"
+            : addedModelValues.includes(model.value)
+              ? "bg-primary border-primary text-white hover:bg-primary-hover"
+              : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
+        }
+      `}
+    >
+      <span className="flex items-center gap-1">
+        {addedModelValues.includes(model.value) && !isPlaceholder && (
+          <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
+        )}
+        {isPlaceholder ? (
+          <>
+            <span className="material-symbols-outlined text-[11px]">edit</span>
+            {model.name}
+          </>
+        ) : model.isCustom ? (
+          <>
+            {model.name}
+            <span className="text-[9px] opacity-60 font-normal">custom</span>
+            <CapacityBadges caps={getCaps(model.value)} />
+          </>
+        ) : (
+          <>
+            {model.name}
+            <CapacityBadges caps={getCaps(model.value)} />
+          </>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function CollapsibleModelGroup({ providerId, group, selectedModel, addedModelValues, onSelect, getCaps }) {
+  const wrapRef = useRef(null);
+  const [rowCount, setRowCount] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [buttonTops, setButtonTops] = useState([]);
+  const [measured, setMeasured] = useState(false);
+
+  const measureRows = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const tops = [];
+    for (const btn of el.children) {
+      tops.push(Math.round(btn.offsetTop));
+    }
+    const distinctTops = [...new Set(tops)].sort((a, b) => a - b);
+    setRowCount(distinctTops.length);
+    setButtonTops(tops);
+    setMeasured(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    measureRows();
+    const ro = new ResizeObserver(measureRows);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [measureRows, group.models.length]);
+
+  const collapsible = measured && rowCount > 2 && !expanded;
+
+  const visibleModels = useMemo(() => {
+    if (!collapsible) return group.models;
+    const distinctTops = [...new Set(buttonTops)].sort((a, b) => a - b);
+    const row2Top = distinctTops[1];
+    if (row2Top == null) return group.models;
+    return group.models.filter((_, i) => buttonTops[i] <= row2Top);
+  }, [collapsible, group.models, buttonTops]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
+        <ProviderIcon
+          src={`/providers/${providerId}.webp`}
+          alt={group.name}
+          size={14}
+          fallbackText={(group.name || providerId).slice(0, 2).toUpperCase()}
+          fallbackColor={group.color}
+        />
+        <span className="text-xs font-medium text-primary">
+          {group.name}
+        </span>
+        <span className="text-[10px] text-text-muted">
+          ({group.models.length})
+        </span>
+        {rowCount > 2 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="ml-auto flex items-center gap-1 text-[11px] text-text-muted hover:text-primary"
+          >
+            <span className="material-symbols-outlined text-[14px]">
+              {expanded ? "expand_less" : "expand_more"}
+            </span>
+            {expanded ? "收起" : `展开(+${group.models.length - visibleModels.length})`}
+          </button>
+        )}
+      </div>
+      <div ref={wrapRef} className="flex flex-wrap gap-1.5">
+        {(collapsible ? visibleModels : group.models).map((model) => (
+          <ModelButton
+            key={model.value}
+            model={model}
+            isSelected={selectedModel === model.value}
+            isPlaceholder={model.isPlaceholder}
+            addedModelValues={addedModelValues}
+            onSelect={onSelect}
+            getCaps={getCaps}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function ModelSelectModal({
   isOpen,
@@ -296,73 +422,16 @@ export default function ModelSelectModal({
         )}
 
         {/* Provider models */}
-        {Object.entries(filteredGroups).map(([providerId, group]) => (
-          <div key={providerId}>
-            {/* Provider header */}
-            <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
-              <ProviderIcon
-                src={`/providers/${providerId}.webp`}
-                alt={group.name}
-                size={14}
-                fallbackText={(group.name || providerId).slice(0, 2).toUpperCase()}
-                fallbackColor={group.color}
-              />
-              <span className="text-xs font-medium text-primary">
-                {group.name}
-              </span>
-              <span className="text-[10px] text-text-muted">
-                ({group.models.length})
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {group.models.map((model) => {
-                const isSelected = selectedModel === model.value;
-                const isPlaceholder = model.isPlaceholder;
-                return (
-                  <button
-                    key={model.value}
-                    onClick={() => handleSelect(model)}
-                    title={isPlaceholder ? "Select to pre-fill, then edit model ID in the input" : undefined}
-                    className={`
-                      px-2 py-1 rounded-xl text-xs font-medium transition-all border hover:cursor-pointer
-                      ${isPlaceholder
-                        ? "border-dashed border-border text-text-muted hover:border-primary/50 hover:text-primary bg-surface italic"
-                        : isSelected
-                          ? "bg-primary text-white border-primary"
-                          : addedModelValues.includes(model.value)
-                            ? "bg-primary border-primary text-white hover:bg-primary-hover"
-                            : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"
-                      }
-                    `}
-                  >
-                    <span className="flex items-center gap-1">
-                      {addedModelValues.includes(model.value) && !isPlaceholder && (
-                        <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>
-                      )}
-                      {isPlaceholder ? (
-                        <>
-                          <span className="material-symbols-outlined text-[11px]">edit</span>
-                          {model.name}
-                        </>
-                      ) : model.isCustom ? (
-                        <>
-                          {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
-                          <CapacityBadges caps={getCaps(model.value)} />
-                        </>
-                      ) : (
-                        <>
-                          {model.name}
-                          <CapacityBadges caps={getCaps(model.value)} />
-                        </>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        {Object.entries(filteredGroups).map(([pid, group]) => (
+          <CollapsibleModelGroup
+            key={pid}
+            providerId={pid}
+            group={group}
+            selectedModel={selectedModel}
+            addedModelValues={addedModelValues}
+            onSelect={handleSelect}
+            getCaps={getCaps}
+          />
         ))}
 
         {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (

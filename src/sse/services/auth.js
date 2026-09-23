@@ -17,6 +17,9 @@ export { isTrustedInternalRequest } from "./internalTrust.js";
 // while preventing races within the same provider's account rotation.
 const _providerMutexes = new Map();
 
+// Per-provider round-robin slot rotation state (in-memory, resets on restart).
+const providerRotationState = new Map();
+
 export function filterConnectionsForModel(providerId, connections, model, settings = {}) {
   const override = (settings.providerStrategies || {})[providerId] || {};
   if (providerId !== "freebuff" || override.strictModelAssignment !== true || !model) return connections;
@@ -191,40 +194,31 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     } else if (strategy === "round-robin") {
       const stickyLimit = providerOverride.stickyRoundRobinLimit || settings.stickyRoundRobinLimit || 3;
 
-      // Sort by lastUsed (most recent first) to find current candidate
-      const byRecency = availableConnections.toSorted((a, b) => {
-        if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-        if (!a.lastUsedAt) return 1;
-        if (!b.lastUsedAt) return -1;
-        return new Date(b.lastUsedAt) - new Date(a.lastUsedAt);
+      const weights = providerOverride.weights || {};
+      const slots = availableConnections.flatMap((c) => {
+        const w = Number(weights[c.id]);
+        const n = Number.isFinite(w) && w >= 1 ? Math.floor(w) : 1;
+        return Array.from({ length: n }, () => c);
       });
 
-      const current = byRecency[0];
-      const currentCount = current?.consecutiveUseCount || 0;
+      const key = providerId;
+      const st = providerRotationState.get(key) || { slotIndex: 0, count: 0 };
+      const current = slots[st.slotIndex % slots.length];
 
-      if (current && current.lastUsedAt && currentCount < stickyLimit) {
-        // Stay with current account
+      if (current && st.count < stickyLimit) {
         connection = current;
-        // Update lastUsedAt and increment count (await to ensure persistence)
+        providerRotationState.set(key, { slotIndex: st.slotIndex, count: st.count + 1 });
         await updateProviderConnection(connection.id, {
           lastUsedAt: new Date().toISOString(),
-          consecutiveUseCount: (connection.consecutiveUseCount || 0) + 1
+          consecutiveUseCount: (connection.consecutiveUseCount || 0) + 1,
         });
       } else {
-        // Pick the least recently used (excluding current if possible)
-        const sortedByOldest = availableConnections.toSorted((a, b) => {
-          if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-          if (!a.lastUsedAt) return -1;
-          if (!b.lastUsedAt) return 1;
-          return new Date(a.lastUsedAt) - new Date(b.lastUsedAt);
-        });
-
-        connection = sortedByOldest[0];
-
-        // Update lastUsedAt and reset count to 1 (await to ensure persistence)
+        const nextIdx = (st.slotIndex + 1) % slots.length;
+        connection = slots[nextIdx];
+        providerRotationState.set(key, { slotIndex: nextIdx, count: 1 });
         await updateProviderConnection(connection.id, {
           lastUsedAt: new Date().toISOString(),
-          consecutiveUseCount: 1
+          consecutiveUseCount: 1,
         });
       }
     } else {

@@ -215,7 +215,7 @@ function buildPendingRecentRows(connectionMap) {
 // exist or which columns they carry.
 export function buildCompletedRecentRows(db, limit) {
   const rows = db.all(
-    `SELECT timestamp, provider, model, connectionId, tokens, status, httpStatus
+    `SELECT timestamp, provider, model, connectionId, tokens, status, httpStatus, latencyMs
      FROM usageHistory ORDER BY id DESC LIMIT ?`, [limit]);
   const seen = new Set();
   return rows
@@ -226,6 +226,7 @@ export function buildCompletedRecentRows(db, limit) {
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
+        latencyMs: Number.isFinite(r.latencyMs) ? r.latencyMs : 0,
         status: r.status || "ok",
         httpStatus: r.httpStatus ?? null,
         connectionId: r.connectionId ?? null,
