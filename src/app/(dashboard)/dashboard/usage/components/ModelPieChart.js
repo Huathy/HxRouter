@@ -18,7 +18,7 @@ function getModelLabel(key) {
   return { model: key, provider: "" };
 }
 
-// ponytail: log-scale price → radius. completed base [0.5,3.0], active = 2x capped 4.0 (diameter 8px).
+// ponytail: log-scale price → radius. active [6,12] colored+glow, completed [0.5,3.0] gray.
 // Upgrade to a tunable scale if visual granularity needs finer control.
 function priceRadius(provider, model, isActive) {
   const p = getPricingForModel(provider, model);
@@ -26,8 +26,7 @@ function priceRadius(provider, model, isActive) {
   const lo = Math.log10(0.3);
   const hi = Math.log10(80);
   const f = Math.max(0, Math.min(1, (Math.log10(sum) - lo) / (hi - lo)));
-  const base = 0.5 + f * 2.5;
-  return isActive ? Math.min(4, base * 2) : base;
+  return isActive ? 6 + f * 6 : 0.5 + f * 2.5;
 }
 
 export default function ModelPieChart({ byModel, activeRequests = [], last10Minutes = [] }) {
@@ -221,7 +220,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
       });
       ctx.globalAlpha = 1;
 
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 16;
       const { active } = dotsRef.current;
       active.forEach((dot) => {
         dot.angle += dot.speed * dt;

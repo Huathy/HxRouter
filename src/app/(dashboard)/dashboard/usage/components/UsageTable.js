@@ -15,6 +15,14 @@ function fmtSpeed(n) {
   return `${n.toFixed(1)} t/s`;
 }
 
+function fmtToken(n) {
+  if (n == null || isNaN(n)) return "0";
+  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}B`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}W`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
 function fmtTime(iso) {
   if (!iso) return "Never";
   const diffMins = Math.floor((Date.now() - new Date(iso)) / 60000);
@@ -37,13 +45,13 @@ function ValueCells({ item, viewMode, isSummary = false }) {
     return (
       <>
         <td className="px-6 py-3 text-right text-text-muted">
-          {isSummary && item.promptTokens === undefined ? "—" : fmt(item.promptTokens)}
+          {isSummary && item.promptTokens === undefined ? "—" : fmtToken(item.promptTokens)}
         </td>
         <td className="px-6 py-3 text-right text-text-muted">
-          {isSummary && item.completionTokens === undefined ? "—" : fmt(item.completionTokens)}
+          {isSummary && item.completionTokens === undefined ? "—" : fmtToken(item.completionTokens)}
         </td>
         <td className="px-6 py-3 text-right font-medium">
-          {fmt(item.totalTokens)}
+          {fmtToken(item.totalTokens)}
         </td>
       </>
     );
@@ -217,4 +225,4 @@ export default function UsageTable({
 }
 
 // Re-export utilities for use in UsageStats orchestrator
-export { fmt, fmtCost, fmtTime, fmtSpeed };
+export { fmt, fmtCost, fmtTime, fmtSpeed, fmtToken };

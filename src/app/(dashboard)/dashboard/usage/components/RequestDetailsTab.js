@@ -94,6 +94,14 @@ function getInputTokens(tokens) {
   return input + cache;
 }
 
+function fmtToken(n) {
+  if (n == null || isNaN(n)) return "0";
+  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}B`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}W`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
 function maskKey(fullKey) {
   if (!fullKey) return "";
   return fullKey.length > 8 ? `${fullKey.slice(0, 8)}...` : fullKey;
@@ -179,12 +187,12 @@ function RequestRow({ detail, index, handleViewDetail, providerNameCache }) {
                          {getProviderName(detail.provider, providerNameCache)}
                        </span>
                      </td>
-                    <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {getInputTokens(detail.tokens).toLocaleString()}
-                    </td>
-                    <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {detail.tokens?.completion_tokens?.toLocaleString() || 0}
-                    </td>
+                     <td className="p-4 text-sm text-text-main text-right font-mono">
+                       {fmtToken(getInputTokens(detail.tokens))}
+                     </td>
+                     <td className="p-4 text-sm text-text-main text-right font-mono">
+                       {fmtToken(detail.tokens?.completion_tokens || 0)}
+                     </td>
                     <td className="p-4 text-sm text-text-muted">
                       <div className="flex flex-col gap-0.5">
                         <div>TTFT: <span className="font-mono">{detail.latency?.ttft || 0}ms</span></div>
@@ -454,13 +462,13 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Input Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {getInputTokens(selectedDetail.tokens).toLocaleString()}
+                  {fmtToken(getInputTokens(selectedDetail.tokens))}
                 </span>
               </div>
               <div>
                 <span className="text-text-muted">Output Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
+                  {fmtToken(selectedDetail.tokens?.completion_tokens || 0)}
                 </span>
               </div>
             </div>
@@ -483,11 +491,11 @@ export default function RequestDetailsTab() {
                   <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                     <div>
                       <span className="text-text-muted block text-xs">Original (est.)</span>
-                      <span className="font-mono">{(selectedDetail.pxpipe.tokensBeforeEst || 0).toLocaleString()} tokens</span>
+                      <span className="font-mono">{fmtToken(selectedDetail.pxpipe.tokensBeforeEst || 0)} tokens</span>
                     </div>
                     <div>
                       <span className="text-text-muted block text-xs">Compressed (est.)</span>
-                      <span className="font-mono">{(selectedDetail.pxpipe.tokensAfterEst || 0).toLocaleString()} tokens</span>
+                      <span className="font-mono">{fmtToken(selectedDetail.pxpipe.tokensAfterEst || 0)} tokens</span>
                     </div>
                     <div>
                       <span className="text-text-muted block text-xs">Saved</span>

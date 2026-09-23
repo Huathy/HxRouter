@@ -76,8 +76,9 @@ const RechartsChart = dynamic(() => import("recharts").then(mod => {
 }), { ssr: false, loading: () => <div className="h-[220px] w-full rounded-lg border border-border bg-bg-subtle/30" aria-label="Loading chart" /> });
 
 const fmtTokens = (n) => {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}B`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}W`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
   return String(n || 0);
 };
 

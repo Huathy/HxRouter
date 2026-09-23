@@ -17,12 +17,20 @@ import UsageTable, { fmt, fmtTime, fmtSpeed } from "@/app/(dashboard)/dashboard/
 import ModelPieChart from "@/app/(dashboard)/dashboard/usage/components/ModelPieChart";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
 
+function fmtToken(n) {
+  if (n == null || isNaN(n)) return "0";
+  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}B`;
+  if (n >= 1e4) return `${(n / 1e4).toFixed(1)}W`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(n);
+}
+
 // Skeleton placeholders sized to match the final content so the layout does
 // not shift (CLS) when data arrives. Keep dimensions in sync with the real
 // components they replace.
 const overviewSkeleton = (
-  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 sm:gap-4">
-    {Array.from({ length: 4 }).map((_, i) => (
+  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 sm:gap-4">
+    {Array.from({ length: 6 }).map((_, i) => (
       <div key={i} className="h-24 w-full animate-pulse rounded-lg border border-border bg-bg-subtle/50" aria-hidden="true" />
     ))}
   </div>
@@ -157,9 +165,9 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                         <span className="text-text-muted">—</span>
                       ) : (
                         <>
-                          <span className="text-primary">{fmt(r.promptTokens)}↑</span>
+                          <span className="text-primary">{fmtToken(r.promptTokens)}↑</span>
                           {" "}
-                          <span className="text-success">{fmt(r.completionTokens)}↓</span>
+                          <span className="text-success">{fmtToken(r.completionTokens)}↓</span>
                         </>
                       )}
                     </td>
