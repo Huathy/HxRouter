@@ -8,6 +8,13 @@ const _nf = new Intl.NumberFormat();
 const fmt = (n) => _nf.format(n || 0);
 const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
+function fmtSpeed(n) {
+  if (n == null) return "—";
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2)}b t/s`;
+  if (n >= 1e4) return `${Math.round(n / 1e4)}w t/s`;
+  return `${n.toFixed(1)} t/s`;
+}
+
 function fmtTime(iso) {
   if (!iso) return "Never";
   const diffMins = Math.floor((Date.now() - new Date(iso)) / 60000);
@@ -143,6 +150,7 @@ export default function UsageTable({
                 <th
                   key={col.field}
                   className={`px-6 py-3 cursor-pointer hover:bg-bg-subtle/50 ${col.align === "right" ? "text-right" : ""}`}
+                  style={col.minWidth ? { minWidth: col.minWidth } : undefined}
                   onClick={() => onToggleSort(tableType, col.field)}
                 >
                   {col.label}{" "}
@@ -209,4 +217,4 @@ export default function UsageTable({
 }
 
 // Re-export utilities for use in UsageStats orchestrator
-export { fmt, fmtCost, fmtTime };
+export { fmt, fmtCost, fmtTime, fmtSpeed };

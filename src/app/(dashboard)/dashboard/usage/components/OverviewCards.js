@@ -5,6 +5,13 @@ import Card from "@/shared/components/Card";
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
 const fmtCost = (n) => `$${(n || 0).toFixed(2)}`;
 
+function fmtSpeed(n) {
+  if (n == null) return "—";
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2)}b t/s`;
+  if (n >= 1e4) return `${Math.round(n / 1e4)}w t/s`;
+  return `${n.toFixed(1)} t/s`;
+}
+
 export default function OverviewCards({ stats }) {
   const totalReq = stats.totalRequests || 0;
   const totalSuccess = stats.totalSuccess || 0;
@@ -12,17 +19,19 @@ export default function OverviewCards({ stats }) {
   const successRate = totalReq > 0 ? (totalSuccess / totalReq * 100) : null;
   const rateColor = successRate == null ? "text-text-muted" : successRate >= 95 ? "text-success" : successRate >= 80 ? "text-warning" : "text-error";
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 sm:gap-4">
-      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
-        <span className="text-text-muted text-sm uppercase font-semibold">Total Requests</span>
-        <span className="truncate text-2xl font-bold">{fmt(stats.totalRequests)}</span>
-      </Card>
+    <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 sm:gap-4">
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Success Rate</span>
         <span className={`truncate text-2xl font-bold ${rateColor}`}>{successRate == null ? "—" : `${successRate.toFixed(1)}%`}</span>
         <span className="text-[10px] text-text-muted">
           {totalReq > 0 ? `${fmt(totalSuccess)} ok / ${fmt(totalFail)} fail` : "no data"}
         </span>
+        {stats.avgLatencyMs != null && (
+          <span className="text-[10px] text-text-muted">
+            Avg {stats.avgLatencyMs.toFixed(1)}ms
+            {stats.avgTokensPerSecond != null ? ` · ${fmtSpeed(stats.avgTokensPerSecond)}` : ""}
+          </span>
+        )}
       </Card>
       <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
         <span className="text-text-muted text-sm uppercase font-semibold">Total Input Tokens</span>
@@ -43,15 +52,6 @@ export default function OverviewCards({ stats }) {
         <span className="text-text-muted text-sm uppercase font-semibold">Est. Cost</span>
         <span className="truncate text-2xl font-bold text-warning">~{fmtCost(stats.totalCost)}</span>
         <span className="text-[10px] text-text-muted">Estimated, not actual billing</span>
-      </Card>
-      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
-        <span className="text-text-muted text-sm uppercase font-semibold">Avg Latency</span>
-        <span className="truncate text-2xl font-bold text-primary">
-          {stats.avgLatencyMs != null ? `${stats.avgLatencyMs.toFixed(1)}ms` : "—"}
-        </span>
-        {stats.avgTokensPerSecond != null && (
-          <span className="text-[10px] text-text-muted">{stats.avgTokensPerSecond.toFixed(1)} t/s</span>
-        )}
       </Card>
     </div>
   );

@@ -6,7 +6,7 @@ import { getPricingForModel } from "open-sse/providers/pricing.js";
 
 const RADIAN = Math.PI * 2;
 const MAX_ACTIVE_DOTS = 80;
-const MAX_COMPLETED_DOTS = 50;
+const MAX_COMPLETED_DOTS = 500;
 
 function getProviderConfig(providerId) {
   return AI_PROVIDERS[providerId] || { color: "#6b7280", name: providerId };
@@ -18,7 +18,7 @@ function getModelLabel(key) {
   return { model: key, provider: "" };
 }
 
-// ponytail: log-scale price → radius. completed base [0.5,1.0], active = 2x capped 2.0 (dia 4px).
+// ponytail: log-scale price → radius. completed base [0.5,3.0], active = 2x capped 4.0 (diameter 8px).
 // Upgrade to a tunable scale if visual granularity needs finer control.
 function priceRadius(provider, model, isActive) {
   const p = getPricingForModel(provider, model);
@@ -26,8 +26,8 @@ function priceRadius(provider, model, isActive) {
   const lo = Math.log10(0.3);
   const hi = Math.log10(80);
   const f = Math.max(0, Math.min(1, (Math.log10(sum) - lo) / (hi - lo)));
-  const base = 0.5 + f * 0.5;
-  return isActive ? Math.min(4, base * 4) : base;
+  const base = 0.5 + f * 2.5;
+  return isActive ? Math.min(4, base * 2) : base;
 }
 
 export default function ModelPieChart({ byModel, activeRequests = [], last10Minutes = [] }) {
@@ -109,11 +109,13 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
       if (placedCompleted >= MAX_COMPLETED_DOTS) break;
       const done = Math.max(0, entry.requests - (activeByKey[entry.value] || 0));
       const count = Math.min(done, MAX_COMPLETED_DOTS - placedCompleted);
+      const baseR = priceRadius(entry.provider, entry.name, false);
       for (let i = 0; i < count; i++) {
         completed.push({
           angle: Math.random() * RADIAN,
           distFactor: Math.random(),
-          r: 1,
+          r: baseR * (0.8 + Math.random() * 0.4),
+          angularSpeed: (Math.random() - 0.5) * 0.15,
           phase: Math.random() * RADIAN,
           twinkleSpeed: 0.002 + Math.random() * 0.004,
         });
@@ -203,9 +205,13 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
 
       const { completed } = dotsRef.current;
       completed.forEach((dot) => {
+        dot.angle += dot.angularSpeed * dt;
+        if (dot.angle > RADIAN) dot.angle -= RADIAN;
+        if (dot.angle < 0) dot.angle += RADIAN;
+
         const twinkle = 0.5 + 0.5 * Math.sin(now * dot.twinkleSpeed + dot.phase);
         ctx.globalAlpha = 0.35 + 0.45 * twinkle;
-        ctx.fillStyle = "rgba(107, 114, 128, 1)";
+        ctx.fillStyle = "rgba(107, 114, 126, 1)";
         const dist = scatterMin + dot.distFactor * (scatterMax - scatterMin);
         const x = cx + dist * Math.cos(dot.angle);
         const y = cy + dist * Math.sin(dot.angle);

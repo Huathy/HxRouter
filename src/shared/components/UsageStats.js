@@ -13,7 +13,7 @@ function isLLMProvider(id) {
 import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
-import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
+import UsageTable, { fmt, fmtTime, fmtSpeed } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import ModelPieChart from "@/app/(dashboard)/dashboard/usage/components/ModelPieChart";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
 
@@ -107,7 +107,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                 <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Provider</th>
                 <th className="py-1.5 pl-1 text-left font-semibold text-text-muted">Account</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">In / Out</th>
-                <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap">Speed</th>
+                <th className="py-1.5 text-right font-semibold text-text-muted whitespace-nowrap" style={{ minWidth: "90px" }}>Speed</th>
                 <th className="py-1.5 text-right font-semibold text-text-muted">When</th>
               </tr>
             </thead>
@@ -163,14 +163,14 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                         </>
                       )}
                     </td>
-                    <td className="py-1.5 text-right whitespace-nowrap">
+                    <td className="py-1.5 text-right whitespace-nowrap" style={{ minWidth: "90px" }}>
                       {inFlight || lat <= 0 ? (
                         <span className="text-text-muted">—</span>
                       ) : (
                         <span className="font-mono text-[10px] leading-tight block">
                           {(lat / 1000).toFixed(1)}s
                           <br />
-                          {tps != null ? `${tps.toFixed(1)} t/s` : ""}
+                          {tps != null ? fmtSpeed(tps) : ""}
                         </span>
                       )}
                     </td>
@@ -296,7 +296,7 @@ const MODEL_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
-  { field: "tokensPerSecond", label: "Speed", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right", minWidth: "90px" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -306,7 +306,7 @@ const ACCOUNT_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
-  { field: "tokensPerSecond", label: "Speed", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right", minWidth: "90px" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -316,7 +316,7 @@ const API_KEY_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
-  { field: "tokensPerSecond", label: "Speed", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right", minWidth: "90px" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -326,7 +326,7 @@ const ENDPOINT_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
-  { field: "tokensPerSecond", label: "Speed", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right", minWidth: "90px" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -350,12 +350,12 @@ function SuccessRateBadge({ rate }) {
 function SpeedCell({ latencyMs, tokensPerSecond }) {
   if (latencyMs == null) return <span className="text-text-muted">—</span>;
   return (
-    <span className="font-mono text-xs leading-tight">
+    <span className="font-mono text-xs leading-tight whitespace-nowrap">
       {(latencyMs / 1000).toFixed(1)}s
       {tokensPerSecond != null ? (
         <>
           <br />
-          {tokensPerSecond.toFixed(1)} t/s
+          {fmtSpeed(tokensPerSecond)}
         </>
       ) : null}
     </span>
@@ -531,7 +531,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -541,7 +541,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -581,7 +581,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -592,7 +592,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -622,7 +622,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -633,7 +633,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -664,7 +664,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -675,7 +675,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
-              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
+              <td className="px-6 py-3 text-right whitespace-nowrap" style={{ minWidth: "90px" }}><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
