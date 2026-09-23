@@ -48,7 +48,7 @@ function getLocalDateKey(timestamp) {
 }
 
 function addToCounter(target, key, values) {
-  if (!target[key]) target[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0 };
+  if (!target[key]) target[key] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0 };
   target[key].requests += values.requests || 1;
   target[key].promptTokens += values.promptTokens || 0;
   target[key].completionTokens += values.completionTokens || 0;
@@ -56,6 +56,10 @@ function addToCounter(target, key, values) {
   target[key].cost += values.cost || 0;
   target[key].successCount += values.successCount || 0;
   target[key].failCount += values.failCount || 0;
+  if (values.latencyMs) {
+    target[key].latencyMs += values.latencyMs;
+    target[key].latencyCount += 1;
+  }
   if (values.meta) Object.assign(target[key], values.meta);
 }
 
@@ -68,7 +72,9 @@ function aggregateEntryToDay(day, entry) {
   const isSuccess = status === "success" || status === "ok";
   const successCount = isSuccess ? 1 : 0;
   const failCount = isSuccess ? 0 : 1;
-  const vals = { promptTokens, completionTokens, cachedTokens, cost, successCount, failCount };
+  const latencyMs = Number.isFinite(entry.latencyMs) ? entry.latencyMs : 0;
+  const hasLatency = latencyMs > 0;
+  const vals = { promptTokens, completionTokens, cachedTokens, cost, successCount, failCount, latencyMs: hasLatency ? latencyMs : 0, latencyCount: hasLatency ? 1 : 0 };
 
   day.requests = (day.requests || 0) + 1;
   day.successCount = (day.successCount || 0) + successCount;
@@ -77,6 +83,8 @@ function aggregateEntryToDay(day, entry) {
   day.completionTokens = (day.completionTokens || 0) + completionTokens;
   day.cachedTokens = (day.cachedTokens || 0) + cachedTokens;
   day.cost = (day.cost || 0) + cost;
+  day.latencyMs = (day.latencyMs || 0) + (hasLatency ? latencyMs : 0);
+  day.latencyCount = (day.latencyCount || 0) + (hasLatency ? 1 : 0);
 
   day.byProvider ||= {};
   day.byModel ||= {};
@@ -318,13 +326,13 @@ export async function saveRequestUsage(entry) {
       }
 
       db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, httpStatus, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, httpStatus, tokens, meta, latencyMs) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           entry.timestamp, entry.provider || null, entry.model || null,
           entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
           promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
           entry.httpStatus ?? null,
-          stringifyJson(tokens), stringifyJson({}),
+          stringifyJson(tokens), stringifyJson({}), Number.isFinite(entry.latencyMs) ? entry.latencyMs : 0,
         ]
       );
 
@@ -419,6 +427,8 @@ export async function getUsageStats(period = "all") {
     totalRequests: 0,
     totalSuccess: 0, totalFail: 0,
     totalPromptTokens: 0, totalCompletionTokens: 0, totalCachedTokens: 0, totalCost: 0,
+    totalLatencyMs: 0, totalLatencyCount: 0,
+    avgLatencyMs: null, avgTokensPerSecond: null,
     byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
     last10Minutes: [],
     pending: pendingRequests,
@@ -456,16 +466,21 @@ export async function getUsageStats(period = "all") {
     `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ? AND timestamp <= ?`,
     [tenMinutesAgo.toISOString(), now.toISOString()]
   );
-  for (const r of recent10) {
-    const tt = new Date(r.timestamp).getTime();
-    const minuteStart = Math.floor(tt / 60000) * 60000;
-    if (bucketMap[minuteStart]) {
-      bucketMap[minuteStart].requests++;
-      bucketMap[minuteStart].promptTokens += r.promptTokens || 0;
-      bucketMap[minuteStart].completionTokens += r.completionTokens || 0;
-      bucketMap[minuteStart].cost += r.cost || 0;
+    for (const r of recent10) {
+      const tt = new Date(r.timestamp).getTime();
+      const minuteStart = Math.floor(tt / 60000) * 60000;
+      if (bucketMap[minuteStart]) {
+        bucketMap[minuteStart].requests++;
+        bucketMap[minuteStart].promptTokens += r.promptTokens || 0;
+        bucketMap[minuteStart].completionTokens += r.completionTokens || 0;
+        bucketMap[minuteStart].cost += r.cost || 0;
+        const entryLatency = Number.isFinite(r.latencyMs) ? r.latencyMs : 0;
+        if (entryLatency > 0) {
+          bucketMap[minuteStart].latencyMs = (bucketMap[minuteStart].latencyMs || 0) + entryLatency;
+          bucketMap[minuteStart].latencyCount = (bucketMap[minuteStart].latencyCount || 0) + 1;
+        }
+      }
     }
-  }
 
   const useDailySummary = period !== "24h" && period !== "today";
 
@@ -483,9 +498,11 @@ export async function getUsageStats(period = "all") {
       stats.totalCost += day.cost || 0;
       stats.totalSuccess += day.successCount || 0;
       stats.totalFail += day.failCount || 0;
+      stats.totalLatencyMs += day.latencyMs || 0;
+      stats.totalLatencyCount += day.latencyCount || 0;
 
       for (const [prov, p] of Object.entries(day.byProvider || {})) {
-        if (!stats.byProvider[prov]) stats.byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0 };
+        if (!stats.byProvider[prov]) stats.byProvider[prov] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0 };
         stats.byProvider[prov].requests += p.requests || 0;
         stats.byProvider[prov].promptTokens += p.promptTokens || 0;
         stats.byProvider[prov].completionTokens += p.completionTokens || 0;
@@ -493,6 +510,8 @@ export async function getUsageStats(period = "all") {
         stats.byProvider[prov].cost += p.cost || 0;
         stats.byProvider[prov].successCount += p.successCount || 0;
         stats.byProvider[prov].failCount += p.failCount || 0;
+        stats.byProvider[prov].latencyMs += p.latencyMs || 0;
+        stats.byProvider[prov].latencyCount += p.latencyCount || 0;
       }
 
       for (const [mk, m] of Object.entries(day.byModel || {})) {
@@ -501,7 +520,7 @@ export async function getUsageStats(period = "all") {
         const statsKey = provider ? `${rawModel} (${provider})` : rawModel;
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         if (!stats.byModel[statsKey]) {
-          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+          stats.byModel[statsKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel, provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byModel[statsKey].requests += m.requests || 0;
         stats.byModel[statsKey].promptTokens += m.promptTokens || 0;
@@ -510,6 +529,8 @@ export async function getUsageStats(period = "all") {
         stats.byModel[statsKey].cost += m.cost || 0;
         stats.byModel[statsKey].successCount += m.successCount || 0;
         stats.byModel[statsKey].failCount += m.failCount || 0;
+        stats.byModel[statsKey].latencyMs += m.latencyMs || 0;
+        stats.byModel[statsKey].latencyCount += m.latencyCount || 0;
         if (dateKey > (stats.byModel[statsKey].lastUsed || "")) stats.byModel[statsKey].lastUsed = dateKey;
       }
 
@@ -520,7 +541,7 @@ export async function getUsageStats(period = "all") {
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         const accountKey = `${rawModel} (${provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
-          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel, provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
+          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel, provider: providerDisplayName, connectionId: connId, accountName, lastUsed: dateKey };
         }
         stats.byAccount[accountKey].requests += a.requests || 0;
         stats.byAccount[accountKey].promptTokens += a.promptTokens || 0;
@@ -529,6 +550,8 @@ export async function getUsageStats(period = "all") {
         stats.byAccount[accountKey].cost += a.cost || 0;
         stats.byAccount[accountKey].successCount += a.successCount || 0;
         stats.byAccount[accountKey].failCount += a.failCount || 0;
+        stats.byAccount[accountKey].latencyMs += a.latencyMs || 0;
+        stats.byAccount[accountKey].latencyCount += a.latencyCount || 0;
         if (dateKey > (stats.byAccount[accountKey].lastUsed || "")) stats.byAccount[accountKey].lastUsed = dateKey;
       }
 
@@ -542,7 +565,7 @@ export async function getUsageStats(period = "all") {
         const apiKeyMasked = maskApiKey(apiKeyVal);
         const apiKeyKey = apiKeyMasked || "local-no-key";
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
         }
         stats.byApiKey[akKey].requests += ak.requests || 0;
         stats.byApiKey[akKey].promptTokens += ak.promptTokens || 0;
@@ -551,6 +574,8 @@ export async function getUsageStats(period = "all") {
         stats.byApiKey[akKey].cost += ak.cost || 0;
         stats.byApiKey[akKey].successCount += ak.successCount || 0;
         stats.byApiKey[akKey].failCount += ak.failCount || 0;
+        stats.byApiKey[akKey].latencyMs += ak.latencyMs || 0;
+        stats.byApiKey[akKey].latencyCount += ak.latencyCount || 0;
         if (dateKey > (stats.byApiKey[akKey].lastUsed || "")) stats.byApiKey[akKey].lastUsed = dateKey;
       }
 
@@ -560,7 +585,7 @@ export async function getUsageStats(period = "all") {
         const provider = ep.provider || "";
         const providerDisplayName = providerNodeNameMap[provider] || provider;
         if (!stats.byEndpoint[epKey]) {
-          stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, endpoint, rawModel, provider: providerDisplayName, lastUsed: dateKey };
+          stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, endpoint, rawModel, provider: providerDisplayName, lastUsed: dateKey };
         }
         stats.byEndpoint[epKey].requests += ep.requests || 0;
         stats.byEndpoint[epKey].promptTokens += ep.promptTokens || 0;
@@ -569,6 +594,8 @@ export async function getUsageStats(period = "all") {
         stats.byEndpoint[epKey].cost += ep.cost || 0;
         stats.byEndpoint[epKey].successCount += ep.successCount || 0;
         stats.byEndpoint[epKey].failCount += ep.failCount || 0;
+        stats.byEndpoint[epKey].latencyMs += ep.latencyMs || 0;
+        stats.byEndpoint[epKey].latencyCount += ep.latencyCount || 0;
         if (dateKey > (stats.byEndpoint[epKey].lastUsed || "")) stats.byEndpoint[epKey].lastUsed = dateKey;
       }
     }
@@ -610,7 +637,7 @@ export async function getUsageStats(period = "all") {
       cutoff = new Date(Date.now() - PERIOD_MS["24h"]).toISOString();
     }
     const filtered = db.all(
-      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens FROM usageHistory WHERE timestamp >= ?`,
+      `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, latencyMs FROM usageHistory WHERE timestamp >= ?`,
       [cutoff]
     );
 
@@ -620,6 +647,7 @@ export async function getUsageStats(period = "all") {
       const completionTokens = tokens.completion_tokens || 0;
       const cachedTokens = tokens.cached_tokens || tokens.cache_read_input_tokens || 0;
       const entryCost = r.cost || 0;
+      const entryLatency = Number.isFinite(r.latencyMs) ? r.latencyMs : 0;
       const providerDisplayName = providerNodeNameMap[r.provider] || r.provider;
       const status = r.status || "ok";
       const isSuccess = status === "success" || status === "ok";
@@ -632,8 +660,10 @@ export async function getUsageStats(period = "all") {
       stats.totalCost += entryCost;
       stats.totalSuccess += successCount;
       stats.totalFail += failCount;
+      stats.totalLatencyMs += entryLatency;
+      if (entryLatency > 0) stats.totalLatencyCount += 1;
 
-      if (!stats.byProvider[r.provider]) stats.byProvider[r.provider] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0 };
+      if (!stats.byProvider[r.provider]) stats.byProvider[r.provider] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0 };
       stats.byProvider[r.provider].requests++;
       stats.byProvider[r.provider].promptTokens += promptTokens;
       stats.byProvider[r.provider].completionTokens += completionTokens;
@@ -641,10 +671,12 @@ export async function getUsageStats(period = "all") {
       stats.byProvider[r.provider].cost += entryCost;
       stats.byProvider[r.provider].successCount += successCount;
       stats.byProvider[r.provider].failCount += failCount;
+      stats.byProvider[r.provider].latencyMs += entryLatency;
+      if (entryLatency > 0) stats.byProvider[r.provider].latencyCount += 1;
 
       const modelKey = r.provider ? `${r.model} (${r.provider})` : r.model;
       if (!stats.byModel[modelKey]) {
-        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+        stats.byModel[modelKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
       }
       stats.byModel[modelKey].requests++;
       stats.byModel[modelKey].promptTokens += promptTokens;
@@ -653,13 +685,15 @@ export async function getUsageStats(period = "all") {
       stats.byModel[modelKey].cost += entryCost;
       stats.byModel[modelKey].successCount += successCount;
       stats.byModel[modelKey].failCount += failCount;
+      stats.byModel[modelKey].latencyMs += entryLatency;
+      if (entryLatency > 0) stats.byModel[modelKey].latencyCount += 1;
       if (new Date(r.timestamp) > new Date(stats.byModel[modelKey].lastUsed)) stats.byModel[modelKey].lastUsed = r.timestamp;
 
       if (r.connectionId) {
         const accountName = connectionMap[r.connectionId] || `Account ${r.connectionId.slice(0, 8)}...`;
         const accountKey = `${r.model} (${r.provider} - ${accountName})`;
         if (!stats.byAccount[accountKey]) {
-          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel: r.model, provider: providerDisplayName, connectionId: r.connectionId, accountName, lastUsed: r.timestamp };
+          stats.byAccount[accountKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel: r.model, provider: providerDisplayName, connectionId: r.connectionId, accountName, lastUsed: r.timestamp };
         }
         stats.byAccount[accountKey].requests++;
         stats.byAccount[accountKey].promptTokens += promptTokens;
@@ -668,6 +702,8 @@ export async function getUsageStats(period = "all") {
         stats.byAccount[accountKey].cost += entryCost;
         stats.byAccount[accountKey].successCount += successCount;
         stats.byAccount[accountKey].failCount += failCount;
+        stats.byAccount[accountKey].latencyMs += entryLatency;
+        if (entryLatency > 0) stats.byAccount[accountKey].latencyCount += 1;
         if (new Date(r.timestamp) > new Date(stats.byAccount[accountKey].lastUsed)) stats.byAccount[accountKey].lastUsed = r.timestamp;
       }
 
@@ -677,35 +713,46 @@ export async function getUsageStats(period = "all") {
         const apiKeyMasked = maskApiKey(r.apiKey);
         const akKey = `${apiKeyMasked}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
+          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey[akKey];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
         ake.successCount += successCount; ake.failCount += failCount;
+        ake.latencyMs += entryLatency;
+        if (entryLatency > 0) ake.latencyCount += 1;
         if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
       } else {
         if (!stats.byApiKey["local-no-key"]) {
-          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
+          stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey["local-no-key"];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
         ake.successCount += successCount; ake.failCount += failCount;
+        ake.latencyMs += entryLatency;
+        if (entryLatency > 0) ake.latencyCount += 1;
         if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
       }
 
       const endpoint = r.endpoint || "Unknown";
       const epKey = `${endpoint}|${r.model}|${r.provider || "unknown"}`;
       if (!stats.byEndpoint[epKey]) {
-        stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, endpoint, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
+        stats.byEndpoint[epKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, successCount: 0, failCount: 0, latencyMs: 0, latencyCount: 0, endpoint, rawModel: r.model, provider: providerDisplayName, lastUsed: r.timestamp };
       }
       const epe = stats.byEndpoint[epKey];
       epe.requests++; epe.promptTokens += promptTokens; epe.completionTokens += completionTokens; epe.cachedTokens += cachedTokens; epe.cost += entryCost;
       epe.successCount += successCount; epe.failCount += failCount;
+      epe.latencyMs += entryLatency;
+      if (entryLatency > 0) epe.latencyCount += 1;
       if (new Date(r.timestamp) > new Date(epe.lastUsed)) epe.lastUsed = r.timestamp;
     }
   }
 
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
+  stats.avgLatencyMs = stats.totalLatencyCount > 0 ? stats.totalLatencyMs / stats.totalLatencyCount : null;
+  const totalTokens = stats.totalPromptTokens + stats.totalCompletionTokens;
+  stats.avgTokensPerSecond = (stats.totalLatencyMs > 0 && stats.totalLatencyCount > 0 && totalTokens > 0)
+    ? (totalTokens / stats.totalLatencyMs * 1000)
+    : null;
   return stats;
 }
 

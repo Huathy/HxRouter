@@ -264,7 +264,8 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   const usage = extractUsageFromResponse(responseBody);
   appendLog({ tokens: usage, status: "200 OK" });
-  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, httpStatus: providerResponse.status, comboName });
+  const totalLatency = Date.now() - requestStartTime;
+  saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, apiKeyInfo, endpoint: clientRawRequest?.endpoint, httpStatus: providerResponse.status, comboName, latency: { ttft: totalLatency, total: totalLatency } });
 
   const translatedResponse = needsTranslation(targetFormat, sourceFormat)
     ? translateNonStreamingResponse(responseBody, targetFormat, sourceFormat)
@@ -352,7 +353,6 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
 
   reqLogger.logConvertedResponse(finalResponse);
 
-  const totalLatency = Date.now() - requestStartTime;
   // Extract response fields compatible with both OpenAI and Claude formats
   const respContent = finalResponse?.choices?.[0]?.message?.content
     || (Array.isArray(finalResponse?.content)

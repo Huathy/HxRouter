@@ -97,26 +97,24 @@ export function buildRequestDetail(base, overrides = {}) {
   };
 }
 
-export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", httpStatus, status = "success" }) {
+export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", httpStatus, status = "success", latency }) {
   if (!tokens || typeof tokens !== "object") return;
 
   const inTokens = tokens.input_tokens ?? tokens.prompt_tokens ?? 0;
   const outTokens = tokens.output_tokens ?? tokens.completion_tokens ?? 0;
 
-  // Error-path requests carry 0 tokens but must still be recorded so failure
-  // counts are accurate. Only skip zero-token rows for non-error statuses.
   if (inTokens === 0 && outTokens === 0 && status !== "error") return;
 
   const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const accountSuffix = connectionId ? ` | account=${connectionId.slice(0, 8)}...` : "";
   console.log(`${COLORS.green}[${time}] 📊 [${label}] ${provider.toUpperCase()} | in=${inTokens} | out=${outTokens}${accountSuffix}${COLORS.reset}`);
 
-  // Canonicalize to one storage convention (prompt_tokens cache-inclusive) so
-  // cached/cache-creation tokens survive to cost calc + stats. See canonicalizeUsage.
   const normalized = canonicalizeUsage(tokens) || {
     prompt_tokens: tokens.prompt_tokens ?? tokens.input_tokens ?? 0,
     completion_tokens: tokens.completion_tokens ?? tokens.output_tokens ?? 0
   };
+
+  const latencyMs = latency?.total ?? null;
 
   saveRequestUsage({
     provider: provider || "unknown",
@@ -128,5 +126,6 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     endpoint: endpoint || null,
     httpStatus: httpStatus ?? null,
     status,
+    latencyMs,
   }).catch(() => {});
 }

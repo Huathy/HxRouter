@@ -549,7 +549,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       status: "error"
     })).catch(() => { });
 
-    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus, status: "error", label: "ERROR USAGE" });
+    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus, status: "error", label: "ERROR USAGE", latency: { ttft: 0, total: Date.now() - requestStartTime } });
 
     if (error.name === "AbortError") {
       streamController.handleError(error);
@@ -613,7 +613,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       status: "error"
     })).catch(() => { });
 
-    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus: statusCode, status: "error", label: "ERROR USAGE" });
+    saveUsageStats({ provider, model, tokens: { prompt_tokens: 0, completion_tokens: 0 }, connectionId, apiKey, httpStatus: statusCode, status: "error", label: "ERROR USAGE", latency: { ttft: 0, total: Date.now() - requestStartTime } });
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     console.log(`${COLORS.red}[ERROR] ${errMsg}${COLORS.reset}`);

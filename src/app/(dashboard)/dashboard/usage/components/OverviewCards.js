@@ -44,6 +44,15 @@ export default function OverviewCards({ stats }) {
         <span className="truncate text-2xl font-bold text-warning">~{fmtCost(stats.totalCost)}</span>
         <span className="text-[10px] text-text-muted">Estimated, not actual billing</span>
       </Card>
+      <Card className="flex min-w-0 flex-col gap-1 px-4 py-3">
+        <span className="text-text-muted text-sm uppercase font-semibold">Avg Latency</span>
+        <span className="truncate text-2xl font-bold text-primary">
+          {stats.avgLatencyMs != null ? `${stats.avgLatencyMs.toFixed(1)}ms` : "—"}
+        </span>
+        {stats.avgTokensPerSecond != null && (
+          <span className="text-[10px] text-text-muted">{stats.avgTokensPerSecond.toFixed(1)} t/s</span>
+        )}
+      </Card>
     </div>
   );
 }

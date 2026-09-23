@@ -14,9 +14,7 @@ import Badge from "./Badge";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
-import dynamic from "next/dynamic";
-// Lazy-load: keeps @xyflow/react out of the shared bundle until topology renders
-const ProviderTopology = dynamic(() => import("@/app/(dashboard)/dashboard/usage/components/ProviderTopology"), { ssr: false });
+import ModelPieChart from "@/app/(dashboard)/dashboard/usage/components/ModelPieChart";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
 
 // Skeleton placeholders sized to match the final content so the layout does
@@ -192,7 +190,7 @@ function sortData(dataMap, pendingMap = {}, sortBy, sortOrder) {
       const successCount = data.successCount || 0;
       const failCount = data.failCount || 0;
       const successRate = (data.requests || 0) > 0 ? successCount / (data.requests || 0) : null;
-      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, successCount, failCount, successRate, pending: pendingMap[key] || 0 };
+      return { ...data, key, totalTokens, totalCost, inputCost, cachedCost, outputCost, successCount, failCount, successRate, pending: pendingMap[key] || 0, avgLatencyMs: (data.latencyCount > 0 ? data.latencyMs / data.latencyCount : null), tokensPerSecond: (data.latencyMs > 0 && data.latencyCount > 0 && totalTokens > 0 ? totalTokens / data.latencyMs * 1000 : null) };
     })
     .sort((a, b) => {
       let valA = a[sortBy];
@@ -227,6 +225,7 @@ function groupDataByKey(data, keyField) {
           requests: 0, successCount: 0, failCount: 0,
           promptTokens: 0, completionTokens: 0, cachedTokens: 0,
           totalTokens: 0, cost: 0, inputCost: 0, cachedCost: 0, outputCost: 0,
+          latencyMs: 0, latencyCount: 0, avgLatencyMs: null, tokensPerSecond: null,
           lastUsed: null, pending: 0,
           provider: null, rawModel: null, keyName: null, endpoint: null
         },
@@ -245,6 +244,8 @@ function groupDataByKey(data, keyField) {
     s.inputCost += item.inputCost || 0;
     s.cachedCost += item.cachedCost || 0;
     s.outputCost += item.outputCost || 0;
+    s.latencyMs += item.latencyMs || 0;
+    s.latencyCount += item.latencyCount || 0;
     s.pending += item.pending || 0;
     if (item.lastUsed && (!s.lastUsed || new Date(item.lastUsed) > new Date(s.lastUsed))) {
       s.lastUsed = item.lastUsed;
@@ -267,6 +268,10 @@ function groupDataByKey(data, keyField) {
   // Finalize derived summary fields (successRate) after accumulation.
   for (const g of Object.values(groups)) {
     g.summary.successRate = g.summary.requests > 0 ? g.summary.successCount / g.summary.requests : null;
+    g.summary.avgLatencyMs = g.summary.latencyCount > 0 ? g.summary.latencyMs / g.summary.latencyCount : null;
+    g.summary.tokensPerSecond = (g.summary.latencyMs > 0 && g.summary.latencyCount > 0 && g.summary.totalTokens > 0)
+      ? g.summary.totalTokens / g.summary.latencyMs * 1000
+      : null;
   }
   return Object.values(groups);
 }
@@ -276,6 +281,7 @@ const MODEL_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -285,6 +291,7 @@ const ACCOUNT_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -294,6 +301,7 @@ const API_KEY_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -303,6 +311,7 @@ const ENDPOINT_COLUMNS = [
   { field: "provider", label: "Provider" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "successRate", label: "Success Rate", align: "right" },
+  { field: "tokensPerSecond", label: "Speed", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
 
@@ -320,6 +329,16 @@ function SuccessRateBadge({ rate }) {
   const pct = rate * 100;
   const variant = rate >= 0.95 ? "success" : rate >= 0.8 ? "warning" : "error";
   return <Badge variant={variant} size="sm">{pct.toFixed(0)}%</Badge>;
+}
+
+// Render latency + throughput. Both null (no latency samples) → "—".
+function SpeedCell({ latencyMs, tokensPerSecond }) {
+  if (latencyMs == null) return <span className="text-text-muted">—</span>;
+  return (
+    <span className="whitespace-nowrap font-mono text-xs">
+      {latencyMs.toFixed(1)}ms{tokensPerSecond != null ? ` / ${tokensPerSecond.toFixed(1)} t/s` : ""}
+    </span>
+  );
 }
 
 const PERIODS = [
@@ -491,15 +510,17 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
           renderDetailCells: (item) => (
             <>
-              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
+              <td className={"px-6 py-3 font-medium transition-colors" + (item.pending > 0 ? " text-primary" : "")}>{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -539,16 +560,18 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
           renderDetailCells: (item) => (
             <>
-              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.accountName || `Account ${item.connectionId?.slice(0, 8)}...`}</td>
-              <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
+              <td className={"px-6 py-3 font-medium transition-colors" + (item.pending > 0 ? " text-primary" : "")}>{item.accountName || `Account ${item.connectionId?.slice(0, 8)}...`}</td>
+              <td className={"px-6 py-3 font-medium transition-colors" + (item.pending > 0 ? " text-primary" : "")}>{item.rawModel}</td>
               <td className="px-6 py-3"><Badge variant={item.pending > 0 ? "primary" : "neutral"} size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -578,6 +601,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -588,6 +612,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -618,6 +643,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               </td>
               <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={group.summary.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={group.summary.avgLatencyMs} tokensPerSecond={group.summary.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
             </>
           ),
@@ -628,6 +654,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
               <td className="px-6 py-3"><Badge variant="neutral" size="sm">{item.provider}</Badge></td>
               <td className="px-6 py-3 text-right">{fmt(item.requests)}</td>
               <td className="px-6 py-3 text-right"><SuccessRateBadge rate={item.successRate} /></td>
+              <td className="px-6 py-3 text-right"><SpeedCell latencyMs={item.avgLatencyMs} tokensPerSecond={item.tokensPerSecond} /></td>
               <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(item.lastUsed)}</td>
             </>
           ),
@@ -646,14 +673,13 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       {/* Overview cards */}
       {loading ? overviewSkeleton : <OverviewCards stats={stats} />}
 
-      {/* Provider topology + Recent Requests */}
+      {/* Model pie chart + Recent Requests */}
       {loading ? topologySkeleton : (
         <div className="grid min-w-0 grid-cols-1 items-stretch gap-2 lg:grid-cols-2">
-          <ProviderTopology
-            providers={providers}
+          <ModelPieChart
+            byModel={stats.byModel || {}}
             activeRequests={stats.activeRequests || []}
-            lastProvider={stats.recentRequests?.[0]?.provider || ""}
-            errorProvider={stats.errorProvider || ""}
+            last10Minutes={stats.last10Minutes || []}
           />
           <RecentRequests requests={stats.recentRequests || []} providerNodeNames={providerNodeNames} />
         </div>
