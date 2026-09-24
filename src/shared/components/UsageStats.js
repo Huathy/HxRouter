@@ -126,6 +126,7 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                 const totalTok = (r.promptTokens || 0) + (r.completionTokens || 0);
                 const lat = Number.isFinite(r.latencyMs) ? r.latencyMs : 0;
                 const tps = lat > 0 ? totalTok / lat * 1000 : null;
+                const isDeleted = r.status === "deleted" || r.status === "stopped";
                 return (
                   <tr key={`${r.timestamp}-${r.model}-${i}-${inFlight ? "p" : "c"}`} className={`hover:bg-bg-subtle transition-colors ${inFlight ? "bg-primary/5" : ""}`}>
                     <td className="py-1.5">
@@ -135,7 +136,11 @@ function RecentRequests({ requests = EMPTY_REQUESTS, providerNodeNames = {} }) {
                         (() => {
                           const code = r.httpStatus;
                           const c = Number(code);
-                          const dotCls = !ok ? "bg-error" : (c >= 400 && c < 500 ? "bg-yellow-500" : "bg-success");
+                          const dotCls = isDeleted
+                            ? "bg-gray-400"
+                            : !ok
+                              ? "bg-error"
+                              : (c >= 400 && c < 500 ? "bg-yellow-500" : "bg-success");
                           const txt = code != null ? String(code) : (ok ? "200" : "ERR");
                           return (
                             <span className="inline-flex items-center gap-1">
