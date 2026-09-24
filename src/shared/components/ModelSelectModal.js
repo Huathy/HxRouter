@@ -7,6 +7,7 @@ import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { computeGroupedModels } from "@/shared/components/modelSelectUtils";
+import { fetchCachedJson, invalidateModelSelectCache, syncCatalogVersion } from "@/shared/utils/modelSelectCache";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
@@ -65,40 +66,40 @@ function ModelButton({ model, isSelected, isPlaceholder, addedModelValues, onSel
 
 function CollapsibleModelGroup({ providerId, group, selectedModel, addedModelValues, onSelect, getCaps }) {
   const wrapRef = useRef(null);
-  const [rowCount, setRowCount] = useState(0);
+  const [clipHeight, setClipHeight] = useState(null);
+  const [hiddenCount, setHiddenCount] = useState(0);
   const [expanded, setExpanded] = useState(false);
-  const [buttonTops, setButtonTops] = useState([]);
-  const [measured, setMeasured] = useState(false);
 
-  const measureRows = useCallback(() => {
+  // Measure the top of the third visual row so the collapsed view clips to two
+  // rows. Every button always renders (collapse is pure CSS clipping via
+  // max-height/overflow-hidden), so clipping never changes children offsetTop and
+  // re-measuring yields the same value — the previous implementation removed the
+  // clipped buttons from the DOM, which shrank the measured row count and flipped
+  // the collapse flag back, producing an endless expand/collapse loop.
+  const measure = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const tops = [];
-    for (const btn of el.children) {
-      tops.push(Math.round(btn.offsetTop));
-    }
+    // offsetTop is relative to the shared offsetParent, so subtract the wrapper's
+    // own offset to get each button's row position relative to the clip container.
+    const base = el.offsetTop;
+    const tops = Array.from(el.children, (btn) => Math.round(btn.offsetTop - base));
     const distinctTops = [...new Set(tops)].sort((a, b) => a - b);
-    setRowCount(distinctTops.length);
-    setButtonTops(tops);
-    setMeasured(true);
+    const nextClip = distinctTops.length > 2 ? distinctTops[2] : null;
+    const nextHidden = nextClip == null ? 0 : tops.filter((top) => top >= nextClip).length;
+    setClipHeight((prev) => (prev === nextClip ? prev : nextClip));
+    setHiddenCount((prev) => (prev === nextHidden ? prev : nextHidden));
   }, []);
 
   useLayoutEffect(() => {
-    measureRows();
-    const ro = new ResizeObserver(measureRows);
-    if (wrapRef.current) ro.observe(wrapRef.current);
+    measure();
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
     return () => ro.disconnect();
-  }, [measureRows, group.models.length]);
+  }, [measure, group.models.length, group.name]);
 
-  const collapsible = measured && rowCount > 2 && !expanded;
-
-  const visibleModels = useMemo(() => {
-    if (!collapsible) return group.models;
-    const distinctTops = [...new Set(buttonTops)].sort((a, b) => a - b);
-    const row2Top = distinctTops[1];
-    if (row2Top == null) return group.models;
-    return group.models.filter((_, i) => buttonTops[i] <= row2Top);
-  }, [collapsible, group.models, buttonTops]);
+  const collapsible = clipHeight != null;
 
   return (
     <div>
@@ -116,7 +117,7 @@ function CollapsibleModelGroup({ providerId, group, selectedModel, addedModelVal
         <span className="text-[10px] text-text-muted">
           ({group.models.length})
         </span>
-        {rowCount > 2 && (
+        {collapsible && (
           <button
             onClick={() => setExpanded((v) => !v)}
             className="ml-auto flex items-center gap-1 text-[11px] text-text-muted hover:text-primary"
@@ -124,12 +125,16 @@ function CollapsibleModelGroup({ providerId, group, selectedModel, addedModelVal
             <span className="material-symbols-outlined text-[14px]">
               {expanded ? "expand_less" : "expand_more"}
             </span>
-            {expanded ? "收起" : `展开(+${group.models.length - visibleModels.length})`}
+            {expanded ? "收起" : `展开(+${hiddenCount})`}
           </button>
         )}
       </div>
-      <div ref={wrapRef} className="flex flex-wrap gap-1.5">
-        {(collapsible ? visibleModels : group.models).map((model) => (
+      <div
+        ref={wrapRef}
+        className="flex flex-wrap gap-1.5"
+        style={collapsible && !expanded ? { maxHeight: clipHeight, overflow: "hidden" } : undefined}
+      >
+        {group.models.map((model) => (
           <ModelButton
             key={model.value}
             model={model}
@@ -186,95 +191,120 @@ export default function ModelSelectModal({
       .map((provider) => provider.id),
     [activeProviders],
   );
-
-  useEffect(() => {
-    if (!isOpen || cursorConnectionIds.length === 0) {
-      // Intentional reset when the modal's external selection changes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCursorModels([]);
-      return undefined;
-    }
-
-    let cancelled = false;
-    Promise.all(cursorConnectionIds.map(async (connectionId) => {
-      const response = await fetch(`/api/providers/${connectionId}/models`, { cache: "no-store" });
-      if (!response.ok) return [];
-      const data = await response.json();
-      return Array.isArray(data.models) ? data.models : [];
-    }))
-      .then((modelLists) => {
-        if (cancelled) return;
-        const seen = new Set();
-        setCursorModels(modelLists.flat().filter((model) => {
-          if (!model?.id || seen.has(model.id)) return false;
-          seen.add(model.id);
-          return true;
-        }));
-      })
-      .catch((error) => {
-        // Do not hide the static fallback when the account catalog is unavailable.
-        console.warn("Unable to load Cursor models for selector:", error);
-        if (!cancelled) setCursorModels([]);
-      });
-
-    return () => { cancelled = true; };
-  }, [isOpen, cursorConnectionIds]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    fetch("/api/combos")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => { if (!cancelled) setCombos(data.combos || []); })
-      .catch((err) => { console.error("Error fetching combos:", err); if (!cancelled) setCombos([]); });
-    return () => { cancelled = true; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    fetch("/api/provider-nodes")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => { if (!cancelled) setProviderNodes(data.nodes || []); })
-      .catch((err) => { console.error("Error fetching provider nodes:", err); if (!cancelled) setProviderNodes([]); });
-    return () => { cancelled = true; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    fetch("/api/models/custom")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => { if (!cancelled) setCustomModels(data.models || []); })
-      .catch((err) => { console.error("Error fetching custom models:", err); if (!cancelled) setCustomModels([]); });
-    return () => { cancelled = true; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    fetch("/api/models/disabled")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => { if (!cancelled) setDisabledModels(data.disabled || {}); })
-      .catch((err) => { console.error("Error fetching disabled models:", err); if (!cancelled) setDisabledModels({}); });
-    return () => { cancelled = true; };
-  }, [isOpen]);
-
-  // Kilo Code's free catalog is dynamic; the default endpoint response already
-  // excludes disabled ids, matching what the combo picker should offer.
   const kiloConnectionActive = useMemo(
     () => activeProviders.some((p) => p.provider === "kilocode"),
     [activeProviders],
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const mountedRef = useRef(true);
+
   useEffect(() => {
-    if (!isOpen || !kiloConnectionActive) return undefined;
-    let cancelled = false;
-    fetch("/api/providers/kilo/free-models", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => { if (!cancelled && Array.isArray(data.models)) setKiloFreeModels(data.models); })
-      .catch(() => { if (!cancelled) setKiloFreeModels([]); });
-    return () => { cancelled = true; };
-  }, [isOpen, kiloConnectionActive]);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const refreshData = useCallback(async ({ force = false } = {}) => {
+    try {
+      const [combosRes, providerNodesRes, customRes, disabledRes] = await Promise.all([
+        fetchCachedJson("/api/combos", { force }),
+        fetchCachedJson("/api/provider-nodes", { force }),
+        fetchCachedJson("/api/models/custom", { force }),
+        fetchCachedJson("/api/models/disabled", { force }),
+      ]);
+      if (!mountedRef.current) return;
+      setCombos(combosRes.combos || []);
+      setProviderNodes(providerNodesRes.nodes || []);
+      setCustomModels(customRes.models || []);
+      setDisabledModels(disabledRes.disabled || {});
+
+      // Per-account catalogs (Cursor) and the dynamic Kilo free list are fetched
+      // separately because they are only relevant when those providers connect.
+      const cursorLists = cursorConnectionIds.length > 0
+        ? await Promise.all(cursorConnectionIds.map((connectionId) =>
+            fetchCachedJson(`/api/providers/${connectionId}/models`, { force })
+              .then((data) => (Array.isArray(data.models) ? data.models : []))
+              .catch(() => [])
+          ))
+        : [];
+      if (!mountedRef.current) return;
+      const seen = new Set();
+      setCursorModels(cursorLists.flat().filter((model) => {
+        if (!model?.id || seen.has(model.id)) return false;
+        seen.add(model.id);
+        return true;
+      }));
+
+      if (kiloConnectionActive) {
+        const kiloData = await fetchCachedJson("/api/providers/kilo/free-models", { force })
+          .catch(() => ({ models: [] }));
+        if (!mountedRef.current) return;
+        setKiloFreeModels(Array.isArray(kiloData.models) ? kiloData.models : []);
+      }
+    } catch (err) {
+      if (!mountedRef.current) return;
+      console.error("Error fetching selector catalog:", err);
+    }
+  }, [cursorConnectionIds, kiloConnectionActive]);
+
+  useEffect(() => {
+    // Bootstrap fetch on open; refreshData writes fetched data into state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isOpen) refreshData();
+  }, [isOpen, refreshData]);
+
+  // Invalidate the shared catalog cache and refresh whenever another dashboard
+  // page edits providers/combos/models. Backed by the SSE stream plus the
+  // customModelChanged window event used by the providers pages.
+  useEffect(() => {
+    if (!isOpen || typeof EventSource === "undefined") return undefined;
+
+    let source;
+    try {
+      source = new EventSource("/api/models/events");
+    } catch {
+      return undefined;
+    }
+    let debounce = null;
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        invalidateModelSelectCache();
+        refreshData({ force: true });
+      }, 200);
+    };
+
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "init") {
+          if (syncCatalogVersion(payload.version)) scheduleRefresh();
+        } else if (payload.type === "changed") {
+          scheduleRefresh();
+        }
+      } catch {
+        // non-JSON or ping — ignore
+      }
+    };
+
+    const onCustomModelChanged = () => scheduleRefresh();
+    window.addEventListener("customModelChanged", onCustomModelChanged);
+
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      source.close();
+      window.removeEventListener("customModelChanged", onCustomModelChanged);
+    };
+  }, [isOpen, refreshData]);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    invalidateModelSelectCache();
+    try {
+      await refreshData({ force: true });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const allProviders = useMemo(() => ({ ...OAUTH_PROVIDERS, ...FREE_PROVIDERS, ...FREE_TIER_PROVIDERS, ...APIKEY_PROVIDERS }), []);
 
@@ -368,8 +398,8 @@ export default function ModelSelectModal({
       </div>
 
       {/* Search - compact */}
-      <div className="mb-3">
-        <div className="relative">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative flex-1">
           <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">
             search
           </span>
@@ -381,6 +411,16 @@ export default function ModelSelectModal({
             className="w-full pl-8 pr-3 py-1.5 bg-surface border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
         </div>
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          className="shrink-0 rounded border border-border bg-surface p-1.5 text-text-muted hover:text-primary hover:border-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh from server"
+        >
+          <span className="material-symbols-outlined text-[16px]">
+            {isRefreshing ? "hourglass_simple" : "refresh"}
+          </span>
+        </button>
       </div>
 
       {/* Models grouped by provider - compact */}
