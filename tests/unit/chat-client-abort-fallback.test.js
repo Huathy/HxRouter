@@ -167,7 +167,6 @@ vi.mock("../../src/sse/services/tokenRefresh.js", () => ({
   checkAndRefreshToken: mocks.checkAndRefreshToken,
 }));
 vi.mock("open-sse/services/projectId.js", () => ({ getProjectIdForConnection: mocks.getProjectIdForConnection }));
-vi.mock("@/lib/headroom/detect", () => ({ DEFAULT_HEADROOM_URL: "http://localhost:9999" }));
 vi.mock("open-sse/utils/cooldownRetry.js", () => ({
   maybeWaitForCooldown: vi.fn(() => Promise.resolve({ shouldRetry: false, reason: "budget_exhausted" })),
   MAX_COOLDOWN_RETRIES: 1,

@@ -11,8 +11,7 @@ const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 const IS_WIN = process.platform === "win32";
 const NPM_CMD = IS_WIN ? "npm.cmd" : "npm";
 
-// Same PATH extension trick as headroom/detect.js: packaged/launchd environments
-// often miss the Node bin dirs.
+// Extend PATH for packaged/launchd environments that miss Node bin directories.
 const EXTRA_BINS = IS_WIN
   ? [`${process.env.ProgramFiles || ""}\\nodejs`, `${process.env.APPDATA || ""}\\npm`]
   : ["/usr/local/bin", "/opt/homebrew/bin", `${process.env.HOME || ""}/.local/bin`, "/usr/bin", "/bin"];

@@ -157,6 +157,6 @@ A backup is automatically created at `~/.hxrouter/db/backups/` before migration 
 
 - **Image**: `ghcr.io/huathy/hxrouter` (not `decolua/9router`)
 - **Data dir**: `~/.hxrouter/` recommended (not `~/.9router/`)
-- **Headroom**: Optional sidecar for tool-history safety (not bundled)
+- **Context compression**: In-process system/tool context compression
 - **Circuit breaker**: Built-in provider failure tracking (inspired by OmniRoute)
 - **Active development**: Regular updates from upstream 9Router + community

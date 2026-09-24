@@ -73,67 +73,9 @@ Add options to the quick-start command:
 -e DEBUG=true
 ```
 
-## Optional Headroom sidecar
+## Context compression
 
-Headroom is an optional sidecar service for tool-history safety and advanced request processing.
-
-### Option A: Docker Compose (Recommended)
-
-Use the provided `docker-compose.yml`:
-
-```bash
-# Copy and customize environment
-cp .env.example .env
-nano .env
-
-# Start both services
-docker compose up -d
-```
-
-### Option B: Manual Compose
-
-Create your own `docker-compose.yml`:
-
-```yaml
-services:
-  hxrouter:
-    image: ghcr.io/huathy/hxrouter:latest
-    container_name: hxrouter
-    restart: always
-    ports:
-      - "20128:20128"
-    volumes:
-      - 9router-data:/app/data
-    env_file:
-      - .env
-    environment:
-      DATA_DIR: /app/data
-      PORT: "20128"
-      HOSTNAME: "0.0.0.0"
-      NODE_ENV: production
-      HEADROOM_URL: http://headroom:8787
-    depends_on:
-      - headroom
-
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    container_name: headroom
-    restart: always
-    ports:
-      - "8787:8787"
-
-volumes:
-  9router-data:
-    name: 9router-data
-```
-
-### Option C: Separate Containers
-
-Run Headroom independently:
-
-In the dashboard, open `Endpoint` → `Token Saver` → `Headroom`, confirm the URL is `http://headroom:8787`, recheck status, then enable Headroom.
-
-If Headroom runs on the Docker host instead of as a sidecar, use `http://host.docker.internal:8787` on macOS/Windows. On Linux, add `--add-host=host.docker.internal:host-gateway` or the equivalent compose `extra_hosts` entry.
+Context compression runs in the Node process using the bundled `thincontext` dependency. Enable Dashboard → Token Saver → Compress context to compress repeated system and tool context before routing. Failures are diagnosed and the original request is sent unchanged; no sidecar, extra environment variables, or Python dependencies are required.
 
 ## Update without manual asset or database steps
 

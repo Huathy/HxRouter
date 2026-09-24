@@ -68,10 +68,12 @@ vi.mock("../../open-sse/rtk/index.js", () => ({
   formatRtkLog: vi.fn(() => ""),
 }));
 
-vi.mock("../../open-sse/rtk/headroom.js", async (importOriginal) => ({
-  ...await importOriginal(),
-  compressWithHeadroom: vi.fn(async () => null),
-  formatHeadroomLog: vi.fn(() => ""),
+vi.mock("../../open-sse/rtk/contextCompression.js", () => ({
+  compressContext: vi.fn(async () => null),
+  formatCompressionLog: vi.fn(() => null),
+  formatCompressionSizeLog: vi.fn(() => ""),
+  isCompressionPhantomSavings: vi.fn(() => false),
+  resolveCompressionSessionKey: vi.fn(() => "test-session"),
 }));
 
 vi.mock("../../open-sse/providers/capabilities.js", () => ({
@@ -89,6 +91,7 @@ vi.mock("../../open-sse/translator/concerns/prefetch.js", () => ({
 vi.mock("../../open-sse/handlers/chatCore/requestDetail.js", () => ({
   buildRequestDetail: vi.fn((detail) => detail),
   extractRequestConfig: vi.fn((body, stream) => ({ body, stream })),
+  saveUsageStats: vi.fn(),
 }));
 
 vi.mock("../../open-sse/utils/error.js", () => ({

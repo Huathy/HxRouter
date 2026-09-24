@@ -506,7 +506,7 @@ HxRouter works seamlessly with all major AI coding tools:
 | Feature                                                                           | What It Does                                                                             | Why It Matters                                    |
 | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | 🚀 **RTK Token Saver** ([RTK](https://github.com/rtk-ai/rtk) ⭐40K)               | Compress tool outputs (`git diff`, `grep`, `ls`, `tree`...) before sending to LLM        | Save **20-40% input tokens** per request          |
-| 🧠 **Headroom Token Saver** ([Headroom](https://github.com/chopratejas/headroom)) | Optional external `/v1/compress` proxy before provider routing                           | Save more context tokens without changing clients |
+| 🧠 **Inline Context Compression** ([thincontext](https://www.npmjs.com/package/thincontext)) | Compress repeated system and tool context in-process before provider routing | Save context tokens without a sidecar or client changes |
 | 🪨 **Caveman Mode** ([Caveman](https://github.com/JuliusBrussee/caveman) ⭐52K)   | Inject caveman-speak prompt → LLM replies terse, technical substance preserved           | Save **up to 65% output tokens**                  |
 | 🐴 **Ponytail** ([Ponytail](https://github.com/DietrichGebert/ponytail))          | Inject "lazy senior dev" prompt → LLM writes minimal, YAGNI-first code (Lite/Full/Ultra) | **Fewer output tokens, less refactoring**         |
 | 🎯 **Smart 3-Tier Fallback**                                                      | Auto-route: Subscription → Cheap → Free                                                  | Never stop coding, zero downtime                  |
@@ -541,34 +541,15 @@ Without RTK: 47K tokens sent to LLM
 With RTK:    28K tokens sent to LLM   (40% saved · same context · same answer)
 ```
 
-### 🧠 Headroom Token Saver
+### 🧠 Inline Context Compression
 
-Headroom is optional and runs separately. HxRouter calls Headroom's local `/v1/compress` endpoint, then keeps normal routing, fallback, auth, and usage tracking:
+Context compression runs inside the HxRouter Node process with `thincontext`. It removes repeated system and tool context before normal provider routing, auth, fallback, and usage tracking:
 
 ```
-Client → HxRouter → Headroom /v1/compress → HxRouter → provider
+Client → HxRouter → local context compression → provider
 ```
 
-Local setup:
-
-```bash
-pip install "headroom-ai[proxy]"
-headroom proxy --port 8787
-```
-
-Enable in Dashboard → Endpoint → Token Saver → Headroom. Default URL: `http://localhost:8787`.
-
-Docker examples:
-
-```bash
-# Headroom service in same Docker network
-http://headroom:8787
-
-# Headroom running on host machine
-http://host.docker.internal:8787
-```
-
-If Headroom is down or returns an error, HxRouter fails open and sends the original request.
+Enable it in Dashboard → Endpoint → Token Saver → Compress context. The engine keeps per-session state isolated, preserves tool call identifiers and message structure, and fails open by sending the original request when compression is unsafe or unavailable. No external service, URL, timeout, or Python installation is required.
 
 ### 🐴 Ponytail (Lazy Senior Dev)
 

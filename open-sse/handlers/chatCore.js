@@ -29,7 +29,7 @@ import { injectPonytail } from "../rtk/ponytail.js";
 import { injectSystemPrompt } from "../rtk/systemInject.js";
 import { injectTerminationPrompt, injectToolProtocolPrompt } from "../rtk/terminationPrompt.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
-import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
+import { compressContext, formatCompressionLog, formatCompressionSizeLog, isCompressionPhantomSavings, resolveCompressionSessionKey } from "../rtk/contextCompression.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -125,7 +125,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs = 3000, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, compressionEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -309,17 +309,30 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const rtkLine = formatRtkLog(rtkStats);
   if (rtkLine) console.log(rtkLine);
 
-  // Headroom: optional external proxy compression; fail open if proxy is absent.
-  const headroomDiagnostics = {};
-  const headroomStats = await compressWithHeadroom(translatedBody, { enabled: tokenSaverEnabled && headroomEnabled, url: headroomUrl, model: upstreamModel, format: finalFormat, compressUserMessages: headroomCompressUserMessages, timeoutMs: headroomTimeoutMs, diagnostics: headroomDiagnostics });
-  const headroomLine = formatHeadroomLog(headroomStats);
-  const headroomSizeLine = formatHeadroomSizeLog(headroomDiagnostics);
-  if (headroomLine) {
-    log?.info?.("HEADROOM", `${headroomLine}${headroomSizeLine ? ` | ${headroomSizeLine}` : ""}`);
-    if (isHeadroomPhantomSavings(headroomStats, headroomDiagnostics)) {
-      log?.warn?.("HEADROOM", `reported token delta, but outbound JSON shrank <5%; provider may bill near-original payload | ${headroomSizeLine}`);
+  const compressionDiagnostics = {};
+  const compressionSessionKey = resolveCompressionSessionKey({
+    body: translatedBody,
+    connectionId,
+    headers: clientRawRequest?.headers,
+    apiKeyInfo,
+    apiKeyName,
+  });
+  const compressionStats = await compressContext(translatedBody, {
+    enabled: tokenSaverEnabled && compressionEnabled,
+    model: upstreamModel,
+    format: finalFormat,
+    sessionKey: compressionSessionKey,
+    signal: clientSignal,
+    diagnostics: compressionDiagnostics,
+  });
+  const compressionLine = formatCompressionLog(compressionStats);
+  const compressionSizeLine = formatCompressionSizeLog(compressionDiagnostics);
+  if (compressionLine) {
+    log?.info?.("COMPRESSION", `${compressionLine}${compressionSizeLine ? ` | ${compressionSizeLine}` : ""}`);
+    if (isCompressionPhantomSavings(compressionStats, compressionDiagnostics)) {
+      log?.warn?.("COMPRESSION", `estimated token delta, but outbound JSON shrank <5%; provider may bill near-original payload | ${compressionSizeLine}`);
     }
-  } else if (tokenSaverEnabled && headroomEnabled) log?.warn?.("HEADROOM", `skipped: ${headroomDiagnostics.reason || "compression unavailable"}${headroomDiagnostics.endpoint ? ` (${headroomDiagnostics.endpoint})` : ""}`);
+  } else if (tokenSaverEnabled && compressionEnabled) log?.warn?.("COMPRESSION", `skipped: ${compressionDiagnostics.reason || "compression unavailable"}`);
 
   // Default system prompt from settings: inject only when the request does
   // not already carry a system message. Token-saver prompts (caveman/ponytail)

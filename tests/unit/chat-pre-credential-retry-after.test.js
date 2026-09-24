@@ -131,7 +131,6 @@ vi.mock("open-sse/config/runtimeConfig.js", async (importOriginal) => {
     },
   };
 });
-vi.mock("@/lib/headroom/detect", () => ({ DEFAULT_HEADROOM_URL: "http://localhost:9999" }));
 vi.mock("@/lib/updater/updater", () => ({ checkForUpdates: vi.fn() }));
 vi.mock("@/lib/oauth/providers", () => ({ getOAuthClient: vi.fn() }));
 

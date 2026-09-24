@@ -39,8 +39,8 @@ async function showSettingsMenu(breadcrumb = []) {
       // RTK section
       const rtkOn = data?.settings?.rtkEnabled !== false;
       lines.push(`  RTK:      ${rtkOn ? `${COLORS.green}ON${COLORS.reset}` : `${COLORS.red}OFF${COLORS.reset}`} ${COLORS.dim}(Token Saver)${COLORS.reset}`);
-      const headroomOn = data?.settings?.headroomEnabled === true;
-      lines.push(`  Headroom: ${headroomOn ? `${COLORS.green}ON${COLORS.reset}` : `${COLORS.red}OFF${COLORS.reset}`} ${COLORS.dim}(${data?.settings?.headroomUrl || "http://localhost:8787"})${COLORS.reset}`);
+      const compressionOn = data?.settings?.compressionEnabled === true;
+      lines.push(`  Context compression: ${compressionOn ? `${COLORS.green}ON${COLORS.reset}` : `${COLORS.red}OFF${COLORS.reset}`} ${COLORS.dim}(local)${COLORS.reset}`);
 
       // Auth mode section
       const authMode = data?.settings?.authMode || "password";
@@ -77,10 +77,10 @@ async function showSettingsMenu(breadcrumb = []) {
       },
       {
         label: (d) => {
-          const on = d?.settings?.headroomEnabled === true;
-          return `Token Saver (Headroom): ${on ? "ON" : "OFF"} → toggle`;
+          const on = d?.settings?.compressionEnabled === true;
+          return `Context compression: ${on ? "ON" : "OFF"} → toggle`;
         },
-        action: async (d) => { await toggleHeadroom(d?.settings?.headroomEnabled === true); return true; }
+        action: async (d) => { await toggleCompression(d?.settings?.compressionEnabled === true); return true; }
       },
       {
         label: "🔑 Reset Password to Default",
@@ -169,11 +169,11 @@ async function toggleRtk(currentlyOn) {
   await pause();
 }
 
-async function toggleHeadroom(currentlyOn) {
+async function toggleCompression(currentlyOn) {
   const next = !currentlyOn;
-  const result = await api.updateSettings({ headroomEnabled: next });
+  const result = await api.updateSettings({ compressionEnabled: next });
   if (result.success) {
-    showStatus(`Headroom ${next ? "enabled" : "disabled"}`, "success");
+    showStatus(`Context compression ${next ? "enabled" : "disabled"}`, "success");
   } else {
     showStatus(`Failed: ${result.error}`, "error");
   }

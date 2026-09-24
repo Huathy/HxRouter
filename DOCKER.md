@@ -73,67 +73,9 @@ $DATA_DIR/
 -e DEBUG=true
 ```
 
-## 可选 Headroom 边车
+## 上下文压缩
 
-Headroom 是可选的边车服务，用于工具历史安全与高级请求处理。
-
-### 方案 A：Docker Compose（推荐）
-
-使用提供的 `docker-compose.yml`：
-
-```bash
-# 复制并自定义环境
-cp .env.example .env
-nano .env
-
-# 启动两个服务
-docker compose up -d
-```
-
-### 方案 B：手动 Compose
-
-自行创建 `docker-compose.yml`：
-
-```yaml
-services:
-  hxrouter:
-    image: ghcr.io/huathy/hxrouter:latest
-    container_name: hxrouter
-    restart: always
-    ports:
-      - "20128:20128"
-    volumes:
-      - 9router-data:/app/data
-    env_file:
-      - .env
-    environment:
-      DATA_DIR: /app/data
-      PORT: "20128"
-      HOSTNAME: "0.0.0.0"
-      NODE_ENV: production
-      HEADROOM_URL: http://headroom:8787
-    depends_on:
-      - headroom
-
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    container_name: headroom
-    restart: always
-    ports:
-      - "8787:8787"
-
-volumes:
-  9router-data:
-    name: 9router-data
-```
-
-### 方案 C：独立容器
-
-独立运行 Headroom：
-
-在仪表盘中打开 `Endpoint` → `Token Saver` → `Headroom`，确认 URL 为 `http://headroom:8787`，重新检查状态，然后启用 Headroom。
-
-若 Headroom 运行在 Docker 宿主机而非边车，macOS/Windows 上使用 `http://host.docker.internal:8787`。Linux 上添加 `--add-host=host.docker.internal:host-gateway` 或等效的 compose `extra_hosts` 配置。
+上下文压缩在 Node 进程内完成，依赖已随应用安装的 `thincontext`。启用 Dashboard → Token Saver → Compress context 后，系统会在请求路由前压缩重复的 system/tool 上下文；压缩失败会记录诊断并保留原始请求继续发送，不需要额外容器、环境变量或 Python 依赖。
 
 ## 无需手动资源或数据库步骤的更新
 

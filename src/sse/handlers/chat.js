@@ -36,7 +36,6 @@ import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
-import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
 import { handleComboChat, handleFusionChat } from "open-sse/services/combo.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
@@ -50,6 +49,14 @@ import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/coold
 function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
   if (!enabled) return false;
   return proxyHash ? isProviderInCooldown(provider, proxyHash) : isProviderFullyBlocked(provider);
+}
+
+function cloneAttemptBody(body, model) {
+  try {
+    return structuredClone({ ...body, model });
+  } catch {
+    return { ...body, model };
+  }
 }
 
 /**
@@ -458,7 +465,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
     try {
       result = await handleChatCore({
-      body: { ...body, model: `${provider}/${model}` },
+      body: cloneAttemptBody(body, `${provider}/${model}`),
       modelInfo: { provider, model, accountCount: providerAccountCount },
       credentials: refreshedCredentials,
       log,
@@ -469,10 +476,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       rtkEnabled: !!chatSettings.rtkEnabled,
-      headroomEnabled: !!chatSettings.headroomEnabled,
-      headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
-      headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
-      headroomTimeoutMs: chatSettings.headroomTimeoutMs,
+      compressionEnabled: !!chatSettings.compressionEnabled,
       cavemanEnabled: !!chatSettings.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
       ponytailEnabled: !!chatSettings.ponytailEnabled,

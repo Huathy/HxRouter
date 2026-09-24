@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Button, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
-import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { Card, Button, Input, Modal, Toggle } from "@/shared/components";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
-import { useHeadroom } from "./useHeadroom";
 import { usePxpipe } from "./usePxpipe";
 import TokenSaverSettings from "./TokenSaverSettings";
 import {
@@ -15,15 +13,11 @@ import {
 
 export default function TokenSaverClient() {
   const [rtkEnabled, setRtkEnabledState] = useState(true);
-  const [headroomEnabled, setHeadroomEnabled] = useState(false);
-  const [headroomUrl, setHeadroomUrl] = useState("http://localhost:8787");
-  const [headroomTimeoutMs, setHeadroomTimeoutMs] = useState(3000);
+  const [compressionEnabled, setCompressionEnabled] = useState(false);
   const [cavemanEnabled, setCavemanEnabled] = useState(false);
   const [cavemanLevel, setCavemanLevel] = useState("full");
   const [ponytailEnabled, setPonytailEnabled] = useState(false);
   const [ponytailLevel, setPonytailLevel] = useState("full");
-  const [codeAware, setCodeAware] = useState(false);
-  const [kompress, setKompress] = useState(true);
   const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
   const [guards, setGuards] = useState({
     loopGuard: true,
@@ -31,8 +25,6 @@ export default function TokenSaverClient() {
     semaphore: true,
   });
   const [locale, setLocale] = useState(getCurrentLocale);
-
-  const { copied, copy } = useCopyToClipboard();
 
   const patchSetting = async (patch) => {
     try {
@@ -46,42 +38,7 @@ export default function TokenSaverClient() {
     }
   };
 
-  const headroom = useHeadroom({
-    patchSetting,
-    setHeadroomEnabled,
-    headroomUrl,
-    setHeadroomUrl,
-    codeAware,
-    kompress,
-    setCodeAware,
-    setKompress,
-  });
   const pxpipe = usePxpipe({ patchSetting, setPxpipeEnabled });
-  const {
-    headroomStatus,
-    showInstallModal: showHeadroomInstallModal,
-    setShowInstallModal: setShowHeadroomInstallModal,
-    actionLoading: headroomActionLoading,
-    actionError: headroomActionError,
-    headroomExtras,
-    pendingExtras,
-    extrasActionLoading,
-    extrasActionError,
-    removingExtra,
-    installLog,
-    extrasConfirm,
-    setExtrasConfirm,
-    restartingProxy,
-    refresh: refreshHeadroomStatus,
-    start: handleHeadroomStart,
-    stop: handleHeadroomStop,
-    toggleExtraActive,
-    installExtras: installExtrasConfirmed,
-    removeExtra: removeExtraConfirmed,
-    toggleEnabled: handleHeadroomEnabled,
-    blurUrl: handleHeadroomUrlBlur,
-    setPendingExtras,
-  } = headroom;
   const {
     pxpipeStatus,
     pxpipeHealth,
@@ -145,49 +102,14 @@ export default function TokenSaverClient() {
     patchSetting({ ponytailLevel: level });
   };
 
-  const togglePendingExtra = (extra) => {
-    setPendingExtras((current) =>
-      current.includes(extra)
-        ? current.filter((item) => item !== extra)
-        : [...current, extra]
-    );
-  };
-
-  const handleInstallExtras = () => {
-    if (pendingExtras.length === 0) return;
-    if (pendingExtras.includes("ml")) {
-      setExtrasConfirm({
-        title: "Install [ml]",
-        message: "[ml] downloads ~1 GB (torch + huggingface-hub). Continue?",
-        confirmText: "Install",
-        variant: "primary",
-        onConfirm: installExtrasConfirmed,
-      });
-      return;
-    }
-    installExtrasConfirmed();
-  };
-
-  const handleRemoveExtra = (extra) => {
-    setExtrasConfirm({
-      title: `Remove [${extra}]`,
-      message: `Remove [${extra}] and its packages?`,
-      confirmText: "Remove",
-      variant: "danger",
-      onConfirm: () => removeExtraConfirmed(extra),
-    });
-  };
-
   const updateGuard = (key, value) => {
     setGuards((prev) => ({ ...prev, [key]: value }));
     patchSetting({ [`${key}Enabled`]: value });
   };
 
-  const handleHeadroomTimeoutBlur = () => {
-    const raw = Math.round(Number(headroomTimeoutMs));
-    const next = Number.isFinite(raw) && raw > 0 ? raw : 3000;
-    setHeadroomTimeoutMs(next);
-    patchSetting({ headroomTimeoutMs: next });
+  const handleCompressionEnabled = (value) => {
+    setCompressionEnabled(value);
+    patchSetting({ compressionEnabled: value });
   };
 
   useEffect(() => {
@@ -197,11 +119,7 @@ export default function TokenSaverClient() {
         if (res.ok) {
           const data = await res.json();
           setRtkEnabledState(data.rtkEnabled !== false);
-          setHeadroomEnabled(!!data.headroomEnabled);
-          setHeadroomUrl(data.headroomUrl || "http://localhost:8787");
-          if (typeof data.headroomTimeoutMs === "number") setHeadroomTimeoutMs(data.headroomTimeoutMs);
-          setCodeAware(data.headroomCodeAware === true);
-          setKompress(data.headroomKompress !== false);
+          setCompressionEnabled(!!data.compressionEnabled);
           setCavemanEnabled(!!data.cavemanEnabled);
           setCavemanLevel(data.cavemanLevel || "full");
           setPonytailEnabled(!!data.ponytailEnabled);
@@ -213,28 +131,12 @@ export default function TokenSaverClient() {
             circuitBreaker: data.circuitBreakerEnabled !== false,
             semaphore: data.semaphoreEnabled !== false,
           });
-          refreshHeadroomStatus();
           refreshPxpipeStatus().then(runPxpipeHealth);
         }
       } catch {}
     };
     loadSettings();
-  }, [refreshHeadroomStatus, refreshPxpipeStatus, runPxpipeHealth, setPxpipeMinChars]);
-
-  const headroomRunning = !!headroomStatus.running;
-  const headroomStatusLabel = headroomStatus.loading
-    ? "Checking…"
-    : headroomRunning
-      ? "Running"
-      : headroomStatus.localUrl !== false && !headroomStatus.installed
-        ? "Not installed"
-        : headroomStatus.localUrl !== false
-          ? "Stopped"
-          : "External";
-  const headroomLocalUrl = headroomStatus.localUrl !== false;
-  const headroomCanStart = !!headroomStatus.canStart;
-  const headroomManaged =
-    headroomLocalUrl && !!headroomStatus.managedPid;
+  }, [refreshPxpipeStatus, runPxpipeHealth, setPxpipeMinChars]);
 
   const pxpipeHealthy = pxpipeHealth?.healthy === true;
   const pxpipeStatusLabel = pxpipeStatus.loading
@@ -258,25 +160,8 @@ export default function TokenSaverClient() {
       <TokenSaverSettings
         rtkEnabled={rtkEnabled}
         handleRtkEnabled={handleRtkEnabled}
-        headroomRunning={headroomRunning}
-        headroomStatusLabel={headroomStatusLabel}
-        setShowHeadroomInstallModal={setShowHeadroomInstallModal}
-        headroomEnabled={headroomEnabled}
-        handleHeadroomEnabled={handleHeadroomEnabled}
-        headroomStatus={headroomStatus}
-        headroomExtras={headroomExtras}
-        pendingExtras={pendingExtras}
-        codeAware={codeAware}
-        kompress={kompress}
-        restartingProxy={restartingProxy}
-        toggleExtraActive={toggleExtraActive}
-        handleRemoveExtra={handleRemoveExtra}
-        removingExtra={removingExtra}
-        togglePendingExtra={togglePendingExtra}
-        handleInstallExtras={handleInstallExtras}
-        extrasActionLoading={extrasActionLoading}
-        extrasActionError={extrasActionError}
-        installLog={installLog}
+        compressionEnabled={compressionEnabled}
+        handleCompressionEnabled={handleCompressionEnabled}
         cavemanEnabled={cavemanEnabled}
         visibleCavemanLevels={visibleCavemanLevels}
         handleCavemanLevel={handleCavemanLevel}
@@ -351,127 +236,6 @@ export default function TokenSaverClient() {
           />
         </div>
       </Card>
-
-      <Modal
-        isOpen={showHeadroomInstallModal}
-        title={headroomRunning ? "Headroom" : "Setup Headroom"}
-        onClose={() => setShowHeadroomInstallModal(false)}
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-sm">
-            <span>Status</span>
-            <span
-              className={headroomRunning ? "text-success" : "text-warning"}
-            >
-              {headroomStatusLabel}
-            </span>
-          </div>
-          {headroomRunning && (
-            <a
-              href="/api/headroom/proxy/dashboard"
-              target="_blank"
-              rel="noreferrer"
-              className="w-full rounded border border-border px-4 py-2 text-center text-sm hover:bg-surface-2"
-            >
-              Open Headroom Dashboard
-            </a>
-          )}
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Proxy URL</p>
-            <Input
-              value={headroomUrl}
-              onChange={(e) => setHeadroomUrl(e.target.value)}
-              onBlur={handleHeadroomUrlBlur}
-              placeholder="http://localhost:8787"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-text-muted">
-              Use a local proxy for Start/Stop, or an external Docker sidecar
-              like http://headroom:8787.
-            </p>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Timeout (ms)</p>
-            <Input
-              value={String(headroomTimeoutMs)}
-              onChange={(e) => setHeadroomTimeoutMs(e.target.value)}
-              onBlur={handleHeadroomTimeoutBlur}
-              placeholder="3000"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-text-muted">
-              Request timeout in milliseconds. Defaults to 3000 ms.
-            </p>
-          </div>
-          {headroomManaged ? (
-            <Button
-              onClick={handleHeadroomStop}
-              variant="ghost"
-              fullWidth
-              disabled={headroomActionLoading}
-            >
-              {headroomActionLoading ? "Stopping…" : "Stop Headroom"}
-            </Button>
-          ) : headroomRunning ? (
-            <p className="text-sm text-success">
-              Headroom proxy is reachable. You can enable the token saver.
-            </p>
-          ) : headroomCanStart ? (
-            <Button
-              onClick={handleHeadroomStart}
-              fullWidth
-              disabled={headroomActionLoading}
-            >
-              {headroomActionLoading ? "Starting…" : "Start Headroom"}
-            </Button>
-          ) : !headroomLocalUrl ? (
-            <p className="text-sm text-warning">
-              Start Headroom separately at the configured URL, then recheck.
-            </p>
-          ) : !headroomStatus.python ? (
-            <p className="text-sm text-warning">
-              Python ≥ 3.10 required for local managed mode. Install Python
-              first, or use an external proxy URL.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">Install then click Start:</p>
-              <div className="flex items-center gap-2">
-                <pre className="flex-1 rounded bg-black/5 dark:bg-white/5 p-2 text-xs font-mono overflow-x-auto">
-                  {`pip install "headroom-ai[proxy]"`}
-                </pre>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    copy(`pip install "headroom-ai[proxy]"`)
-                  }
-                >
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-              </div>
-            </div>
-          )}
-          {headroomActionError && (
-            <p className="text-sm text-warning">{headroomActionError}</p>
-          )}
-          <div className="flex gap-2">
-            <Button
-              onClick={() => refreshHeadroomStatus()}
-              variant="ghost"
-              fullWidth
-            >
-              Recheck
-            </Button>
-            <Button
-              onClick={() => setShowHeadroomInstallModal(false)}
-              fullWidth
-            >
-              Done
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       <Modal
         isOpen={showPxpipeModal}
@@ -580,20 +344,6 @@ export default function TokenSaverClient() {
           </div>
         </div>
       </Modal>
-
-      <ConfirmModal
-        isOpen={!!extrasConfirm}
-        onClose={() => setExtrasConfirm(null)}
-        onConfirm={() => {
-          const fn = extrasConfirm?.onConfirm;
-          setExtrasConfirm(null);
-          fn?.();
-        }}
-        title={extrasConfirm?.title}
-        message={extrasConfirm?.message}
-        confirmText={extrasConfirm?.confirmText}
-        variant={extrasConfirm?.variant}
-      />
     </div>
   );
 }

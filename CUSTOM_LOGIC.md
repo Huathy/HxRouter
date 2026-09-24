@@ -98,7 +98,7 @@ Every POST /v1/chat/completions
   → handleChatCore() in chatCore.js
     → translateRequest() (format conversion)
     → RTK compressMessages() (context compression)
-    → Headroom compressWithHeadroom() (optional external proxy compression)
+    → contextCompression compressContext() (in-process context compression)
     → injectCaveman() (if enabled)
     → injectPonytail() (if enabled) ← HERE
     → executor.execute() (send to provider)
