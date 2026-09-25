@@ -70,7 +70,7 @@ name = "9Router explore"
     expect(migrated).not.toContain("9router-prev-");
   });
 
-
+  it("creates independent main and per-type subagent model slots", () => {
     const result = applyGrokBuildConfig(BASE_CONFIG, APPLY_INPUT);
     const parsed = parseGrokBuildConfig(result);
 

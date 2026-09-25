@@ -67,7 +67,7 @@ const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRunt
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const args = process.argv.slice(2);
 
-// Subcommands (`9router xai video …`) run against an already-running gateway
+// Subcommands (`hxrouter xai video …`) run against an already-running gateway
 // and bypass the launcher flow (no runtime self-heal, no server spawn).
 if (args[0] === "xai" && args[1] === "video") {
   const { run } = require("./src/cli/commands/xaiVideo");
@@ -247,7 +247,7 @@ function killCloudflaredByAppPort(appPort) {
   return pids;
 }
 
-// Kill all 9router processes
+// Kill all HxRouter processes
 function killAllAppProcesses(appPort) {
   return new Promise((resolve) => {
     try {
@@ -275,7 +275,7 @@ function killAllAppProcesses(appPort) {
           const lines = output.split("\n").slice(1).filter(l => l.trim());
           lines.forEach(line => {
             // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing editors/grep/strace/cursor that just have "9router" in cmdline.
+            // Avoids killing editors/grep/strace/cursor that just have "hxrouter" in cmdline.
             const cmd = line.toLowerCase();
             const isAppProcess =
               (cmd.includes("node") && cmd.includes(APP_NAME.toLowerCase()) && (cmd.includes("cli.js") || cmd.includes(`\\${APP_NAME.toLowerCase()}`) || cmd.includes(`/${APP_NAME.toLowerCase()}`)))
@@ -301,7 +301,7 @@ function killAllAppProcesses(appPort) {
 
           lines.forEach(line => {
             // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing grep/strace/editors/cursor that incidentally match "9router".
+            // Avoids killing grep/strace/editors/cursor that incidentally match "hxrouter".
             const cmd = line.toLowerCase();
             const isAppProcess =
               (cmd.includes("node") && cmd.includes(APP_NAME.toLowerCase()) && (cmd.includes("cli.js") || cmd.includes(`/${APP_NAME.toLowerCase()}`)))

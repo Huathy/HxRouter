@@ -68,7 +68,7 @@ describe("OpenCode HxRouter contract", () => {
     expect(data.opencode.activeModel).toBe("gamma");
   });
 
-
+  it("writes HxRouter and migrates the legacy provider", async () => {
     state.config = {
       provider: {
         VansRoute: { options: {}, models: { old: { name: "old" } } },

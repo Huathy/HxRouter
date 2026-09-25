@@ -1476,7 +1476,7 @@ Authorization: Bearer your-api-key
 
 ## 📧 Support
 
-- **Website**: [9router.com](https://hxrouter.com)
+- **Website**: [hxrouter.com](https://hxrouter.com)
 - **GitHub**: [github.com/Huathy/HxRouter](https://github.com/Huathy/HxRouter)
 - **Issues**: [github.com/Huathy/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
 

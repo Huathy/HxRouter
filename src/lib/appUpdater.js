@@ -37,7 +37,7 @@ function killMitmByPidFile() {
   } catch { /* best effort */ }
 }
 
-// Collect PIDs of all VansRoute-related processes (excluding current)
+// Collect PIDs of all HxRouter-related processes (excluding current)
 function collectAppPids() {
   const pids = [];
   const platform = process.platform;

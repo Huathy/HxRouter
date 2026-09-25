@@ -56,7 +56,7 @@ describe("Database location & fallback path rules", () => {
     expect(dockerfile).toContain("/migration-data");
     expect(dockerfile).toContain("[ ! -f /app/data/db/.legacy-volume-migrated ]");
     expect(dockerfile).toContain("[ ! -e /app/data/db/data.sqlite ]");
-    expect(dockerfile).toContain("[ -d /migration-data ]");
+    expect(dockerfile).toContain('if [ -d "$source" ]; then');
     expect(dockerfile).toContain("copy_missing() {");
     expect(dockerfile).toContain("for source in /migration-data /migration-vansdata; do");
     expect(dockerfile).toContain('elif [ ! -e "$destination" ]; then');

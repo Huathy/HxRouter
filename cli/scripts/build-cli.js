@@ -203,7 +203,7 @@ if (require.main === module) {
   const standaloneRootResolved = path.join(buildDistDir, "standalone");
   let standaloneRootToUse = fs.existsSync(standaloneRootResolved) ? standaloneRootResolved : standaloneRoot;
   // Next.js 16 nests standalone output under the project name when NEXT_TRACING_ROOT_MODE=workspace
-  // e.g. .next-cli-build/standalone/9router/server.js
+  // e.g. .next-cli-build/standalone/hxrouter/server.js
   const pkgName = path.basename(appDir);
   const nestedRoot = path.join(standaloneRootToUse, pkgName);
   if (fs.existsSync(path.join(nestedRoot, "server.js")) && !fs.existsSync(path.join(standaloneRootToUse, "server.js"))) {

@@ -1,7 +1,7 @@
 {
   "name": "hxrouter-app",
   "version": "1.0.0",
-  "description": "9Router web dashboard",
+  "description": "HxRouter web dashboard",
   "private": true,
   "engines": {
     "node": ">=22.5.0"

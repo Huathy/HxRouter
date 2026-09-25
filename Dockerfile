@@ -49,7 +49,7 @@ RUN apk add --no-cache curl ca-certificates && \
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 
-LABEL org.opencontainers.image.title="9router"
+LABEL org.opencontainers.image.title="hxrouter"
 
 ENV NODE_ENV=production
 ENV PORT=20128

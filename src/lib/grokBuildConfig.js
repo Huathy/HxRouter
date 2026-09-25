@@ -208,7 +208,7 @@ export function parseGrokBuildConfig(toml) {
     const mapping = getSectionField(toml, SUBAGENT_MODELS_SECTION, type);
     const slot = getConfiguredSubagentSlot(mapping, type);
     subagentMappings[type] = mapping;
-    subagentModels[type] = slot ? parseModelSection(toml, slot) : null;
+    subagentModels[type] = slot ? parseModelSection(toml, mapping) : null;
   }
 
   return {
