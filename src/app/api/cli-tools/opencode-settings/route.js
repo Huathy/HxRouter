@@ -59,15 +59,27 @@ const readConfig = async () => {
   }
 };
 
+const PROVIDER_NAME = "HxRouter";
+const LEGACY_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router"];
+const ROUTER_PROVIDER_NAMES = [PROVIDER_NAME, ...LEGACY_PROVIDER_NAMES];
+
 const getRouterProviderKey = (config) =>
-  config?.provider?.VansRoute ? "VansRoute" : config?.provider?.["9router"] ? "9router" : null;
+  ROUTER_PROVIDER_NAMES.find((name) => config?.provider?.[name]) || null;
 
 const getRouterProvider = (config) => {
   const key = getRouterProviderKey(config);
   return key ? config.provider[key] : null;
 };
 
-const has9RouterConfig = (config) => !!getRouterProvider(config);
+const hasRouterConfig = (config) => !!getRouterProvider(config);
+
+const stripRouterPrefix = (model) => {
+  if (typeof model !== "string") return null;
+  const prefix = [...ROUTER_PROVIDER_NAMES]
+    .sort((a, b) => b.length - a.length)
+    .find((name) => model.startsWith(`${name}/`));
+  return prefix ? model.slice(prefix.length + 1) : null;
+};
 
 // GET - Check opencode CLI and read current settings
 export async function GET() {
@@ -86,28 +98,28 @@ export async function GET() {
     const providerConfig = getRouterProvider(config);
     const modelMap = providerConfig?.models || {};
 
+    const hasHxRouter = hasRouterConfig(config);
+
     return NextResponse.json({
       installed: true,
       config,
-      hasVansRoute: has9RouterConfig(config),
-      has9Router: has9RouterConfig(config),
+      hasHxRouter,
+      // Legacy response aliases retained for older dashboard/CLI clients.
+      hasVansRoute: hasHxRouter,
+      has9Router: hasHxRouter,
       configPath: getConfigPath(),
-        opencode: {
-          models: Object.keys(modelMap),
-          activeModel: config?.model?.startsWith("VansRoute/")
-            ? config.model.replace(/^VansRoute\//, "")
-            : config?.model?.startsWith("9router/")
-              ? config.model.replace(/^9router\//, "")
-              : null,
-          baseURL: providerConfig?.options?.baseURL || null,
-        },
+      opencode: {
+        models: Object.keys(modelMap),
+        activeModel: stripRouterPrefix(config?.model),
+        baseURL: providerConfig?.options?.baseURL || null,
+      },
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to check opencode settings" }, { status: 500 });
   }
 }
 
-// POST - Apply 9Router as openai-compatible provider (multi-model support)
+// POST - Apply HxRouter as an OpenAI-compatible provider (multi-model support)
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model, models, activeModel, subagentModel } = await request.json();
@@ -137,14 +149,14 @@ export async function POST(request) {
     let config = (await readConfig()) || {};
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    const keyToUse = apiKey || "sk_9router";
+    const keyToUse = apiKey || "sk_HxRouter";
     const effectiveSubagentModel = subagentModel || modelsArray[0];
 
     // Ensure provider object
     if (!config.provider) config.provider = {};
 
-    // Preserve any existing 9router provider entry and its models
-    const existingProvider = config.provider.VansRoute || config.provider["9router"] || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
+    // Preserve an existing canonical or legacy provider entry and its models.
+    const existingProvider = getRouterProvider(config) || { npm: "@ai-sdk/openai-compatible", options: {}, models: {} };
 
     // Merge options (overwrite baseURL/apiKey)
     existingProvider.options = {
@@ -162,9 +174,9 @@ export async function POST(request) {
       existingProvider.models[m] = { name: m, modalities: { input: ["text", "image"], output: ["text"] } };
     }
 
-    // Save the canonical provider and remove the legacy duplicate after migration.
-    config.provider.VansRoute = existingProvider;
-    delete config.provider["9router"];
+    // Save the canonical provider and remove every legacy duplicate.
+    config.provider[PROVIDER_NAME] = existingProvider;
+    for (const legacyName of LEGACY_PROVIDER_NAMES) delete config.provider[legacyName];
 
     // Set the active model: prefer explicit activeModel, else first of modelsArray
     // If activeModel is explicitly empty string, clear the model
@@ -173,7 +185,7 @@ export async function POST(request) {
     } else {
       const finalActive = activeModel || modelsArray[0];
       if (finalActive) {
-        config.model = `VansRoute/${finalActive}`;
+        config.model = `${PROVIDER_NAME}/${finalActive}`;
       }
     }
 
@@ -182,7 +194,7 @@ export async function POST(request) {
     config.agent.explorer = {
       description: "Fast explorer subagent for codebase exploration",
       mode: "subagent",
-      model: `VansRoute/${effectiveSubagentModel}`,
+      model: `${PROVIDER_NAME}/${effectiveSubagentModel}`,
     };
 
     await writeConfig(configPath, config);
@@ -213,7 +225,7 @@ export async function PATCH(request) {
 
     if (clearActiveModel === true) {
       // Clear active model but keep models in the list.
-      if (config.model?.startsWith("9router/") || config.model?.startsWith("VansRoute/")) {
+      if (stripRouterPrefix(config.model) !== null) {
         config.model = "";
       }
     }
@@ -229,7 +241,7 @@ export async function PATCH(request) {
   }
 }
 
-// DELETE - Remove 9Router provider or specific models from config
+// DELETE - Remove HxRouter provider or specific models from config
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -257,14 +269,13 @@ export async function DELETE(request) {
         config.model = `${modelPrefix}${remainingModels[0]}`;
       }
     } else {
-      // No specific model - remove both canonical and legacy provider entries.
-      delete config.provider?.["9router"];
-      delete config.provider?.VansRoute;
-      if (config.model?.startsWith("9router/") || config.model?.startsWith("VansRoute/")) delete config.model;
+      // No specific model - remove canonical and every legacy provider entry.
+      for (const name of ROUTER_PROVIDER_NAMES) delete config.provider?.[name];
+      if (stripRouterPrefix(config.model) !== null) delete config.model;
     }
 
     // Remove subagent configuration
-    if (config.agent?.explorer?.model?.startsWith("9router/") || config.agent?.explorer?.model?.startsWith("VansRoute/")) {
+    if (stripRouterPrefix(config.agent?.explorer?.model) !== null) {
       delete config.agent.explorer;
       // Clean up empty agent object
       if (Object.keys(config.agent).length === 0) delete config.agent;
@@ -274,7 +285,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({
       success: true,
-      message: modelToRemove ? `Model "${modelToRemove}" removed` : "9Router settings removed from OpenCode",
+      message: modelToRemove ? `Model "${modelToRemove}" removed` : "HxRouter settings removed from OpenCode",
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reset opencode settings" }, { status: 500 });

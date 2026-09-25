@@ -8,6 +8,18 @@ import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 
+const COPILOT_PROVIDER_NAME = "HxRouter";
+const LEGACY_COPILOT_PROVIDER_NAMES = ["9Router", "VansRouter", "VansRoute"];
+
+const findCopilotRouterEntry = (config) => {
+  if (!Array.isArray(config)) return null;
+  for (const name of [COPILOT_PROVIDER_NAME, ...LEGACY_COPILOT_PROVIDER_NAMES]) {
+    const entry = config.find((item) => item.name === name);
+    if (entry) return entry;
+  }
+  return null;
+};
+
 function CopilotCardBody({ tool, status, checking, baseUrl, apiKeys, activeProviders, cloudEnabled, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl, selectedApiKey, setSelectedApiKey, customBaseUrl, setCustomBaseUrl, selectedModels, setSelectedModels, getEffectiveBaseUrl, getDisplayUrl, message, applying, restoring, handleApply, handleReset, setModalOpen, setShowManualConfigModal }) {
   const removeModel = (id) => setSelectedModels((prev) => prev.filter((m) => m !== id));
 
@@ -86,7 +98,7 @@ function CopilotCardBody({ tool, status, checking, baseUrl, apiKeys, activeProvi
             <Button variant="primary" size="sm" onClick={handleApply} disabled={selectedModels.length === 0} loading={applying}>
               <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
             </Button>
-            <Button variant="outline" size="sm" onClick={handleReset} disabled={!status?.has9Router} loading={restoring}>
+            <Button variant="outline" size="sm" onClick={handleReset} disabled={!status?.hasHxRouter} loading={restoring}>
               <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} disabled={selectedModels.length === 0}>
@@ -120,7 +132,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   const [selectedModelsOverride, setSelectedModels] = useState(null);
   const derivedModels = useMemo(() => {
     if (status?.config && Array.isArray(status.config)) {
-      const entry = status.config.find((e) => e.name === "9Router");
+      const entry = findCopilotRouterEntry(status.config);
       if (entry?.models?.length > 0) return entry.models.map((m) => m.id);
     }
     return [];
@@ -179,7 +191,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : (!cloudEnabled ? "sk_HxRouter" : selectedApiKey);
       await fetch("/api/cli-tools/copilot-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -192,7 +204,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
 
   const getConfigStatus = () => {
     if (!status) return null;
-    if (!status.has9Router) return "not_configured";
+    if (!status.hasHxRouter) return "not_configured";
     const url = status.currentUrl || "";
     return matchKnownEndpoint(url, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
   };
@@ -211,7 +223,7 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_9router" : selectedApiKey);
+        : (!cloudEnabled ? "sk_HxRouter" : selectedApiKey);
 
       const res = await fetch("/api/cli-tools/copilot-settings", {
         method: "POST",
@@ -250,14 +262,14 @@ export default function CopilotToolCard({ tool, isExpanded, onToggle, baseUrl, a
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_HxRouter" : "<API_KEY_FROM_DASHBOARD>");
     const effectiveBaseUrl = getEffectiveBaseUrl();
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
 
     return [{
       filename: "~/Library/Application Support/Code/User/chatLanguageModels.json",
       content: JSON.stringify([{
-        name: "9Router",
+        name: COPILOT_PROVIDER_NAME,
         vendor: "azure",
         apiKey: keyToUse,
         models: modelsToShow.map((id) => ({

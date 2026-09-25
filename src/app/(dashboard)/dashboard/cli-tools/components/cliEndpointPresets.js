@@ -1,17 +1,26 @@
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 
 // Browser-local endpoint presets shared by every CLI tool card
-const STORAGE_KEY = "9router.cliToolEndpointPresets";
-const CHANGE_EVENT = "9router:endpoint-presets-changed";
+const STORAGE_KEY = "hxrouter.cliToolEndpointPresets";
+const LEGACY_STORAGE_KEY = "9router.cliToolEndpointPresets";
+const CHANGE_EVENT = "hxrouter:endpoint-presets-changed";
+const LEGACY_CHANGE_EVENT = "9router:endpoint-presets-changed";
 
 const stripSlash = (url) => (url || "").replace(/\/+$/, "");
 
 export function readPresets() {
   if (typeof window === "undefined") return [];
   try {
-    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    if (!Array.isArray(raw)) return [];
-    return raw.filter((p) => p?.name && p?.baseUrl);
+    const canonicalRaw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = canonicalRaw || window.localStorage.getItem(LEGACY_STORAGE_KEY) || "[]";
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const presets = parsed.filter((p) => p?.name && p?.baseUrl);
+    if (!canonicalRaw && presets.length > 0) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+    return presets;
   } catch {
     return [];
   }
@@ -21,12 +30,17 @@ function writePresets(presets) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  window.dispatchEvent(new CustomEvent(LEGACY_CHANGE_EVENT));
 }
 
 export function subscribePresets(handler) {
   if (typeof window === "undefined") return () => {};
   window.addEventListener(CHANGE_EVENT, handler);
-  return () => window.removeEventListener(CHANGE_EVENT, handler);
+  window.addEventListener(LEGACY_CHANGE_EVENT, handler);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, handler);
+    window.removeEventListener(LEGACY_CHANGE_EVENT, handler);
+  };
 }
 
 function defaultNameFor(url) {

@@ -518,7 +518,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       semaphoreRelease();
     }
 
-    if (result.success) return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
+    if (result.success) return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-HxRouter-Selected-Connection-Id
 
     // Client disconnected mid-flight: exit WITHOUT locking/marking the account —
     // the upstream failure may simply be our own abort rippling through.
@@ -599,6 +599,6 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       continue;
     }
 
-    return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-VansRoute-Selected-Connection-Id
+    return withSelectedConnectionHeader(result.response, credentials.connectionId); // sets X-HxRouter-Selected-Connection-Id
   }
 }

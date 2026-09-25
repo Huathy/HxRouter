@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "9router.cliToolEndpointPresets";
+const STORAGE_KEY = "hxrouter.cliToolEndpointPresets";
+const LEGACY_STORAGE_KEY = "9router.cliToolEndpointPresets";
 
 function maskApiKey(apiKey) {
   if (!apiKey) return "No API key";
@@ -18,7 +19,14 @@ function normalizePresets(value) {
 function readPresets() {
   if (typeof window === "undefined") return [];
   try {
-    return normalizePresets(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]"));
+    const canonicalRaw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = canonicalRaw || window.localStorage.getItem(LEGACY_STORAGE_KEY) || "[]";
+    const presets = normalizePresets(JSON.parse(raw));
+    if (!canonicalRaw && presets.length > 0) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+    return presets;
   } catch {
     return [];
   }

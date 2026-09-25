@@ -497,7 +497,7 @@ HxRouter 与所有主流 AI 编程工具无缝协作：
 | 📊 **使用分析** | 追踪 tokens、成本、趋势 | 优化开支 |
 | 🌐 **任意部署** | 本地、VPS、Docker、Cloudflare Workers | 灵活部署选项 |
 
-设置 `x-9router-token-saver: off` 请求头可对单次聊天请求绕过所有 token 节省器。
+设置 `x-hxrouter-token-saver: off` 请求头可对单次聊天请求绕过所有 token 节省器。
 
 <details>
 <summary><b>📖 功能详情</b></summary>

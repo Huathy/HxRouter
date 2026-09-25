@@ -17,12 +17,13 @@ docker run -d \
   -p 20128:20128 \
   -v 9router-data:/app/data \
   -v hxrouter-data:/migration-data:ro \
+  -v vansrouter-data:/migration-vansdata:ro \
   -e DATA_DIR=/app/data \
   --name hxrouter \
   ghcr.io/huathy/hxrouter:latest
 ```
 
-`hxrouter-data` 挂载为只读兼容输入，供 v1.0.0 之前使用命名卷的安装使用。仅当 `9router-data` 卷中没有数据库时，才会自动复制到该规范卷中。若旧安装使用 `$HOME/.9router:/app/data` 绑定挂载，请继续使用该绑定挂载，或先将其内容迁移到 `9router-data` 中。
+`hxrouter-data` 与 `vansrouter-data` 挂载为只读兼容输入，供 v1.0.0 之前使用命名卷的安装使用。仅当 `9router-data` 卷中没有数据库时，才会按顺序将旧卷中缺失的文件复制到该规范卷中。若旧安装使用 `$HOME/.9router:/app/data` 绑定挂载，请继续使用该绑定挂载，或先将其内容迁移到 `9router-data` 中。
 
 应用监听端口 `20128`。访问：http://localhost:20128
 
@@ -79,14 +80,14 @@ $DATA_DIR/
 
 ## 无需手动资源或数据库步骤的更新
 
-`9router-data` 是规范卷。compose 文件还以只读方式挂载历史 `hxrouter-data`，用于自动兼容复制。入口点仅在 `/app/data/db/data.sqlite` 不存在时复制完整旧数据树，并记录 `.legacy-volume-migrated`；从不覆盖已有的规范文件。使用宿主机绑定挂载（`$HOME/.9router:/app/data`）的旧安装必须保留该绑定挂载，或在切换到命名卷前将其内容复制到 `9router-data` 中。
+`9router-data` 是规范卷。compose 文件还以只读方式挂载历史 `hxrouter-data` 和 `vansrouter-data`，用于自动兼容复制。入口点仅在 `/app/data/db/data.sqlite` 不存在时按 `hxrouter-data`、`vansrouter-data` 顺序复制完整旧数据树中缺失的文件，并记录 `.legacy-volume-migrated`；从不覆盖已有的规范文件。使用宿主机绑定挂载（`$HOME/.9router:/app/data`）的旧安装必须保留该绑定挂载，或在切换到命名卷前将其内容复制到 `9router-data` 中。
 
 ```bash
 docker compose pull hxrouter
 docker compose up -d --no-deps hxrouter
 ```
 
-固定版本：在 compose 文件中将 `latest` 替换为 `X.Y.Z` 后再 pull。请勿复制 `.next`、删除任一卷、或手动运行应用迁移。升级成功后，仅当确认新容器报告了预期版本和数据后，再移除 `hxrouter-data:/migration-data:ro` 挂载。
+固定版本：在 compose 文件中将 `latest` 替换为 `X.Y.Z` 后再 pull。请勿复制 `.next`、删除任一卷、或手动运行应用迁移。升级成功后，仅当确认新容器报告了预期版本和数据后，再移除 `hxrouter-data:/migration-data:ro` 与 `vansrouter-data:/migration-vansdata:ro` 挂载。
 
 ---
 

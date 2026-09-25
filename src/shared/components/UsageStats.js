@@ -419,6 +419,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [viewMode, setViewMode] = useState("costs");
   const [providers, setProviders] = useState([]);
   const [providerNodeNames, setProviderNodeNames] = useState({});
+  const [disabledModels, setDisabledModels] = useState({});
   const [periodLocal, setPeriodLocal] = useState("today");
   const isInitialLoad = useRef(true);
   const hasLoadedStats = useRef(false);
@@ -431,9 +432,11 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     Promise.all([
       fetch("/api/providers", { signal: controller.signal }).then((r) => r.ok ? r.json() : null),
       fetch("/api/provider-nodes", { signal: controller.signal }).then((r) => r.ok ? r.json() : null),
+      fetch("/api/models/disabled", { signal: controller.signal }).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([d, nodesData]) => {
+      .then(([d, nodesData, disabledData]) => {
         if (controller.signal.aborted) return;
+        setDisabledModels(disabledData?.disabled || {});
         // Build node name lookup for custom providers
         const nodeNameMap = {};
         for (const node of (nodesData?.nodes || [])) {
@@ -714,6 +717,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             <ModelPieChart
               byModel={stats.byModel || {}}
               activeRequests={stats.activeRequests || []}
+              disabledModels={disabledModels}
               last10Minutes={stats.last10Minutes || []}
             />
           </div>

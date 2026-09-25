@@ -10,12 +10,19 @@ import { parseTOML, stringifyTOML } from "confbox";
 
 const execAsync = promisify(exec);
 
+const PROVIDER_NAME = "HxRouter";
+const LEGACY_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router", "9Router"];
+const ROUTER_PROVIDER_NAMES = [PROVIDER_NAME, ...LEGACY_PROVIDER_NAMES];
+const API_KEY_ENV_BY_PROVIDER = Object.fromEntries(
+  ROUTER_PROVIDER_NAMES.map((name) => [name, `JCODE_${name}_API_KEY`]),
+);
+
 const getJcodeConfigDir = () => path.join(os.homedir(), ".jcode");
 const getConfigPath = () => path.join(getJcodeConfigDir(), "config.toml");
 
-const getProviderEnvPath = () => {
+const getProviderEnvPath = (providerName = PROVIDER_NAME) => {
   const configDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
-  return path.join(configDir, "jcode", "provider-VansRoute.env");
+  return path.join(configDir, "jcode", `provider-${providerName}.env`);
 };
 
 const checkJcodeInstalled = async () => {
@@ -44,20 +51,14 @@ const readConfig = async () => {
   }
 };
 
-const hasVansRouteConfig = (config) => {
-  if (!config || !config.providers) return false;
+const hasRouterConfig = (config) => {
+  if (!config?.providers) return false;
 
-  const providers = config.providers;
+  if (ROUTER_PROVIDER_NAMES.some((name) => config.providers[name])) return true;
 
-  if (providers["VansRoute"]) return true;
-
-  for (const [name, provider] of Object.entries(providers)) {
-    if (provider.base_url && provider.base_url.includes("localhost:20128")) {
-      return true;
-    }
-  }
-
-  return false;
+  return Object.values(config.providers).some(
+    (provider) => provider?.base_url && provider.base_url.includes("localhost:20128"),
+  );
 };
 
 const writeConfig = async (config) => {
@@ -66,9 +67,9 @@ const writeConfig = async (config) => {
   await fs.writeFile(configPath, content, "utf-8");
 };
 
-const readProviderEnv = async () => {
+const readProviderEnv = async (providerName = PROVIDER_NAME) => {
   try {
-    const envPath = getProviderEnvPath();
+    const envPath = getProviderEnvPath(providerName);
     const content = await fs.readFile(envPath, "utf-8");
     const env = {};
 
@@ -96,8 +97,8 @@ const readProviderEnv = async () => {
   }
 };
 
-const writeProviderEnv = async (env) => {
-  const envPath = getProviderEnvPath();
+const writeProviderEnv = async (env, providerName = PROVIDER_NAME) => {
+  const envPath = getProviderEnvPath(providerName);
   let content = "# jcode provider environment variables\n";
 
   for (const [key, value] of Object.entries(env)) {
@@ -105,6 +106,26 @@ const writeProviderEnv = async (env) => {
   }
 
   await fs.writeFile(envPath, content, "utf-8");
+};
+
+const removeProviderEnvKeys = async (providerName) => {
+  const envPath = getProviderEnvPath(providerName);
+  try {
+    await fs.access(envPath);
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+
+  const env = await readProviderEnv(providerName);
+  delete env[API_KEY_ENV_BY_PROVIDER[providerName]];
+
+  if (Object.keys(env).length === 0) {
+    await fs.unlink(envPath).catch(() => {});
+    return;
+  }
+
+  await writeProviderEnv(env, providerName);
 };
 
 export async function GET() {
@@ -119,12 +140,15 @@ export async function GET() {
   }
 
   const config = await readConfig();
-  const hasVansRoute = hasVansRouteConfig(config);
+  const hasHxRouter = hasRouterConfig(config);
 
   return NextResponse.json({
     installed: true,
     config,
-    hasVansRoute,
+    hasHxRouter,
+    // Legacy response aliases retained for older dashboard/CLI clients.
+    hasVansRoute: hasHxRouter,
+    has9Router: hasHxRouter,
     configPath: getConfigPath(),
   });
 }
@@ -150,15 +174,16 @@ export async function POST(request) {
       config.providers = {};
     }
 
-    config.providers["VansRoute"] = {
+    config.providers[PROVIDER_NAME] = {
       type: "openai-compatible",
       base_url: normalizedBaseUrl,
       auth: "bearer",
-      api_key_env: "JCODE_VansRoute_API_KEY",
-      env_file: "provider-VansRoute.env",
+      api_key_env: API_KEY_ENV_BY_PROVIDER[PROVIDER_NAME],
+      env_file: `provider-${PROVIDER_NAME}.env`,
       default_model: models && models.length > 0 ? models[0] : "cc/claude-opus-4-7",
       requires_api_key: true,
     };
+    for (const legacyName of LEGACY_PROVIDER_NAMES) delete config.providers[legacyName];
 
     const configDir = getJcodeConfigDir();
     await fs.mkdir(configDir, { recursive: true });
@@ -169,13 +194,13 @@ export async function POST(request) {
     const jcodeConfigDir = path.join(xdgConfigDir, "jcode");
     await fs.mkdir(jcodeConfigDir, { recursive: true });
 
-    const env = await readProviderEnv();
-    env.JCODE_VansRoute_API_KEY = apiKey;
-    await writeProviderEnv(env);
+    const env = await readProviderEnv(PROVIDER_NAME);
+    env[API_KEY_ENV_BY_PROVIDER[PROVIDER_NAME]] = apiKey;
+    await writeProviderEnv(env, PROVIDER_NAME);
 
     return NextResponse.json({
       success: true,
-      message: "jcode configured successfully. Use: jcode --provider-profile VansRoute",
+      message: "jcode configured successfully. Use: jcode --provider-profile HxRouter",
       configPath: getConfigPath(),
     });
   } catch (error) {
@@ -195,17 +220,17 @@ export async function DELETE() {
       return NextResponse.json({ success: true, message: "No configuration to remove" });
     }
 
-    delete config.providers["VansRoute"];
+    for (const name of ROUTER_PROVIDER_NAMES) delete config.providers[name];
 
     await writeConfig(config);
 
-    const env = await readProviderEnv();
-    delete env.JCODE_VansRoute_API_KEY;
-    await writeProviderEnv(env);
+    for (const name of ROUTER_PROVIDER_NAMES) {
+      await removeProviderEnvKeys(name);
+    }
 
     return NextResponse.json({
       success: true,
-      message: "VansRoute configuration removed from jcode",
+      message: "HxRouter configuration removed from jcode",
     });
   } catch (error) {
     console.error("Error removing jcode configuration:", error);

@@ -48,7 +48,9 @@ describe("Database location & fallback path rules", () => {
     expect(volumeDef.name).toBe("9router-data");
 
     expect(service.volumes).toContain("hxrouter-data:/migration-data:ro");
+    expect(service.volumes).toContain("vansrouter-data:/migration-vansdata:ro");
     expect(compose.volumes["hxrouter-data"]).toEqual({ name: "hxrouter-data" });
+    expect(compose.volumes["vansrouter-data"]).toEqual({ name: "vansrouter-data" });
 
     const dockerfile = read("Dockerfile");
     expect(dockerfile).toContain("/migration-data");
@@ -56,7 +58,7 @@ describe("Database location & fallback path rules", () => {
     expect(dockerfile).toContain("[ ! -e /app/data/db/data.sqlite ]");
     expect(dockerfile).toContain("[ -d /migration-data ]");
     expect(dockerfile).toContain("copy_missing() {");
-    expect(dockerfile).toContain('copy_missing /migration-data /app/data');
+    expect(dockerfile).toContain("for source in /migration-data /migration-vansdata; do");
     expect(dockerfile).toContain('elif [ ! -e "$destination" ]; then');
     expect(dockerfile).toContain("touch /app/data/db/.legacy-volume-migrated");
   });

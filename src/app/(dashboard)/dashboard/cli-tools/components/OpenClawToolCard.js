@@ -8,6 +8,18 @@ import { rememberEndpoint } from "./cliEndpointPresets";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 
+const OPENCLAW_PROVIDER_NAME = "HxRouter";
+const LEGACY_OPENCLAW_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router"];
+
+const getOpenClawProvider = (settings) => {
+  const providers = settings?.models?.providers;
+  if (!providers) return null;
+  for (const name of [OPENCLAW_PROVIDER_NAME, ...LEGACY_OPENCLAW_PROVIDER_NAMES]) {
+    if (providers[name]) return providers[name];
+  }
+  return null;
+};
+
 const normalizeLocalhost = (url) => url.replace("://localhost", "://127.0.0.1");
 function getLocalBaseUrl() {
   if (typeof window !== "undefined") {
@@ -53,7 +65,7 @@ function OpenClawExpandedSection({ agentModels, apiKeys, applying, checkingOpenc
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Select Endpoint</span>
                   <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
-                  <BaseUrlSelect currentUrl={openclawStatus?.settings?.models?.providers?.["VansRoute"]?.baseUrl || ""} value={customBaseUrl || getDisplayUrl()}
+                  <BaseUrlSelect currentUrl={getOpenClawProvider(openclawStatus?.settings)?.baseUrl || ""} value={customBaseUrl || getDisplayUrl()}
                     onChange={setCustomBaseUrl}
                     requiresExternalUrl={tool.requiresExternalUrl}
                     tunnelEnabled={tunnelEnabled}
@@ -64,12 +76,12 @@ function OpenClawExpandedSection({ agentModels, apiKeys, applying, checkingOpenc
                 </div>
 
                 {/* Current configured */}
-                {openclawStatus?.settings?.models?.providers?.["VansRoute"]?.baseUrl && (
+                {getOpenClawProvider(openclawStatus?.settings)?.baseUrl && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Current</span>
                     <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
                     <span className="min-w-0 truncate rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
-                      {openclawStatus.settings.models.providers["VansRoute"].baseUrl}
+                      {getOpenClawProvider(openclawStatus.settings)?.baseUrl}
                     </span>
                   </div>
                 )}
@@ -124,7 +136,7 @@ function OpenClawExpandedSection({ agentModels, apiKeys, applying, checkingOpenc
                 <Button variant="primary" size="sm" onClick={handleApplySettings} disabled={!selectedModel} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!openclawStatus?.hasVansRoute} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleResetSettings} disabled={!openclawStatus?.hasHxRouter} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -179,7 +191,7 @@ export default function OpenClawToolCard({
 
   const getConfigStatus = () => {
     if (!openclawStatus?.installed) return null;
-    const currentProvider = openclawStatus.settings?.models?.providers?.["VansRoute"];
+    const currentProvider = getOpenClawProvider(openclawStatus.settings);
     if (!currentProvider) return "not_configured";
     return matchKnownEndpoint(currentProvider.baseUrl, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
   };
@@ -233,10 +245,14 @@ export default function OpenClawToolCard({
   const [hasInitializedModel, setHasInitializedModel] = useState(false);
   if (openclawStatus?.installed && !hasInitializedModel) {
     setHasInitializedModel(true);
-    const provider = openclawStatus.settings?.models?.providers?.["VansRoute"];
+    const provider = getOpenClawProvider(openclawStatus.settings);
     if (provider) {
       const primaryModel = openclawStatus.settings?.agents?.defaults?.model?.primary;
-      if (primaryModel && !selectedModel) setSelectedModel(primaryModel.replace("VansRoute/", ""));
+      if (primaryModel && !selectedModel) {
+        const routerPrefix = [OPENCLAW_PROVIDER_NAME, ...LEGACY_OPENCLAW_PROVIDER_NAMES]
+          .find((name) => primaryModel.startsWith(`${name}/`));
+        setSelectedModel(routerPrefix ? primaryModel.slice(routerPrefix.length + 1) : primaryModel);
+      }
       if (provider.apiKey && apiKeys?.some(k => k.key === provider.apiKey) && !selectedApiKeyOverride) {
         setSelectedApiKey(provider.apiKey);
       }
@@ -264,7 +280,7 @@ export default function OpenClawToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_VansRoute" : null);
+        || (!cloudEnabled ? "sk_HxRouter" : null);
 
       const res = await fetch("/api/cli-tools/openclaw-settings", {
         method: "POST",
@@ -319,19 +335,19 @@ export default function OpenClawToolCard({
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_VansRoute" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_HxRouter" : "<API_KEY_FROM_DASHBOARD>");
 
     const settingsContent = {
       agents: {
         defaults: {
           model: {
-            primary: `VansRoute/${selectedModel || "provider/model-id"}`,
+            primary: `${OPENCLAW_PROVIDER_NAME}/${selectedModel || "provider/model-id"}`,
           },
         },
       },
       models: {
         providers: {
-          "VansRoute": {
+          [OPENCLAW_PROVIDER_NAME]: {
             baseUrl: getEffectiveBaseUrl(),
             apiKey: keyToUse,
             api: "openai-completions",

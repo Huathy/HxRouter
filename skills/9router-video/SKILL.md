@@ -41,7 +41,7 @@ curl -X POST "$NINEROUTER_URL/v1/videos/generations" \
   -H "Authorization: Bearer $NINEROUTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model":"xai/grok-imagine-video","prompt":"A cinematic tracking shot through a neon city at night","duration":8,"aspect_ratio":"16:9","resolution":"720p"}'
-# → {"request_id":"abc123"}   (response header x-9router-connection-id: <id>)
+# → {"request_id":"abc123"}   (response header x-hxrouter-connection-id: <id>)
 ```
 
 Poll until done (echo the connection header back so the same account polls the job):
@@ -70,7 +70,7 @@ Submits, polls with progress, downloads to `video.mp4.part`, atomically renames 
 
 ## Notes & limits
 
-- Jobs are **account-bound** upstream: poll with the same connection that created the job (`x-connection-id` header, value from the create response's `x-9router-connection-id`).
+- Jobs are **account-bound** upstream: poll with the same connection that created the job (`x-connection-id` header, value from the create response's `x-hxrouter-connection-id`).
 - Creation POSTs are **never auto-retried** (a retry could create and bill two videos). Only a 401→token-refresh→single-retry is performed, which upstream rejects before job creation.
 - Video models are tagged `kind: "video"` and are excluded from chat model lists and chat fallback combos.
 - Grok Build **subscription OAuth** tokens are sent to the same `api.x.ai/v1/videos` endpoints as API keys; whether a given subscription tier includes video-generation quota is controlled by xAI and is not verified by 9Router — a `403`/`permission_denied` from upstream means the connected account has no video access.

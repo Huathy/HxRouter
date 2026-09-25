@@ -4,7 +4,7 @@
  * Thresholds and windows are tuned per provider auth category so that large
  * account pools (500+) do not trip the provider-level circuit breaker too
  * quickly. Mirrors OmniRoute's PROVIDER_PROFILES but keeps the existing
- * proxy-aware breaker behavior of 9router intact.
+ * proxy-aware breaker behavior of HxRouter intact.
  */
 
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "../../src/shared/constants/providers.js";

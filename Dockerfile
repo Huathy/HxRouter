@@ -86,12 +86,12 @@ RUN mkdir -p /app/data && chown -R node:node /app && \
   ln -sf /app/data-home /root/.9router 2>/dev/null || true
 
 # Fix permissions at runtime (handles mounted volumes). Migrate the historical
-# volume name automatically into the canonical 9router-data volume when the
-# target has no database yet.
+# volume names automatically into the canonical 9router-data volume when the
+# target has no database yet; hxrouter-data and vansrouter-data are inputs.
 # Tailscale Funnel requires CAP_NET_ADMIN for TUN mode; keep su-exec for dropping privileges.
 # When using host socket mode (TAILSCALE_USE_HOST_SOCKET=true), no extra capability is needed.
 RUN apk --no-cache add su-exec ip6tables iptables && \
-  printf '#!/bin/sh\nset -eu\ncopy_missing() {\n  local source=$1 target=$2 entry name destination\n  mkdir -p "$target"\n  for entry in "$source"/* "$source"/.[!.]* "$source"/..?*; do\n    [ -e "$entry" ] || continue\n    name=$(basename "$entry")\n    destination="$target/$name"\n    if [ -d "$entry" ]; then\n      copy_missing "$entry" "$destination"\n    elif [ ! -e "$destination" ]; then\n      cp -a "$entry" "$destination"\n    fi\n  done\n}\nif [ ! -f /app/data/db/.legacy-volume-migrated ] && [ ! -e /app/data/db/data.sqlite ] && [ -d /migration-data ]; then\n  copy_missing /migration-data /app/data\n  mkdir -p /app/data/db\n  touch /app/data/db/.legacy-volume-migrated\nfi\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
+  printf '#!/bin/sh\nset -eu\ncopy_missing() {\n  local source=$1 target=$2 entry name destination\n  mkdir -p "$target"\n  for entry in "$source"/* "$source"/.[!.]* "$source"/..?*; do\n    [ -e "$entry" ] || continue\n    name=$(basename "$entry")\n    destination="$target/$name"\n    if [ -d "$entry" ]; then\n      copy_missing "$entry" "$destination"\n    elif [ ! -e "$destination" ]; then\n      cp -a "$entry" "$destination"\n    fi\n  done\n}\nif [ ! -f /app/data/db/.legacy-volume-migrated ] && [ ! -e /app/data/db/data.sqlite ]; then\n  for source in /migration-data /migration-vansdata; do\n    if [ -d "$source" ]; then copy_missing "$source" /app/data; fi\n  done\n  mkdir -p /app/data/db\n  touch /app/data/db/.legacy-volume-migrated\nfi\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh
 
 EXPOSE 20128

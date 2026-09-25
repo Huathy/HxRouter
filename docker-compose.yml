@@ -13,10 +13,11 @@ services:
       - "${PORT:-20128}:20128"
     volumes:
       - 9router-data:/app/data
-      # Compatibility source for pre-v1.0.0 named-volume installs.
+      # Compatibility sources for pre-v1.0.0 named-volume installs.
       # Bind-mount users must keep their existing host path or migrate it first.
       # The entrypoint copies only missing files into the canonical volume.
       - hxrouter-data:/migration-data:ro
+      - vansrouter-data:/migration-vansdata:ro
       # Optional: use the host's Tailscale daemon instead of the bundled one.
       # Uncomment the line below and set TAILSCALE_USE_HOST_SOCKET=true in .env
       # - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
@@ -42,3 +43,5 @@ volumes:
     name: 9router-data
   hxrouter-data:
     name: hxrouter-data
+  vansrouter-data:
+    name: vansrouter-data

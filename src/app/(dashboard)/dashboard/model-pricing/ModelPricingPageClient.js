@@ -6,7 +6,7 @@ import { cn } from "@/shared/utils/cn";
 
 const CATALOG_URL = "/api/pricing/catalog";
 
-// Provider badge colors, keyed by 9router provider id.
+// Provider badge colors, keyed by HxRouter provider id.
 const PROVIDER_STYLES = {
   anthropic: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
   openai: "bg-green-500/15 text-green-600 dark:text-green-400",
@@ -44,21 +44,30 @@ function formatPrice(v) {
   return `$${v < 0.01 && v > 0 ? v.toFixed(4) : v.toFixed(2)}`;
 }
 
-function formatSyncTime(at) {
-  if (!at) return "Never";
-  const d = new Date(at);
-  const diffMin = Math.floor((Date.now() - at) / 60000);
-  const rel = diffMin < 1 ? "just now"
-    : diffMin < 60 ? `${diffMin}m ago`
-    : diffMin < 1440 ? `${Math.floor(diffMin / 60)}h ago`
-    : `${Math.floor(diffMin / 1440)}d ago`;
-  return `${rel} · ${d.toLocaleString()}`;
+function SyncTime({ at, now }) {
+  if (!at) return <>Never</>;
+  const diffMin = Math.floor(((Number.isFinite(now) ? now : at) - at) / 60000);
+  return (
+    <>
+      {diffMin < 1 ? (
+        <>just now</>
+      ) : diffMin < 60 ? (
+        <><span>{diffMin}</span> <span>minutes ago</span></>
+      ) : diffMin < 1440 ? (
+        <><span>{Math.floor(diffMin / 60)}</span> <span>hours ago</span></>
+      ) : (
+        <><span>{Math.floor(diffMin / 1440)}</span> <span>days ago</span></>
+      )}
+      {" · "}
+      <span>{new Date(at).toLocaleString()}</span>
+    </>
+  );
 }
 
 export default function ModelPricingPageClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [data, setData] = useState({ models: [], lastSync: null });
+  const [data, setData] = useState({ models: [], lastSync: null, now: null });
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
 
@@ -118,9 +127,9 @@ export default function ModelPricingPageClient() {
         <div>
           <h1 className="text-lg font-semibold text-text-main">Model Pricing</h1>
           <p className="text-xs text-text-muted">
-            {data.models.length} models · source: models.dev · last sync:{" "}
+            <span>{data.models.length}</span> <span>models</span> · <span>source</span>: models.dev · <span>last sync</span>:{" "}
             <span className={data.lastSync ? "text-green-600 dark:text-green-400" : "text-text-muted"}>
-              {formatSyncTime(data.lastSync?.at)}
+              <SyncTime at={data.lastSync?.at} now={data.now} />
             </span>
           </p>
         </div>

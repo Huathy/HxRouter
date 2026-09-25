@@ -72,9 +72,10 @@ export async function POST(request) {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
   };
-  // Forward X-VansRoute-Selected-Connection-Id if present (debugging aid).
-  const selectedConn = upstream.headers.get("x-vansroute-selected-connection-id");
-  if (selectedConn) responseHeaders["x-vansroute-selected-connection-id"] = selectedConn;
+  // Forward the canonical HxRouter selected-connection header, with a legacy read fallback.
+  const selectedConn = upstream.headers.get("x-hxrouter-selected-connection-id")
+    || upstream.headers.get("x-vansroute-selected-connection-id");
+  if (selectedConn) responseHeaders["x-hxrouter-selected-connection-id"] = selectedConn;
 
   return new Response(upstream.body, {
     status: upstream.status,

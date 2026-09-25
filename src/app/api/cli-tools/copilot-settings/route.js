@@ -5,6 +5,10 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 
+const PROVIDER_NAME = "HxRouter";
+const LEGACY_PROVIDER_NAMES = ["VansRouter", "VansRoute", "9Router"];
+const ROUTER_PROVIDER_NAMES = [PROVIDER_NAME, ...LEGACY_PROVIDER_NAMES];
+
 // Resolve chatLanguageModels.json path per OS
 const getConfigPath = () => {
   const home = os.homedir();
@@ -30,26 +34,33 @@ const readConfig = async () => {
   }
 };
 
-const has9RouterConfig = (config) => {
+const hasRouterConfig = (config) => {
   if (!Array.isArray(config)) return false;
-  return config.some((entry) => entry.name === "9Router");
+  return config.some((entry) => ROUTER_PROVIDER_NAMES.includes(entry.name));
 };
 
-const get9RouterEntry = (config) => {
+const getRouterEntry = (config) => {
   if (!Array.isArray(config)) return null;
-  return config.find((entry) => entry.name === "9Router") || null;
+  for (const name of ROUTER_PROVIDER_NAMES) {
+    const entry = config.find((item) => item.name === name);
+    if (entry) return entry;
+  }
+  return null;
 };
 
 // GET - Read current copilot config
 export async function GET() {
   try {
     const config = await readConfig();
-    const entry = get9RouterEntry(config);
+    const entry = getRouterEntry(config);
+    const hasHxRouter = hasRouterConfig(config);
 
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasHxRouter,
+      // Legacy response alias retained for older clients.
+      has9Router: hasHxRouter,
       configPath: getConfigPath(),
       currentModel: entry?.models?.[0]?.id || null,
       currentUrl: entry?.models?.[0]?.url || null,
@@ -59,7 +70,7 @@ export async function GET() {
   }
 }
 
-// POST - Apply 9Router config to chatLanguageModels.json
+// POST - Apply HxRouter config to chatLanguageModels.json
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, models } = await request.json();
@@ -76,10 +87,10 @@ export async function POST(request) {
     let config = Array.isArray(parsed) ? parsed : [];
 
     const endpointUrl = `${baseUrl}/chat/completions#models.ai.azure.com`;
-    const keyToUse = apiKey || "sk_9router";
+    const keyToUse = apiKey || "sk_HxRouter";
 
     const newEntry = {
-      name: "9Router",
+      name: PROVIDER_NAME,
       vendor: "azure",
       apiKey: keyToUse,
       models: models.map((id) => ({
@@ -93,13 +104,19 @@ export async function POST(request) {
       })),
     };
 
-    // Replace existing 9Router entry or append
-    const idx = config.findIndex((e) => e.name === "9Router");
+    // Replace canonical or legacy HxRouter entries after migration.
+    const idx = config.findIndex((e) => ROUTER_PROVIDER_NAMES.includes(e.name));
     if (idx >= 0) {
       config[idx] = newEntry;
     } else {
       config.push(newEntry);
     }
+
+    // Remove duplicate legacy/canonical entries left by earlier versions.
+    const canonicalIndex = config.indexOf(newEntry);
+    config = config.filter(
+      (entry, index) => !ROUTER_PROVIDER_NAMES.includes(entry.name) || index === canonicalIndex,
+    );
 
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
@@ -113,7 +130,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove 9Router entry from chatLanguageModels.json
+// DELETE - Remove HxRouter entry from chatLanguageModels.json
 export async function DELETE() {
   try {
     const configPath = getConfigPath();
@@ -125,12 +142,12 @@ export async function DELETE() {
     }
     config = Array.isArray(parsed) ? parsed : [];
 
-    config = config.filter((e) => e.name !== "9Router");
+    config = config.filter((entry) => !ROUTER_PROVIDER_NAMES.includes(entry.name));
     await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
     return NextResponse.json({
       success: true,
-      message: "9Router removed from Copilot config",
+      message: "HxRouter removed from Copilot config",
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reset copilot settings" }, { status: 500 });

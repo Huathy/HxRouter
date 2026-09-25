@@ -27,7 +27,8 @@ function getLinuxCertConfig() {
   // Fallback to Debian default if none exist
   return LINUX_CERT_PATHS[0];
 }
-const ROOT_CA_CN = "9Router MITM Root CA";
+const ROOT_CA_CN = "HxRouter MITM Root CA";
+const LEGACY_ROOT_CA_CN = "9Router MITM Root CA";
 
 // Get SHA1 fingerprint from cert file using Node.js crypto
 function getCertFingerprint(certPath) {
@@ -50,7 +51,7 @@ function checkCertInstalledMac(certPath) {
     try {
       const fingerprint = getCertFingerprint(certPath).replace(/:/g, "");
       // Verify exact cert bytes match — same CN with different fingerprint = stale cert
-      exec(`security find-certificate -a -c "${ROOT_CA_CN}" -Z /Library/Keychains/System.keychain 2>/dev/null`, { windowsHide: true }, (error, stdout) => {
+      exec(`security find-certificate -a -Z /Library/Keychains/System.keychain 2>/dev/null`, { windowsHide: true }, (error, stdout) => {
         if (error || !stdout) return resolve(false);
         const match = new RegExp(`SHA-1 hash:\\s*${fingerprint}`, "i").test(stdout);
         if (!match) return resolve(false);
@@ -105,7 +106,7 @@ async function installCert(sudoPassword, certPath) {
 
 async function installCertMac(sudoPassword, certPath) {
   // Remove all old certs with same name first to avoid duplicate/stale cert conflict
-  const deleteOld = `security delete-certificate -c "9Router MITM Root CA" /Library/Keychains/System.keychain 2>/dev/null || true`;
+  const deleteOld = `security delete-certificate -c "${ROOT_CA_CN}" /Library/Keychains/System.keychain 2>/dev/null || true; security delete-certificate -c "${LEGACY_ROOT_CA_CN}" /Library/Keychains/System.keychain 2>/dev/null || true`;
   const install = `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${certPath}"`;
   try {
     await execWithPassword(`${deleteOld} && ${install}`, sudoPassword);
@@ -121,6 +122,7 @@ async function installCertWindows(certPath) {
   // Delete any stale cert with same CN before adding to avoid duplicates.
   const script = `
     certutil -delstore Root ${quotePs(ROOT_CA_CN)} 2>$null | Out-Null
+    certutil -delstore Root ${quotePs(LEGACY_ROOT_CA_CN)} 2>$null | Out-Null
     $exit = & certutil -addstore Root ${quotePs(certPath)} 2>&1
     if ($LASTEXITCODE -ne 0) { throw "certutil exit $LASTEXITCODE" }
   `;
@@ -164,7 +166,7 @@ async function uninstallCertMac(sudoPassword, certPath) {
 
 async function uninstallCertWindows() {
   // Auto-elevate via UAC popup if not admin
-  const script = `certutil -delstore Root ${quotePs(ROOT_CA_CN)}`;
+  const script = `certutil -delstore Root ${quotePs(ROOT_CA_CN)}; certutil -delstore Root ${quotePs(LEGACY_ROOT_CA_CN)}`;
   try {
     await runElevatedPowerShell(script);
     log("🔐 Cert: ✅ uninstalled from Windows Root store");
@@ -180,7 +182,7 @@ function checkCertInstalledLinux() {
 }
 
 async function updateNssDatabases(certPath, action = 'add') {
-  const certName = "9Router MITM Root CA";
+  const certName = "HxRouter MITM Root CA";
   
   const script = `
     if ! command -v certutil &> /dev/null; then

@@ -17,12 +17,13 @@ docker run -d \
   -p 20128:20128 \
   -v 9router-data:/app/data \
   -v hxrouter-data:/migration-data:ro \
+  -v vansrouter-data:/migration-vansdata:ro \
   -e DATA_DIR=/app/data \
   --name hxrouter \
   ghcr.io/huathy/hxrouter:latest
 ```
 
-The `hxrouter-data` mount is read-only compatibility input for pre-v1.0.0 named-volume installs. It is copied automatically into the canonical `9router-data` volume only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
+The `hxrouter-data` and `vansrouter-data` mounts are read-only compatibility inputs for pre-v1.0.0 named-volume installs. Missing files are copied into the canonical `9router-data` volume, in that order, only when that volume has no database. If the old install used `$HOME/.9router:/app/data`, keep using that bind mount or migrate its contents into `9router-data` first.
 
 App listens on port `20128`. Open: http://localhost:20128
 
@@ -79,14 +80,14 @@ Context compression runs in the Node process using the bundled `thincontext` dep
 
 ## Update without manual asset or database steps
 
-`9router-data` is the canonical volume. The compose file also mounts historical `hxrouter-data` read-only for automatic compatibility copying. The entrypoint copies the complete legacy data tree only when `/app/data/db/data.sqlite` does not exist and records `.legacy-volume-migrated`; it never overwrites an existing canonical file. Legacy installs that used a host bind mount (`$HOME/.9router:/app/data`) must keep that bind mount or copy its contents into `9router-data` before switching to named volumes.
+`9router-data` is the canonical volume. The compose file also mounts historical `hxrouter-data` and `vansrouter-data` read-only for automatic compatibility copying. When `/app/data/db/data.sqlite` does not exist, the entrypoint copies missing files from those trees in `hxrouter-data`, `vansrouter-data` order and records `.legacy-volume-migrated`; it never overwrites an existing canonical file. Legacy installs that used a host bind mount (`$HOME/.9router:/app/data`) must keep that bind mount or copy its contents into `9router-data` before switching to named volumes.
 
 ```bash
 docker compose pull hxrouter
 docker compose up -d --no-deps hxrouter
 ```
 
-For a pinned release, replace `latest` in the compose file with `X.Y.Z` before pulling. Do not copy `.next`, delete either volume, or run application migrations manually. After a successful upgrade, remove the `hxrouter-data:/migration-data:ro` mount only after confirming the new container reports the expected version and data.
+For a pinned release, replace `latest` in the compose file with `X.Y.Z` before pulling. Do not copy `.next`, delete any of the volumes, or run application migrations manually. After a successful upgrade, remove the `hxrouter-data:/migration-data:ro` and `vansrouter-data:/migration-vansdata:ro` mounts only after confirming the new container reports the expected version and data.
 
 ---
 

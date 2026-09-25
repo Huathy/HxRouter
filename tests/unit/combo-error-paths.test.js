@@ -1,4 +1,4 @@
-// Verify that combo strategies preserve X-VansRoute-Selected-Connection-Id
+// Verify that combo strategies preserve X-HxRouter-Selected-Connection-Id
 // headers from underlying model calls and degrade gracefully on total failure.
 import { describe, it, expect, vi } from "vitest";
 import { handleComboChat, handleFusionChat } from "../../open-sse/services/combo.js";
@@ -7,7 +7,7 @@ const log = { info: () => {}, warn: () => {}, debug: () => {} };
 
 function okResponse(content, connectionId) {
   const headers = new Headers({ "Content-Type": "application/json" });
-  if (connectionId) headers.set("X-VansRoute-Selected-Connection-Id", connectionId);
+  if (connectionId) headers.set("X-HxRouter-Selected-Connection-Id", connectionId);
   return new Response(
     JSON.stringify({ choices: [{ message: { role: "assistant", content } }] }),
     { status: 200, headers }
@@ -16,7 +16,7 @@ function okResponse(content, connectionId) {
 
 function errResponse(status, message, connectionId) {
   const headers = new Headers({ "Content-Type": "application/json" });
-  if (connectionId) headers.set("X-VansRoute-Selected-Connection-Id", connectionId);
+  if (connectionId) headers.set("X-HxRouter-Selected-Connection-Id", connectionId);
   return new Response(
     JSON.stringify({ error: { message } }),
     { status, headers }
@@ -40,7 +40,7 @@ describe("combo fallback header propagation", () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-gemini-ok");
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-gemini-ok");
     expect(handleSingleModel).toHaveBeenCalledTimes(2);
   });
 
@@ -58,7 +58,7 @@ describe("combo fallback header propagation", () => {
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(503);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBeNull();
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBeNull();
   });
 
   it("preserves the header through a daily-quota 429 fallback", async () => {
@@ -79,7 +79,7 @@ describe("combo fallback header propagation", () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-backup");
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-backup");
   });
 });
 
@@ -101,7 +101,7 @@ describe("fusion combo header propagation", () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-judge");
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-judge");
   });
 
   it("returns the lone survivor's header when only one panel succeeds", async () => {
@@ -122,7 +122,7 @@ describe("fusion combo header propagation", () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-lone");
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-lone");
     expect(handleSingleModel.mock.calls.some(([, m]) => m === "p/judge")).toBe(false);
   });
 
@@ -140,7 +140,7 @@ describe("fusion combo header propagation", () => {
 
     expect(res.ok).toBe(false);
     expect(res.status).toBe(503);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBeNull();
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBeNull();
   });
 });
 
@@ -164,7 +164,7 @@ describe("combo per-target timeout", () => {
     });
 
     expect(res.ok).toBe(true);
-    expect(res.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-gemini-ok");
+    expect(res.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-gemini-ok");
     expect(handleSingleModel).toHaveBeenCalledTimes(2);
   });
 

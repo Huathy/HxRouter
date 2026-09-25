@@ -48,7 +48,7 @@ export default function FlowAnimation() {
 
   return (
     <div className="mt-16 w-full max-w-4xl relative h-[360px] hidden md:flex items-center justify-center animate-[float_6s_ease-in-out_infinite]">
-      {/* 9Router Hub - Center */}
+      {/* HxRouter Hub - Center */}
       <div className="relative z-20 w-32 h-32 rounded-full bg-[#1a1433] border-2 border-[#6366f1] shadow-[0_0_40px_rgba(99,102,241,0.3)] flex flex-col items-center justify-center gap-1 group cursor-pointer hover:scale-105 transition-transform duration-500">
         <svg viewBox="0 0 32 32" className="w-10 h-10" fill="none">
           <path d="M16 5L22 14L16 27L10 14L16 5Z" fill="#6366f1" opacity="0.9"/>
@@ -82,7 +82,7 @@ export default function FlowAnimation() {
         ))}
       </div>
 
-      {/* SVG Lines from CLI to 9Router */}
+      {/* SVG Lines from CLI to HxRouter */}
       <svg
         className="absolute inset-0 w-full h-full z-10 pointer-events-none stroke-yellow-700"
         xmlns="http://www.w3.org/2000/svg"
@@ -117,7 +117,7 @@ export default function FlowAnimation() {
         ></path>
       </svg>
 
-      {/* SVG Lines from 9Router to Providers */}
+      {/* SVG Lines from HxRouter to Providers */}
       <svg
         className="absolute inset-0 w-full h-full z-10 pointer-events-none"
         xmlns="http://www.w3.org/2000/svg"

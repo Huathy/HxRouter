@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -89,6 +89,46 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_ppf_pool ON proxyPoolFitness(poolId)",
       "CREATE INDEX IF NOT EXISTS idx_ppf_scope ON proxyPoolFitness(scope)",
       "CREATE INDEX IF NOT EXISTS idx_ppf_until ON proxyPoolFitness(until)",
+    ],
+  },
+  checkinScripts: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      name: "TEXT NOT NULL",
+      enabled: "INTEGER DEFAULT 0",
+      scheduleType: "TEXT NOT NULL",
+      cronExpr: "TEXT",
+      timezone: "TEXT NOT NULL",
+      nextRunAt: "INTEGER",
+      lastRunAt: "INTEGER",
+      data: "TEXT NOT NULL",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_cs_enabled ON checkinScripts(enabled)",
+      "CREATE INDEX IF NOT EXISTS idx_cs_next_run ON checkinScripts(nextRunAt)",
+    ],
+  },
+  checkinRuns: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      scriptId: "TEXT NOT NULL",
+      triggerType: "TEXT NOT NULL",
+      status: "TEXT NOT NULL",
+      queuedAt: "INTEGER NOT NULL",
+      startedAt: "INTEGER",
+      finishedAt: "INTEGER",
+      durationMs: "INTEGER",
+      httpStatus: "INTEGER",
+      summary: "TEXT",
+      errorCode: "TEXT",
+      errorMessage: "TEXT",
+      data: "TEXT",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_cr_script ON checkinRuns(scriptId, queuedAt DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_cr_status ON checkinRuns(status)",
     ],
   },
   apiKeys: {

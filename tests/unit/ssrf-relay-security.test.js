@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertPublicUrl, RELAY_TARGET_GUARD_SOURCE } from "@/shared/utils/ssrfGuard.js";
+import { assertPublicUrl, createPinnedLookup, RELAY_TARGET_GUARD_SOURCE } from "@/shared/utils/ssrfGuard.js";
+import { vi } from "vitest";
 
 const projectRoot = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const relayRoutes = [
@@ -37,6 +38,12 @@ describe("assertPublicUrl", () => {
     "http://10.0.0.1/",
     "http://172.20.0.1/",
     "http://192.168.1.1/",
+    "http://192.0.0.1/",
+    "http://192.0.2.1/",
+    "http://192.88.99.1/",
+    "http://198.18.0.1/",
+    "http://198.51.100.1/",
+    "http://203.0.113.1/",
     "http://169.254.169.254/latest/meta-data/",
     "http://metadata.google.internal/",
     "http://service.local/",
@@ -53,8 +60,23 @@ describe("assertPublicUrl", () => {
     "http://[fc00::1]/",
     "http://[fd12::1]/",
     "http://[::ffff:127.0.0.1]/",
+    "http://[::127.0.0.1]/",
+    "http://[fec0::1]/",
+    "http://[ff02::1]/",
+    "http://[2001:db8::1]/",
   ])("rejects internal IPv6 target %s", (url) => {
     expectBlocked(url);
+  });
+
+  it("supports Node socket lookups with all=true", () => {
+    const lookup = createPinnedLookup({ address: "93.184.216.34", family: 4 });
+    const allCallback = vi.fn();
+    lookup("example.com", { all: true }, allCallback);
+    expect(allCallback).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
+
+    const callback = vi.fn();
+    lookup("example.com", {}, callback);
+    expect(callback).toHaveBeenCalledWith(null, "93.184.216.34", 4);
   });
 
   it.each(["not a URL", "https://", "//example.com/path", ""]) (

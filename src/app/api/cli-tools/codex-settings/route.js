@@ -10,6 +10,10 @@ import { parseTOML, stringifyTOML } from "confbox";
 
 const execAsync = promisify(exec);
 
+const PROVIDER_NAME = "HxRouter";
+const PROVIDER_KEY = "hxrouter";
+const LEGACY_PROVIDER_KEYS = ["VansRoute", "VansRouter", "9router"];
+
 const getCodexDir = () => path.join(os.homedir(), ".codex");
 const getCodexConfigPath = () => path.join(getCodexDir(), "config.toml");
 const getCodexAuthPath = () => path.join(getCodexDir(), "auth.json");
@@ -91,10 +95,15 @@ const readConfigParsed = async () => {
   return parsedToWritable(parseTOML(raw));
 };
 
-// Check if config has 9Router settings
-const has9RouterConfig = (config) => {
+// Check for canonical or legacy HxRouter provider settings.
+const hasRouterConfig = (config) => {
   if (!config) return false;
-  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.9router]");
+  return [PROVIDER_KEY, ...LEGACY_PROVIDER_KEYS].some(
+    (name) =>
+      config.includes(`model_provider = "${name}"`) ||
+      config.includes(`model_provider = '${name}'`) ||
+      config.includes(`[model_providers.${name}]`),
+  );
 };
 
 // GET - Check codex CLI and read current settings
@@ -115,7 +124,9 @@ export async function GET() {
     return NextResponse.json({
       installed: true,
       config,
-      has9Router: has9RouterConfig(config),
+      hasHxRouter: hasRouterConfig(config),
+      // Legacy response alias retained for older clients.
+      has9Router: hasRouterConfig(config),
       configPath: getCodexConfigPath(),
     });
   } catch (error) {
@@ -123,7 +134,7 @@ export async function GET() {
   }
 }
 
-// POST - Update 9Router settings (merge with existing config)
+// POST - Update HxRouter settings (merge with existing config)
 export async function POST(request) {
   try {
     const { baseUrl, apiKey, model, subagentModel } = await request.json();
@@ -141,16 +152,18 @@ export async function POST(request) {
     // Read and parse existing config
     let parsed = (await readConfigParsed()) || {};
 
-    // Update only 9Router related fields (api_key goes to auth.json, not config.toml)
+    // Update only HxRouter-related fields (api_key goes to auth.json, not config.toml).
     parsed.model = model;
-    parsed.model_provider = "9router";
+    parsed.model_provider = PROVIDER_KEY;
 
-    // Update or create 9router provider section (no api_key - Codex reads from auth.json)
+    // Migrate any legacy provider section to the canonical key.
+    for (const legacyKey of LEGACY_PROVIDER_KEYS) deleteNestedSection(parsed, `model_providers.${legacyKey}`);
+
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     // Custom providers ignore auth.json - the key must travel as a static header
-    setNestedSection(parsed, "model_providers.9router", {
-      name: "9Router",
+    setNestedSection(parsed, `model_providers.${PROVIDER_KEY}`, {
+      name: PROVIDER_NAME,
       base_url: normalizedBaseUrl,
       wire_api: "responses",
       http_headers: { Authorization: `Bearer ${apiKey}` },
@@ -173,7 +186,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove 9Router settings only (keep other settings)
+// DELETE - Remove HxRouter settings only (keep other settings)
 export async function DELETE() {
   try {
     const configPath = getCodexConfigPath();
@@ -187,14 +200,17 @@ export async function DELETE() {
       });
     }
 
-    // Remove 9Router related root fields only if they point to 9router
-    if (parsed.model_provider === "9router") {
+    // Remove HxRouter root fields if they point at canonical or legacy keys.
+    if ([PROVIDER_KEY, ...LEGACY_PROVIDER_KEYS].includes(parsed.model_provider)) {
       delete parsed.model;
       delete parsed.model_provider;
     }
 
-    // Remove 9router provider section
-    deleteNestedSection(parsed, "model_providers.9router");
+    // Remove canonical and every legacy provider section.
+    deleteNestedSection(parsed, `model_providers.${PROVIDER_KEY}`);
+    for (const legacyKey of LEGACY_PROVIDER_KEYS) {
+      deleteNestedSection(parsed, `model_providers.${legacyKey}`);
+    }
 
     // Remove subagent configuration (both the current key and the legacy role form)
     deleteNestedSection(parsed, "agents.default_subagent_model");
@@ -221,7 +237,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router settings removed successfully",
+      message: "HxRouter settings removed successfully",
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reset codex settings" }, { status: 500 });

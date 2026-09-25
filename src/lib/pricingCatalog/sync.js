@@ -13,8 +13,8 @@
 const MODELS_DEV_BASE = "https://models.dev/providers";
 const FETCH_TIMEOUT_MS = 60000;
 
-// 9router provider id -> models.dev provider (lab) id. Only labs whose prices
-// 9router tracks directly; everything else keeps the hand-written tables.
+// HxRouter provider id -> models.dev provider (lab) id. Only labs whose prices
+// HxRouter tracks directly; everything else keeps the hand-written tables.
 export const LAB_SOURCES = [
   { provider: "anthropic", lab: "anthropic", family: "claude" },
   { provider: "openai", lab: "openai", family: "gpt" },
@@ -58,7 +58,7 @@ function isFreePlanPrice(input, output) {
   return input === 0 && output === 0;
 }
 
-// "claude-opus-4-6" -> "claude-opus-4-6" (dates kept: 9router ids include them)
+// "claude-opus-4-6" -> "claude-opus-4-6" (dates kept: HxRouter ids include them)
 function normalizeModelId(id) {
   return id.trim();
 }

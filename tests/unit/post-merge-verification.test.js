@@ -119,11 +119,11 @@ describe("Post-merge: model.js RESERVED_PROVIDER_PREFIXES works", () => {
   });
 });
 
-describe("Post-merge: layout.js HXAI branding preserved", () => {
+describe("Post-merge: layout.js HxRouter branding preserved", () => {
   const src = read("src/app/layout.js");
 
-  it("has HXAI title", () => {
-    expect(src).toContain("HXAI");
+  it("has HxRouter title", () => {
+    expect(src).toContain("HxRouter");
   });
 
   it("bundles Material Symbols locally without fragile CDN scripts", () => {
@@ -133,7 +133,7 @@ describe("Post-merge: layout.js HXAI branding preserved", () => {
   it("does NOT have upstream 9Router title", () => {
     // Should not contain "9Router - AI Infrastructure"
     const titleMatch = src.match(/title:\s*["']([^"']+)["']/);
-    expect(titleMatch[1]).toContain("HXAI");
+    expect(titleMatch[1]).toContain("HxRouter");
     expect(titleMatch[1]).not.toContain("9Router");
   });
 });

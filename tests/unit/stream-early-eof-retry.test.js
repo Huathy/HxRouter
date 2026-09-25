@@ -133,15 +133,44 @@ describe("handleStreamingResponse STREAM_EARLY_EOF integration", () => {
     onStreamComplete: () => {}
   };
 
-  it("returns STREAM_EARLY_EOF when upstream body is empty", async () => {
+  it("returns STREAM_EARLY_EOF and settles pending state when upstream body is empty", async () => {
+    const finishPending = vi.fn();
     const result = await handleStreamingResponse({
       ...baseCtx,
       providerResponse: makeResponse([]),
-      streamController: makeController()
+      streamController: makeController(),
+      finishPending
     });
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe("STREAM_EARLY_EOF");
     expect(result.status).toBe(502);
+    expect(finishPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves stream read errors instead of classifying them as early EOF", async () => {
+    const finishPending = vi.fn();
+    const error = new Error("ECONNRESET");
+    const providerResponse = {
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "text/event-stream" }),
+      body: {
+        getReader: () => ({
+          read: vi.fn().mockRejectedValue(error),
+          cancel: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+    };
+    const result = await handleStreamingResponse({
+      ...baseCtx,
+      providerResponse,
+      streamController: makeController(),
+      finishPending
+    });
+
+    expect(result.errorCode).toBe("STREAM_READ_ERROR");
+    expect(result.error).toContain("ECONNRESET");
+    expect(finishPending).toHaveBeenCalledWith(true);
   });
 
   it("returns success=true when upstream body has at least one chunk", async () => {
@@ -208,5 +237,22 @@ describe("handleStreamingResponse STREAM_EARLY_EOF integration", () => {
     });
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe("STREAM_EARLY_EOF");
+  });
+});
+
+describe("stream controller terminal settlement", () => {
+  it("settles AbortError as a terminal request", () => {
+    const onError = vi.fn();
+    const controller = createStreamController({
+      onError,
+      provider: "agentrouter",
+      model: "glm-5.2"
+    });
+    const error = new Error("aborted");
+    error.name = "AbortError";
+
+    controller.handleError(error);
+
+    expect(onError).toHaveBeenCalledWith(error);
   });
 });

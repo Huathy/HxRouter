@@ -9,24 +9,27 @@ function maskApiKey(key) {
   return key.slice(0, 8) + "***";
 }
 
-const PENDING_TIMEOUT_MS = 60 * 1000;
+export const PENDING_TIMEOUT_MS = 7 * 60 * 1000;
 const CONN_CACHE_TTL_MS = 30 * 1000;
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
 
 // In-memory state shared across Next.js modules
-if (!global._pendingRequests) global._pendingRequests = { byModel: {}, byAccount: {} };
+if (!global._pendingRequests) global._pendingRequests = { byModel: {}, byAccount: {}, byId: {} };
+if (!global._pendingRequests.byId) global._pendingRequests.byId = {};
 if (!global._lastErrorProvider) global._lastErrorProvider = { provider: "", ts: 0 };
 if (!global._statsEmitter) {
   global._statsEmitter = new EventEmitter();
   global._statsEmitter.setMaxListeners(50);
 }
 if (!global._pendingTimers) global._pendingTimers = {};
+if (!global._legacyPendingIds) global._legacyPendingIds = {};
 if (!global._connectionMapCache) global._connectionMapCache = { map: {}, ts: 0 };
 if (!global._statsEmitTimers) global._statsEmitTimers = { pending: null, update: null };
 
 const pendingRequests = global._pendingRequests;
 const lastErrorProvider = global._lastErrorProvider;
 const pendingTimers = global._pendingTimers;
+const legacyPendingIds = global._legacyPendingIds;
 const connCache = global._connectionMapCache;
 const statsEmitTimers = global._statsEmitTimers;
 
@@ -141,50 +144,100 @@ async function calculateCost(provider, model, tokens) {
   }
 }
 
-export function trackPendingRequest(model, provider, connectionId, started, error = false) {
-  const activeConnectionId = connectionId || "no-auth";
-  const modelKey = provider ? `${model} (${provider})` : model;
-  const timerKey = `${activeConnectionId}|${modelKey}`;
+function createPendingRequestId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
-  if (!pendingRequests.byModel[modelKey]) pendingRequests.byModel[modelKey] = 0;
-  pendingRequests.byModel[modelKey] = Math.max(0, pendingRequests.byModel[modelKey] + (started ? 1 : -1));
-  if (pendingRequests.byModel[modelKey] === 0) delete pendingRequests.byModel[modelKey];
+function incrementPending(entry) {
+  pendingRequests.byModel[entry.modelKey] = (pendingRequests.byModel[entry.modelKey] || 0) + 1;
+  if (!pendingRequests.byAccount[entry.connectionId]) pendingRequests.byAccount[entry.connectionId] = {};
+  pendingRequests.byAccount[entry.connectionId][entry.modelKey] = (pendingRequests.byAccount[entry.connectionId][entry.modelKey] || 0) + 1;
+}
 
-  if (activeConnectionId) {
-    if (!pendingRequests.byAccount[activeConnectionId]) pendingRequests.byAccount[activeConnectionId] = {};
-    if (!pendingRequests.byAccount[activeConnectionId][modelKey]) pendingRequests.byAccount[activeConnectionId][modelKey] = 0;
-    pendingRequests.byAccount[activeConnectionId][modelKey] = Math.max(0, pendingRequests.byAccount[activeConnectionId][modelKey] + (started ? 1 : -1));
-    if (pendingRequests.byAccount[activeConnectionId][modelKey] === 0) {
-      delete pendingRequests.byAccount[activeConnectionId][modelKey];
-      if (Object.keys(pendingRequests.byAccount[activeConnectionId]).length === 0) {
-        delete pendingRequests.byAccount[activeConnectionId];
-      }
-    }
-  }
+function decrementPending(entry) {
+  const modelCount = pendingRequests.byModel[entry.modelKey] || 0;
+  if (modelCount <= 1) delete pendingRequests.byModel[entry.modelKey];
+  else pendingRequests.byModel[entry.modelKey] = modelCount - 1;
 
-  if (started) {
-    clearTimeout(pendingTimers[timerKey]);
-    pendingTimers[timerKey] = setTimeout(() => {
-      delete pendingTimers[timerKey];
-      if (pendingRequests.byModel[modelKey] > 0) pendingRequests.byModel[modelKey] = 0;
-      if (activeConnectionId && pendingRequests.byAccount[activeConnectionId]?.[modelKey] > 0) {
-        pendingRequests.byAccount[activeConnectionId][modelKey] = 0;
-      }
-      scheduleStatsEvent("pending");
-    }, PENDING_TIMEOUT_MS);
+  const accountModels = pendingRequests.byAccount[entry.connectionId];
+  if (!accountModels) return;
+  const accountCount = accountModels[entry.modelKey] || 0;
+  if (accountCount <= 1) {
+    delete accountModels[entry.modelKey];
+    if (Object.keys(accountModels).length === 0) delete pendingRequests.byAccount[entry.connectionId];
   } else {
-    clearTimeout(pendingTimers[timerKey]);
-    delete pendingTimers[timerKey];
+    accountModels[entry.modelKey] = accountCount - 1;
   }
+}
 
-  if (!started && error && provider) {
-    lastErrorProvider.provider = provider.toLowerCase();
+function logPendingTransition(action, entry, error = false) {
+  const t = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  console.log(`[${t}] [PENDING] ${action}${error ? " (ERROR)" : ""} | provider=${entry.provider} | model=${entry.model}`);
+}
+
+function getLegacyQueueKey(connectionId, modelKey) {
+  return `${connectionId || "no-auth"}|${modelKey}`;
+}
+
+function removeLegacyPendingId(entry) {
+  const queueKey = getLegacyQueueKey(entry.connectionId, entry.modelKey);
+  const queue = legacyPendingIds[queueKey];
+  if (!queue) return;
+  const index = queue.indexOf(entry.id);
+  if (index >= 0) queue.splice(index, 1);
+  if (queue.length === 0) delete legacyPendingIds[queueKey];
+}
+
+export function finishPendingRequest(requestId, error = false) {
+  const entry = requestId ? pendingRequests.byId[requestId] : null;
+  if (!entry) return false;
+
+  delete pendingRequests.byId[requestId];
+  clearTimeout(pendingTimers[requestId]);
+  delete pendingTimers[requestId];
+  removeLegacyPendingId(entry);
+  decrementPending(entry);
+
+  if (error && entry.provider) {
+    lastErrorProvider.provider = entry.provider.toLowerCase();
     lastErrorProvider.ts = Date.now();
   }
 
-  const t = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  console.log(`[${t}] [PENDING] ${started ? "START" : "END"}${error ? " (ERROR)" : ""} | provider=${provider} | model=${model}`);
+  logPendingTransition("END", entry, error);
   scheduleStatsEvent("pending");
+  return true;
+}
+
+export function trackPendingRequest(model, provider, connectionId, started, error = false, requestId = null) {
+  if (started) {
+    const id = requestId || createPendingRequestId();
+    const entry = {
+      id,
+      model,
+      provider,
+      connectionId: connectionId || "no-auth",
+      modelKey: provider ? `${model} (${provider})` : model,
+      startedAt: Date.now(),
+    };
+    pendingRequests.byId[id] = entry;
+    incrementPending(entry);
+    const legacyQueueKey = getLegacyQueueKey(entry.connectionId, entry.modelKey);
+    if (!legacyPendingIds[legacyQueueKey]) legacyPendingIds[legacyQueueKey] = [];
+    legacyPendingIds[legacyQueueKey].push(id);
+    pendingTimers[id] = setTimeout(() => finishPendingRequest(id), PENDING_TIMEOUT_MS);
+    pendingTimers[id]?.unref?.();
+    logPendingTransition("START", entry);
+    scheduleStatsEvent("pending");
+    return id;
+  }
+
+  if (requestId) return finishPendingRequest(requestId, error);
+  const modelKey = provider ? `${model} (${provider})` : model;
+  const legacyQueueKey = getLegacyQueueKey(connectionId, modelKey);
+  const queue = legacyPendingIds[legacyQueueKey];
+  const legacyId = queue?.shift();
+  if (legacyId && queue.length === 0) delete legacyPendingIds[legacyQueueKey];
+  return legacyId ? finishPendingRequest(legacyId, error) : false;
 }
 
 // Build synthetic "in-flight" recent-request rows from pendingRequests.byAccount.

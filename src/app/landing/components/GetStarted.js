@@ -62,11 +62,11 @@ export default function GetStarted() {
                 <button 
                   type="button"
                   className="flex items-center gap-2 mb-4 group cursor-pointer"
-                  onClick={() => handleCopy("npx VansRoute")}
-                  aria-label="Copy command: npx VansRoute"
+                  onClick={() => handleCopy("npx hxrouter")}
+                  aria-label="Copy command: npx hxrouter"
                 >
                   <span className="text-green-400">$</span>
-                  <span className="text-white">npx VansRoute</span>
+                  <span className="text-white">npx hxrouter</span>
                   <span className="ml-auto text-gray-500 text-xs opacity-0 group-hover:opacity-100">
                     {copied === "landing" ? "✓ Copied" : "Copy"}
                   </span>
@@ -86,7 +86,7 @@ export default function GetStarted() {
                 <div className="text-gray-400 text-xs">
                   <span className="text-purple-400">Data Location:</span><br/>
                   <span className="text-gray-500">  macOS/Linux:</span> ~/.9router/db/data.sqlite<br/>
-                  <span className="text-gray-500">  Windows:</span> %APPDATA%/VansRoute/db/data.sqlite
+                  <span className="text-gray-500">  Windows:</span> %APPDATA%/9router/db/data.sqlite
                 </div>
               </div>
             </div>

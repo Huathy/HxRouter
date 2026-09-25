@@ -42,7 +42,7 @@ export function scrubProxyAndFingerprintHeaders(headers) {
   let authorizationValue;
   for (const [key, value] of Object.entries(headers || {})) {
     const lowerKey = key.toLowerCase();
-    if (lowerKey.startsWith("x-omniroute-") || lowerKey.startsWith("x-9router-") || HEADERS_TO_REMOVE.includes(lowerKey)) {
+    if (lowerKey.startsWith("x-omniroute-") || lowerKey.startsWith("x-hxrouter-") || lowerKey.startsWith("x-9router-") || lowerKey.startsWith("x-vansroute-") || HEADERS_TO_REMOVE.includes(lowerKey)) {
       continue;
     }
     if (lowerKey === "authorization") {

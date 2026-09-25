@@ -1,5 +1,9 @@
 # v1.0.0 (2026-09-14)
 
+## Branding & Compatibility
+
+- Standardized newly written CLI providers, default keys, updater metadata, response headers, UI, landing copy, and current documentation on HxRouter (`HxRouter` / `hxrouter` / `sk_HxRouter`). Legacy `VansRoute`, `VansRouter`, and `9router` configuration remains readable and is migrated to the canonical HxRouter key when settings are saved or reset.
+
 ## Features
 
 - **Video generation providers** — Added OpenRouter and Vertex AI (Veo) generation adapters, asynchronous polling, image-to-video inputs, Vertex service-account authentication, and model/job path validation.

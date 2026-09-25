@@ -9,6 +9,17 @@ import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 
 const EMPTY_MODELS = [];
+const OPENCODE_PROVIDER_NAME = "HxRouter";
+const LEGACY_OPENCODE_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router"];
+
+const getOpenCodeProvider = (config) => {
+  const providers = config?.provider;
+  if (!providers) return null;
+  for (const name of [OPENCODE_PROVIDER_NAME, ...LEGACY_OPENCODE_PROVIDER_NAMES]) {
+    if (providers[name]) return providers[name];
+  }
+  return null;
+};
 
 function OpenCodeExpandedSection({ activeModel, activeProviders, apiKeys, applying, checkStatus, checking, cloudEnabled, customBaseUrl, getDisplayUrl, handleApply, handleReset, message, restoring, selectedApiKey, selectedModel, selectedModels, setActiveModel, setCustomBaseUrl, setModalOpen, setSelectedApiKey, setSelectedModels, setShowInstallGuide, setShowManualConfigModal, setSubagentModalOpen, setSubagentModel, showInstallGuide, status, subagentModel, tailscaleEnabled, tailscaleUrl, tool, tunnelEnabled, tunnelPublicUrl }) {
   return (
@@ -75,12 +86,12 @@ function OpenCodeExpandedSection({ activeModel, activeProviders, apiKeys, applyi
                 </div>
 
                 {/* Current configured */}
-                {(status?.config?.provider?.VansRoute?.options?.baseURL || status?.config?.provider?.["9router"]?.options?.baseURL) && (
+                {getOpenCodeProvider(status?.config)?.options?.baseURL && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Current</span>
                     <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
                     <span className="min-w-0 truncate rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
-                      {status.config.provider.VansRoute?.options?.baseURL || status.config.provider["9router"]?.options?.baseURL}
+                      {getOpenCodeProvider(status.config)?.options?.baseURL}
                     </span>
                   </div>
                 )}
@@ -216,7 +227,7 @@ function OpenCodeExpandedSection({ activeModel, activeProviders, apiKeys, applyi
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={selectedModels.length === 0} loading={applying}>
                   <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status.hasVansRoute} loading={restoring}>
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!status.hasHxRouter} loading={restoring}>
                   <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
@@ -252,8 +263,10 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
   const [subagentModelOverride, setSubagentModel] = useState(null);
   const subagentModel = subagentModelOverride ?? (() => {
     const model = status?.config?.agent?.explorer?.model || "";
-    if (model.startsWith("VansRoute/")) return model.replace("VansRoute/", "");
-    if (model.startsWith("9router/")) return model.replace("9router/", "");
+    for (const name of [OPENCODE_PROVIDER_NAME, ...LEGACY_OPENCODE_PROVIDER_NAMES]) {
+      const prefix = `${name}/`;
+      if (model.startsWith(prefix)) return model.slice(prefix.length);
+    }
     return "";
   })();
   const [modalOpen, setModalOpen] = useState(false);
@@ -320,7 +333,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_VansRoute" : selectedApiKey);
+        : (!cloudEnabled ? "sk_HxRouter" : selectedApiKey);
       const validActiveModel = models.includes(activeModel) ? activeModel : (models[0] || "");
       await fetch("/api/cli-tools/opencode-settings", {
         method: "POST",
@@ -341,10 +354,8 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
   const getConfigStatus = () => {
     if (!status?.installed) return null;
     if (!status.config) return "not_configured";
-    if (!status.hasVansRoute) return "not_configured";
-    const url = status.config?.provider?.VansRoute?.options?.baseURL
-      || status.config?.provider?.["9router"]?.options?.baseURL
-      || "";
+    if (!status.hasHxRouter) return "not_configured";
+    const url = getOpenCodeProvider(status.config)?.options?.baseURL || "";
     return matchKnownEndpoint(url, { tunnelPublicUrl, tailscaleUrl }) ? "configured" : "other";
   };
 
@@ -361,7 +372,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
     try {
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_VansRoute" : selectedApiKey);
+        : (!cloudEnabled ? "sk_HxRouter" : selectedApiKey);
 
       const res = await fetch("/api/cli-tools/opencode-settings", {
         method: "POST",
@@ -409,7 +420,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_VansRoute" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_HxRouter" : "<API_KEY_FROM_DASHBOARD>");
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const activeModelToShow = activeModel || selectedModels[0] || modelsToShow[0];
@@ -424,18 +435,18 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
       filename: "~/.config/opencode/opencode.json",
       content: JSON.stringify({
         provider: {
-          VansRoute: {
+          [OPENCODE_PROVIDER_NAME]: {
             npm: "@ai-sdk/openai-compatible",
             options: { baseURL: getEffectiveBaseUrl(), apiKey: keyToUse },
             models: modelsObj,
           },
         },
-        model: `VansRoute/${activeModelToShow}`,
+        model: `${OPENCODE_PROVIDER_NAME}/${activeModelToShow}`,
         agent: {
           explorer: {
             description: "Fast explorer subagent for codebase exploration",
             mode: "subagent",
-            model: `VansRoute/${effectiveSubagentModel}`
+            model: `${OPENCODE_PROVIDER_NAME}/${effectiveSubagentModel}`
           }
         }
       }, null, 2),

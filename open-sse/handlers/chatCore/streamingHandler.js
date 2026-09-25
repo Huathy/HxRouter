@@ -121,7 +121,7 @@ export async function handleStreamingResponse({
   providerResponse, provider, model, sourceFormat, targetFormat, userAgent,
   body, stream, translatedBody, finalBody, requestStartTime, connectionId,
   apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess,
-  reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe,
+  reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe, finishPending,
 }) {
   if (onRequestSuccess) {
     Promise.resolve()
@@ -146,15 +146,18 @@ export async function handleStreamingResponse({
   try {
     peek = await peekStreamReadiness(providerResponse.body);
   } catch (error) {
+    finishPending?.(true);
+    streamController?.handleError?.(error);
     return {
       success: false,
       status: 502,
-      errorCode: "STREAM_EARLY_EOF",
+      errorCode: "STREAM_READ_ERROR",
       error: error?.message || String(error)
     };
   }
 
   if (peek.empty) {
+    finishPending?.();
     return {
       success: false,
       status: STREAM_EARLY_EOF_STATUS,
@@ -163,37 +166,47 @@ export async function handleStreamingResponse({
     };
   }
 
-  const transformStream = buildTransformStream({ provider, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, model, connectionId, body, onStreamComplete, apiKey, responseModel: clientModelId });
+  try {
+    const transformStream = buildTransformStream({ provider, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, model, connectionId, body, onStreamComplete, apiKey, responseModel: clientModelId });
 
-  // Responses passthrough: synthesize response.failed + [DONE] if the stream aborts/stalls before a terminal event
-  const isResponsesPassthrough = sourceFormat === FORMATS.OPENAI_RESPONSES && targetFormat === FORMATS.OPENAI_RESPONSES;
-  const onAbortTerminal = isResponsesPassthrough ? buildAbortedResponsesTerminalBytes : null;
-  const stallTimeoutMs = PROVIDERS[provider]?.stallTimeoutMs || STREAM_STALL_TIMEOUT_MS;
-  const reconstructedResponse = new Response(reconstructStream(peek), {
-    status: providerResponse.status,
-    statusText: providerResponse.statusText,
-    headers: providerResponse.headers
-  });
-  const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
+    const isResponsesPassthrough = sourceFormat === FORMATS.OPENAI_RESPONSES && targetFormat === FORMATS.OPENAI_RESPONSES;
+    const onAbortTerminal = isResponsesPassthrough ? buildAbortedResponsesTerminalBytes : null;
+    const stallTimeoutMs = PROVIDERS[provider]?.stallTimeoutMs || STREAM_STALL_TIMEOUT_MS;
+    const reconstructedResponse = new Response(reconstructStream(peek), {
+      status: providerResponse.status,
+      statusText: providerResponse.statusText,
+      headers: providerResponse.headers
+    });
+    const transformedBody = pipeWithDisconnect(reconstructedResponse, transformStream, streamController, onAbortTerminal, stallTimeoutMs);
 
-  saveRequestDetail(buildRequestDetail({
-    provider, model, connectionId, apiKey, apiKeyName,
-    latency: { ttft: 0, total: Date.now() - requestStartTime },
-    tokens: { prompt_tokens: 0, completion_tokens: 0 },
-    request: extractRequestConfig(body, stream),
-    providerRequest: finalBody || translatedBody || null,
-    providerResponse: "[Streaming - raw response not captured]",
-    response: { content: "[Streaming in progress...]", thinking: null, type: "streaming" },
-    pxpipe,
-    status: "success"
-  }, { id: streamDetailId })).catch(err => {
-    console.error("[RequestDetail] Failed to save streaming request:", err.message);
-  });
+    saveRequestDetail(buildRequestDetail({
+      provider, model, connectionId, apiKey, apiKeyName,
+      latency: { ttft: 0, total: Date.now() - requestStartTime },
+      tokens: { prompt_tokens: 0, completion_tokens: 0 },
+      request: extractRequestConfig(body, stream),
+      providerRequest: finalBody || translatedBody || null,
+      providerResponse: "[Streaming - raw response not captured]",
+      response: { content: "[Streaming in progress...]", thinking: null, type: "streaming" },
+      pxpipe,
+      status: "success"
+    }, { id: streamDetailId })).catch(err => {
+      console.error("[RequestDetail] Failed to save streaming request:", err.message);
+    });
 
-  return {
-    success: true,
-    response: new Response(transformedBody, { headers: SSE_HEADERS })
-  };
+    return {
+      success: true,
+      response: new Response(transformedBody, { headers: SSE_HEADERS })
+    };
+  } catch (error) {
+    finishPending?.(true);
+    streamController?.handleError?.(error);
+    return {
+      success: false,
+      status: 502,
+      errorCode: "STREAM_SETUP_FAILED",
+      error: error?.message || String(error)
+    };
+  }
 }
 
 /**

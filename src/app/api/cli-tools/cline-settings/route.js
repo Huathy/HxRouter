@@ -44,12 +44,12 @@ const readJson = async (filePath) => {
   }
 };
 
-const has9RouterConfig = (globalState) => {
+const hasRouterConfig = (globalState) => {
   if (!globalState) return false;
   const isOpenAi =
     globalState.actModeApiProvider === "openai" || globalState.planModeApiProvider === "openai";
   const baseUrl = globalState.openAiBaseUrl || "";
-  return isOpenAi && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1") || baseUrl.includes("9router"));
+  return isOpenAi && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1") || /hxrouter|vansroute|vansrouter|9router/i.test(baseUrl));
 };
 
 export async function GET() {
@@ -67,7 +67,9 @@ export async function GET() {
         openAiBaseUrl: globalState?.openAiBaseUrl,
         openAiModelId: globalState?.openAiModelId,
       },
-      has9Router: has9RouterConfig(globalState),
+      hasHxRouter: hasRouterConfig(globalState),
+      // Legacy response alias retained for older clients.
+      has9Router: hasRouterConfig(globalState),
       globalStatePath: getGlobalStatePath(),
     });
   } catch (error) {
@@ -125,7 +127,7 @@ export async function DELETE() {
     delete secrets.openAiApiKey;
     await fs.writeFile(getSecretsPath(), JSON.stringify(secrets, null, 2));
 
-    return NextResponse.json({ success: true, message: "9Router settings removed from Cline" });
+    return NextResponse.json({ success: true, message: "HxRouter settings removed from Cline" });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reset cline settings" }, { status: 500 });
   }

@@ -1,6 +1,9 @@
 // Public API barrel — all DB functions
 import { getAdapter } from "./driver.js";
 import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
+import { getNextCheckinRun } from "../checkin/cron.js";
+import { normalizeCheckinScriptInput, redactCheckinConfig } from "../checkin/validation.js";
+import { decryptCheckinSecret } from "../checkin/secretCrypto.js";
 
 // Settings
 export {
@@ -32,9 +35,14 @@ export {
 // Proxy-pool fitness
 export {
   listProxyPoolFitness, upsertProxyPoolFitness,
-  deleteProxyPoolFitness, clearProxyPoolFitness,
-  deleteProxyPoolFitnessByPool,
+  deleteProxyPoolFitness, clearProxyPoolFitness, deleteProxyPoolFitnessByPool,
 } from "./repos/proxyPoolFitnessRepo.js";
+
+export {
+  listCheckinScripts, getCheckinScriptById, createCheckinScript, updateCheckinScript,
+  deleteCheckinScript, listDueCheckinScripts, claimDueCheckinScript,
+  createManualCheckinRun, markCheckinRunRunning, finishCheckinRun, listCheckinRuns, markInterruptedCheckinRuns,
+} from "./repos/checkinRepo.js";
 
 // API keys
 export {
@@ -71,7 +79,7 @@ export {
 
 // Usage
 export {
-  statsEmitter, trackPendingRequest, getActiveRequests,
+  statsEmitter, trackPendingRequest, finishPendingRequest, getActiveRequests,
   saveRequestUsage, getUsageHistory, getUsageStats, getChartData,
   appendRequestLog, getRecentLogs,
 } from "./repos/usageRepo.js";
@@ -92,6 +100,26 @@ export async function exportDb() {
     providerNodes: db.all(`SELECT * FROM providerNodes`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, type: r.type, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     proxyPools: db.all(`SELECT * FROM proxyPools`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, isActive: r.isActive === 1, testStatus: r.testStatus, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     proxyPoolFitness: db.all(`SELECT * FROM proxyPoolFitness ORDER BY poolId, scope`),
+    checkinScripts: db.all(`SELECT * FROM checkinScripts ORDER BY createdAt DESC`).map((r) => ({
+      id: r.id,
+      name: r.name,
+      enabled: r.enabled === 1,
+      scheduleType: r.scheduleType,
+      cronExpr: r.cronExpr || "",
+      timezone: r.timezone,
+      nextRunAt: r.nextRunAt ?? null,
+      lastRunAt: r.lastRunAt ?? null,
+       config: redactCheckinConfig(parseJson(r.data, {}).config || {}),
+       secretCiphertext: "",
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    })),
+    checkinRuns: db.all(`SELECT * FROM checkinRuns ORDER BY queuedAt DESC`).map((r) => ({
+      ...r,
+      summary: "",
+      errorMessage: "",
+      data: null,
+    })),
     apiKeys: db.all(`SELECT * FROM apiKeys`).map((r) => ({ id: r.id, key: r.key, name: r.name, machineId: r.machineId, isActive: r.isActive === 1, createdAt: r.createdAt })),
     combos: db.all(`SELECT * FROM combos`).map((r) => ({ id: r.id, name: r.name, kind: r.kind, models: parseJson(r.models, []), context_length: r.context_length ?? null, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     modelAliases: {},
@@ -114,15 +142,45 @@ export async function importDb(payload) {
   }
   const db = await getAdapter();
   const { bumpSettingsRevision, invalidateSettingsCache } = await import("./repos/settingsRepo.js");
+  const { assertPublicUrl } = await import("../../shared/utils/ssrfGuard.js");
+  const activeRun = db.get(`SELECT id FROM checkinRuns WHERE status IN ('queued', 'running') LIMIT 1`);
+  if (activeRun) throw new Error("Cannot import while a check-in run is active");
+  const importedCheckins = [];
+  for (const script of payload.checkinScripts || []) {
+    const normalized = normalizeCheckinScriptInput({
+      name: script.name,
+      enabled: script.enabled === true,
+      scheduleType: script.scheduleType,
+      cronExpr: script.cronExpr,
+      timezone: script.timezone,
+      config: script.config,
+      secretAction: "keep",
+    });
+    if (normalized.error) throw new Error(`Invalid check-in script: ${normalized.error}`);
+    try {
+      await assertPublicUrl(normalized.value.config.url);
+    } catch {
+      throw new Error("Invalid check-in script: target URL must be public");
+    }
+    if (script.secretCiphertext) decryptCheckinSecret(script.secretCiphertext);
+    const nextRunAt = normalized.value.enabled && normalized.value.scheduleType === "cron"
+      ? getNextCheckinRun(normalized.value.cronExpr, normalized.value.timezone)
+      : null;
+    importedCheckins.push({ script, value: normalized.value, nextRunAt });
+  }
 
   db.transaction(() => {
+    const activeRun = db.get(`SELECT id FROM checkinRuns WHERE status IN ('queued', 'running') LIMIT 1`);
+    if (activeRun) throw new Error("Cannot import while a check-in run is active");
     // Wipe all tables (keep _meta)
     db.run(`DELETE FROM settings`);
     db.run(`DELETE FROM providerConnections`);
     db.run(`DELETE FROM providerNodes`);
     db.run(`DELETE FROM proxyPools`);
-    db.run(`DELETE FROM proxyPoolFitness`);
-    db.run(`DELETE FROM apiKeys`);
+     db.run(`DELETE FROM proxyPoolFitness`);
+     db.run(`DELETE FROM checkinRuns`);
+     db.run(`DELETE FROM checkinScripts`);
+     db.run(`DELETE FROM apiKeys`);
     db.run(`DELETE FROM combos`);
     db.run(`DELETE FROM kv WHERE scope IN ('modelAliases', 'customModels', 'mitmAlias', 'pricing')`);
 
@@ -156,6 +214,19 @@ export async function importDb(payload) {
       db.run(
         `INSERT OR REPLACE INTO proxyPoolFitness(poolId, scope, until, reason, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
         [f.poolId, f.scope, f.until, f.reason || "", f.createdAt || new Date().toISOString(), f.updatedAt || new Date().toISOString()]
+      );
+    }
+    for (const { script: s, value, nextRunAt } of importedCheckins) {
+      db.run(
+        `INSERT OR REPLACE INTO checkinScripts(id, name, enabled, scheduleType, cronExpr, timezone, nextRunAt, lastRunAt, data, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [s.id, value.name, value.enabled ? 1 : 0, value.scheduleType, value.cronExpr, value.timezone, nextRunAt, s.lastRunAt ?? null, stringifyJson({ config: value.config, secretCiphertext: s.secretCiphertext || "" }), s.createdAt || new Date().toISOString(), s.updatedAt || new Date().toISOString()]
+      );
+    }
+    for (const r of payload.checkinRuns || []) {
+      const interrupted = r.status === "queued" || r.status === "running";
+      db.run(
+        `INSERT OR REPLACE INTO checkinRuns(id, scriptId, triggerType, status, queuedAt, startedAt, finishedAt, durationMs, httpStatus, summary, errorCode, errorMessage, data) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [r.id, r.scriptId, r.triggerType || "manual", interrupted ? "interrupted" : (r.status || "interrupted"), r.queuedAt || Date.now(), r.startedAt ?? null, interrupted ? Date.now() : (r.finishedAt ?? null), r.durationMs ?? null, r.httpStatus ?? null, r.summary || "", interrupted ? "INTERRUPTED" : (r.errorCode || ""), interrupted ? "Imported while active" : (r.errorMessage || ""), r.data || null]
       );
     }
     for (const k of payload.apiKeys || []) {

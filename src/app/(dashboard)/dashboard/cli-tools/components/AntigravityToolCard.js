@@ -81,7 +81,7 @@ function AntigravityExpandedSection({ apiKeys, cloudEnabled, handleModelMappingC
                   </select>
                 ) : (
                   <span className="min-w-0 rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
-                    {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_VansRoute (default)"}
+                    {cloudEnabled ? "No API keys - Create one in Keys page" : "sk_HxRouter (default)"}
                   </span>
                 )}
               </div>
@@ -320,7 +320,7 @@ export default function AntigravityToolCard({
     try {
       const keyToUse = selectedApiKey?.trim()
         || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_VansRoute" : null);
+        || (!cloudEnabled ? "sk_HxRouter" : null);
 
       const res = await fetch("/api/cli-tools/antigravity-mitm", {
         method: "POST",

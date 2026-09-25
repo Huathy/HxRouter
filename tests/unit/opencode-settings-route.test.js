@@ -46,25 +46,40 @@ beforeEach(() => {
 
 afterEach(() => vi.clearAllMocks());
 
-describe("OpenCode VansRoute contract", () => {
+describe("OpenCode HxRouter contract", () => {
   it("detects canonical and legacy providers", async () => {
     state.config = { provider: { VansRoute: { options: {}, models: { alpha: {} } } }, model: "VansRoute/alpha" };
     let data = await (await GET()).json();
+    expect(data.hasHxRouter).toBe(true);
     expect(data.hasVansRoute).toBe(true);
+    expect(data.has9Router).toBe(true);
     expect(data.opencode.activeModel).toBe("alpha");
 
     state.config = { provider: { "9router": { options: {}, models: { beta: {} } } }, model: "9router/beta" };
     data = await (await GET()).json();
-    expect(data.hasVansRoute).toBe(true);
+    expect(data.hasHxRouter).toBe(true);
     expect(data.opencode.activeModel).toBe("beta");
   });
 
-  it("writes VansRoute and migrates the legacy provider", async () => {
-    state.config = { provider: { "9router": { options: {}, models: { old: { name: "old" } } } } };
+  it("continues to read VansRouter provider entries", async () => {
+    state.config = { provider: { VansRouter: { options: {}, models: { gamma: {} } } }, model: "VansRouter/gamma" };
+    const data = await (await GET()).json();
+    expect(data.hasHxRouter).toBe(true);
+    expect(data.opencode.activeModel).toBe("gamma");
+  });
+
+
+    state.config = {
+      provider: {
+        VansRoute: { options: {}, models: { old: { name: "old" } } },
+        "9router": { options: {}, models: { older: { name: "older" } } },
+      },
+    };
     await POST(request({ baseUrl: "https://router.example", models: ["new"], activeModel: "new" }));
-    expect(state.config.provider.VansRoute).toBeDefined();
+    expect(state.config.provider.HxRouter).toBeDefined();
+    expect(state.config.provider.VansRoute).toBeUndefined();
     expect(state.config.provider["9router"]).toBeUndefined();
-    expect(state.config.model).toBe("VansRoute/new");
+    expect(state.config.model).toBe("HxRouter/new");
   });
 
   it("rejects invalid URLs and clears legacy active models", async () => {

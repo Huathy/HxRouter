@@ -33,6 +33,7 @@ export async function GET() {
     return NextResponse.json({
       models,
       lastSync,
+      now: Date.now(),
       intervalMs: 6 * 60 * 60 * 1000,
     });
   } catch (error) {

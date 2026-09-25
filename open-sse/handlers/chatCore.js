@@ -11,9 +11,11 @@ import { extractThinking } from "../translator/concerns/thinkingUnified.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
-import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, TOKEN_SAVER_HEADER, LEGACY_TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
-import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
+import * as usageDb from "@/lib/usageDb.js";
+
+const { trackPendingRequest, appendRequestLog, saveRequestDetail } = usageDb;
 import { getExecutor } from "../executors/index.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig, saveUsageStats } from "./chatCore/requestDetail.js";
@@ -242,7 +244,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   } else {
     translatedBody = translateRequest(sourceFormat, targetFormat, upstreamModel, body, upstreamStream, credentials, provider, reqLogger, stripList, connectionId, clientTool);
     if (!translatedBody) {
-      trackPendingRequest(model, provider, connectionId, false, true);
       return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Failed to translate request for ${sourceFormat} → ${targetFormat}`);
     }
     toolNameMap = translatedBody._toolNameMap;
@@ -301,8 +302,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     translatedBody.tools = defaultClaudeToolType(translatedBody.tools);
   }
 
-  // Per-request opt-out: client can bypass all token savers via header
-  const tokenSaverEnabled = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]?.toLowerCase() !== "off";
+  // Per-request opt-out: canonical header, with the legacy 9Router header fallback.
+  const tokenSaverHeader = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]
+    ?? clientRawRequest?.headers?.[LEGACY_TOKEN_SAVER_HEADER];
+  const tokenSaverEnabled = tokenSaverHeader?.toLowerCase() !== "off";
 
   // RTK: compress tool_result content
   const rtkStats = compressMessages(translatedBody, tokenSaverEnabled && rtkEnabled);
@@ -408,7 +411,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   if (passthrough && (clientTool === "claude" || targetFormat === FORMATS.CLAUDE)) anchorClaudeCache(translatedBody);
   const executor = getExecutor(provider);
-  trackPendingRequest(model, provider, connectionId, true);
+  const pendingRequestId = trackPendingRequest(model, provider, connectionId, true);
+  const finishPending = (error = false) => usageDb.finishPendingRequest?.(pendingRequestId, error);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
 
   const msgCount = translatedBody.messages?.length || translatedBody.input?.length || translatedBody.contents?.length || translatedBody.request?.contents?.length || 0;
@@ -416,10 +420,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const streamController = createStreamController({
     onDisconnect: (reason) => {
-      trackPendingRequest(model, provider, connectionId, false);
+      finishPending();
       if (onDisconnect) onDisconnect(reason);
     },
-    onError: () => trackPendingRequest(model, provider, connectionId, false),
+    onError: () => finishPending(true),
+    onComplete: () => finishPending(),
     log, provider, model
   });
 
@@ -429,9 +434,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // the client disconnects, wasting upstream calls and circuit-breaker probes.
   if (clientSignal) {
     if (clientSignal.aborted) {
-      streamController.abort();
+      streamController.handleDisconnect("client_aborted");
     } else {
-      clientSignal.addEventListener("abort", () => streamController.abort(), { once: true });
+      clientSignal.addEventListener("abort", () => streamController.handleDisconnect("client_aborted"), { once: true });
     }
   }
 
@@ -450,7 +455,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     const error = new Error(`Freebuff has no healthy proxy pool for ${model}; all assigned pools are cooling down after limited-IP errors.`);
     error.status = 503;
     error.poolScoped = { poolId: null, scope: proxyScope, reason: "no_fit_pool" };
-    trackPendingRequest(model, provider, connectionId, false, true);
+    finishPending(true);
     return createErrorResult(503, error.message);
   }
 
@@ -461,7 +466,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   ) {
     const error = new Error(`Freebuff requires a configured proxy pool for ${model}; direct egress is disabled to prevent limited-IP rate limits.`);
     error.status = 503;
-    trackPendingRequest(model, provider, connectionId, false, true);
+    finishPending(true);
     return createErrorResult(503, error.message);
   }
 
@@ -548,7 +553,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     providerResponseFormat = result.responseFormat || targetFormat;
     reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
   } catch (error) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    finishPending(true);
     const httpStatus = error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY;
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${httpStatus}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
@@ -612,7 +617,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Provider returned error
   if (!providerResponse.ok) {
-    trackPendingRequest(model, provider, connectionId, false, true);
+    finishPending(true);
     const { statusCode, message, resetsAtMs } = parsedNonOk || await parseUpstreamError(providerResponse, executor);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
@@ -636,7 +641,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
-  const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
+  const trackDone = () => finishPending();
 
   // NVIDIA Kimi: upstream was coerced to non-streaming, convert response back to SSE
   if (shouldCoerceStream && clientRequestedStreaming) {
@@ -679,7 +684,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Streaming response
   const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
-  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary });
+  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat: providerResponseFormat || targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe: pxpipeSummary, finishPending });
 }
 
 export function isTokenExpiringSoon(expiresAt, bufferMs = 5 * 60 * 1000) {

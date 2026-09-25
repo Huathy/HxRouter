@@ -101,13 +101,15 @@ export async function GET() {
     }
 
     const settings = await readSettings();
-    const has9Router = !!(settings?.env?.ANTHROPIC_BASE_URL);
+    const hasHxRouter = !!(settings?.env?.ANTHROPIC_BASE_URL);
     const claudeJson = await readClaudeJson();
 
     return NextResponse.json({
       installed: true,
       settings: settings,
-      has9Router: has9Router,
+      hasHxRouter,
+      // Legacy response alias retained for older clients.
+      has9Router: hasHxRouter,
       exaMcpEnabled: !!claudeJson?.mcpServers?.exa,
       settingsPath: getClaudeSettingsPath(),
     });

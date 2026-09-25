@@ -9,6 +9,10 @@ import os from "os";
 
 const execAsync = promisify(exec);
 
+const PROVIDER_NAME = "HxRouter";
+const LEGACY_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router"];
+const ROUTER_PROVIDER_NAMES = [PROVIDER_NAME, ...LEGACY_PROVIDER_NAMES];
+
 // OpenClaw 2026.5.x writes agents[].model as either a plain string
 // (legacy) or as an object `{ primary, fallbacks }`. Normalize to the
 // string id so downstream consumers can call `.startsWith()` safely.
@@ -56,19 +60,27 @@ const readSettings = async () => {
   }
 };
 
-// Check if settings has 9Router config
-const has9RouterConfig = (settings) => {
-  if (!settings || !settings.models || !settings.models.providers) return false;
-  return !!settings.models.providers["9router"];
+const getRouterProvider = (settings) => {
+  const providers = settings?.models?.providers || settings?.providers;
+  if (!providers) return null;
+  const key = ROUTER_PROVIDER_NAMES.find((name) => providers[name]);
+  return key ? providers[key] : null;
 };
 
-// Read per-agent models.json and return current model id (without "9router/" prefix)
+const hasRouterConfig = (settings) => !!getRouterProvider(settings);
+
+const isRouterModel = (model) => {
+  const resolved = resolveAgentModel(model);
+  return ROUTER_PROVIDER_NAMES.some((name) => resolved.startsWith(`${name}/`));
+};
+
+// Read per-agent models.json and return the current model id without its router prefix.
 const readAgentModel = async (agentDir) => {
   try {
     const modelsPath = path.join(agentDir, "models.json");
     const content = await fs.readFile(modelsPath, "utf-8");
     const data = JSON.parse(content);
-    const models = data?.providers?.["9router"]?.models;
+    const models = getRouterProvider(data)?.models;
     return models?.[0]?.id || null;
   } catch {
     return null;
@@ -101,11 +113,16 @@ export async function GET() {
       })
     );
 
+    const hasHxRouter = hasRouterConfig(settings);
+
     return NextResponse.json({
       installed: true,
       settings,
       agents: enrichedAgents,
-      has9Router: has9RouterConfig(settings),
+      hasHxRouter,
+      // Legacy response aliases retained for older dashboard/CLI clients.
+      has9Router: hasHxRouter,
+      hasVansRoute: hasHxRouter,
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {
@@ -124,16 +141,19 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
   } catch { /* No existing */ }
 
   if (!existing.providers) existing.providers = {};
-  existing.providers["9router"] = {
+  const existingProvider = getRouterProvider(existing) || {};
+  existing.providers[PROVIDER_NAME] = {
+    ...existingProvider,
     baseUrl,
     apiKey: apiKey || "your_api_key",
     api: "openai-completions",
     models: [{ id: model, name: model.split("/").pop() || model }],
   };
+  for (const legacyName of LEGACY_PROVIDER_NAMES) delete existing.providers[legacyName];
   await fs.writeFile(modelsPath, JSON.stringify(existing, null, 2));
 };
 
-// POST - Update 9Router settings (merge with existing settings)
+// POST - Update HxRouter settings (merge with existing settings)
 export async function POST(request) {
   try {
     // agentModels: { [agentId]: modelId } for per-agent override
@@ -158,11 +178,11 @@ export async function POST(request) {
     if (!settings.models.providers) settings.models.providers = {};
 
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    const fullModelId = `9router/${model}`;
+    const fullModelId = `${PROVIDER_NAME}/${model}`;
 
-    // Remove all old 9router/* entries from agents.defaults.models
+    // Remove canonical and legacy router model entries from the allowlist.
     for (const k of Object.keys(settings.agents.defaults.models)) {
-      if (k.startsWith("9router/")) delete settings.agents.defaults.models[k];
+      if (isRouterModel(k)) delete settings.agents.defaults.models[k];
     }
 
     // Update default model
@@ -172,16 +192,16 @@ export async function POST(request) {
     const allModelIds = new Set([model]);
     Object.values(agentModels).forEach((m) => { if (m) allModelIds.add(m); });
 
-    // Add fresh 9router models to allowlist
+    // Add canonical HxRouter models to the allowlist.
     allModelIds.forEach((m) => {
-      settings.agents.defaults.models[`9router/${m}`] = {};
+      settings.agents.defaults.models[`${PROVIDER_NAME}/${m}`] = {};
     });
 
-    // Remove old 9router model from each agent in agents.list. The
-    // model field may be a plain string or `{ primary, fallbacks }`.
+    // Remove old canonical/legacy router models from each configured agent.
+    // The model field may be a plain string or `{ primary, fallbacks }`.
     if (settings.agents.list) {
       settings.agents.list = settings.agents.list.map((agent) => {
-        if (resolveAgentModel(agent.model).startsWith("9router/")) {
+        if (isRouterModel(agent.model)) {
           const { model: _, ...rest } = agent;
           return rest;
         }
@@ -189,19 +209,20 @@ export async function POST(request) {
       });
     }
 
-    // Update models.providers.9router with all models
-    settings.models.providers["9router"] = {
+    // Update models.providers.HxRouter and remove every legacy duplicate.
+    settings.models.providers[PROVIDER_NAME] = {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",
       api: "openai-completions",
       models: [...allModelIds].map((m) => ({ id: m, name: m.split("/").pop() || m })),
     };
+    for (const legacyName of LEGACY_PROVIDER_NAMES) delete settings.models.providers[legacyName];
 
     // Set per-agent model in agents.list and write models.json
     if (settings.agents.list) {
       settings.agents.list = settings.agents.list.map((agent) => {
         const agentModel = agentModels[agent.id];
-        if (agentModel) return { ...agent, model: `9router/${agentModel}` };
+        if (agentModel) return { ...agent, model: `${PROVIDER_NAME}/${agentModel}` };
         return agent;
       });
 
@@ -228,7 +249,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE - Remove 9Router settings only (keep other settings)
+// DELETE - Remove HxRouter settings only (keep other settings)
 export async function DELETE() {
   try {
     const settingsPath = getOpenClawSettingsPath();
@@ -242,19 +263,18 @@ export async function DELETE() {
       });
     }
 
-    // Remove 9Router from models.providers
-    if (settings.models && settings.models.providers) {
-      delete settings.models.providers["9router"];
-      
-      // Remove providers object if empty
+    // Remove canonical and legacy HxRouter providers.
+    if (settings.models?.providers) {
+      for (const name of ROUTER_PROVIDER_NAMES) delete settings.models.providers[name];
+
       if (Object.keys(settings.models.providers).length === 0) {
         delete settings.models.providers;
       }
     }
 
-    // Remove 9router models from agents.defaults.models allowlist
+    // Remove canonical and legacy router models from the allowlist.
     if (settings.agents?.defaults?.models) {
-      const keysToRemove = Object.keys(settings.agents.defaults.models).filter((k) => k.startsWith("9router/"));
+      const keysToRemove = Object.keys(settings.agents.defaults.models).filter((key) => isRouterModel(key));
       for (const key of keysToRemove) {
         delete settings.agents.defaults.models[key];
       }
@@ -263,8 +283,8 @@ export async function DELETE() {
       }
     }
 
-    // Reset agents.defaults.model.primary if it uses 9router
-    if (settings.agents?.defaults?.model?.primary?.startsWith("9router/")) {
+    // Reset agents.defaults.model.primary if it uses a canonical or legacy router provider
+    if (isRouterModel(settings.agents?.defaults?.model?.primary)) {
       delete settings.agents.defaults.model.primary;
     }
 
@@ -273,7 +293,7 @@ export async function DELETE() {
 
     return NextResponse.json({
       success: true,
-      message: "9Router settings removed successfully",
+      message: "HxRouter settings removed successfully",
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to reset openclaw settings" }, { status: 500 });

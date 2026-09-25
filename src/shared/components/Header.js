@@ -108,7 +108,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/mitm"))
     return {
       title: "MITM Proxy",
-      description: "Intercept CLI tool traffic and route through 9Router",
+      description: "Intercept CLI tool traffic and route through HxRouter",
       icon: "security",
       breadcrumbs: [],
     };
@@ -126,6 +126,13 @@ const getPageInfo = (pathname) => {
       icon: "terminal",
       breadcrumbs: [],
     };
+  if (pathname.includes("/checkin-scripts"))
+    return {
+      title: "Check-in Scripts",
+      description: "Manage scheduled HTTP check-ins",
+      icon: "event_available",
+      breadcrumbs: [],
+    };
   if (pathname.includes("/proxy-pools"))
     return {
       title: "Proxy Pools",
@@ -136,7 +143,7 @@ const getPageInfo = (pathname) => {
   if (pathname.includes("/skills"))
     return {
       title: "Agent Skills",
-      description: "Copy a link and paste to your AI to use 9Router — no install needed",
+      description: "Copy a link and paste to your AI to use HxRouter — no install needed",
       icon: "extension",
       breadcrumbs: [],
     };

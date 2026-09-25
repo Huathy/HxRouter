@@ -38,6 +38,7 @@ export async function POST(request) {
       method: request.method,
       headers: request.headers,
       body: JSON.stringify(body),
+      signal: request.signal,
     });
     return await handleChat(patched);
   } catch {

@@ -15,7 +15,7 @@
 
 <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="huathy%2Fhxrouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Setup](#-setup-guide) • [🌐 Website](https://9router.com)
+[🚀 Quick Start](#-quick-start) • [💡 Features](#-key-features) • [📖 Setup](#-setup-guide) • [🌐 Website](https://hxrouter.com)
 
 [🇻🇳 Tiếng Việt](./i18n/README.vi.md) • [🇨🇳 中文](./i18n/README.zh-CN.md) • [🇯🇵 日本語](./i18n/README.ja-JP.md) • [🇷🇺 Русский](./i18n/README.ru.md) • [🇹🇭 ไทย](./i18n/README.th.md) • [🇮🇷 فارسی](./i18n/README.fa_IR.md)
 
@@ -521,7 +521,7 @@ HxRouter works seamlessly with all major AI coding tools:
 | 📊 **Usage Analytics**                                                            | Track tokens, cost, trends over time                                                     | Optimize spending                                 |
 | 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers                                               | Flexible deployment options                       |
 
-Set `x-9router-token-saver: off` to bypass all token savers for one chat request.
+Set `x-hxrouter-token-saver: off` to bypass all token savers for one chat request.
 
 <details>
 <summary><b>📖 Feature Details</b></summary>
@@ -1124,7 +1124,7 @@ Cost: $0 forever (+ 20-40% token savings via RTK)!
 ```
 Settings → Models → Advanced:
   OpenAI API Base URL: http://localhost:20128/v1
-  OpenAI API Key: [from 9router dashboard]
+  OpenAI API Key: [from HxRouter dashboard]
   Model: cc/claude-opus-4-7
 ```
 
@@ -1137,7 +1137,7 @@ Edit `~/.claude/config.json`:
 ```json
 {
   "anthropic_api_base": "http://localhost:20128/v1",
-  "anthropic_api_key": "your-9router-api-key"
+  "anthropic_api_key": "your-hxrouter-api-key"
 }
 ```
 
@@ -1145,7 +1145,7 @@ Edit `~/.claude/config.json`:
 
 ```bash
 export OPENAI_BASE_URL="http://localhost:20128"
-export OPENAI_API_KEY="your-9router-api-key"
+export OPENAI_API_KEY="your-hxrouter-api-key"
 
 codex "your prompt"
 ```
@@ -1165,15 +1165,15 @@ Dashboard → CLI Tools → OpenClaw → Select Model → Apply
   "agents": {
     "defaults": {
       "model": {
-        "primary": "9router/kr/claude-sonnet-4.5"
+        "primary": "HxRouter/kr/claude-sonnet-4.5"
       }
     }
   },
   "models": {
     "providers": {
-      "9router": {
+      "HxRouter": {
         "baseUrl": "http://127.0.0.1:20128/v1",
-        "apiKey": "sk_9router",
+        "apiKey": "sk_HxRouter",
         "api": "openai-completions",
         "models": [
           {
@@ -1220,7 +1220,7 @@ export PORT="20128"
 export HOSTNAME="0.0.0.0"
 export NODE_ENV="production"
 export NEXT_PUBLIC_BASE_URL="http://localhost:20128"
-export NEXT_PUBLIC_CLOUD_URL="https://9router.com"
+export NEXT_PUBLIC_CLOUD_URL="https://hxrouter.com"
 export API_KEY_SECRET="endpoint-proxy-api-key-secret"
 export MACHINE_ID_SALT="endpoint-proxy-salt"
 
@@ -1291,9 +1291,9 @@ docker pull ghcr.io/huathy/hxrouter:latest   # update to latest
 | `HOSTNAME`                                           | framework default                        | Bind host (Docker defaults to `0.0.0.0`)                                            |
 | `NODE_ENV`                                           | runtime default                          | Set `production` for deploy                                                         |
 | `BASE_URL`                                           | `http://localhost:20128`                 | Server-side internal base URL used by cloud sync jobs                               |
-| `CLOUD_URL`                                          | `https://9router.com`                    | Server-side cloud sync endpoint base URL                                            |
+| `CLOUD_URL`                                          | `https://hxrouter.com`                    | Server-side cloud sync endpoint base URL                                            |
 | `NEXT_PUBLIC_BASE_URL`                               | `http://localhost:3000`                  | Backward-compatible/public base URL (prefer `BASE_URL` for server runtime)          |
-| `NEXT_PUBLIC_CLOUD_URL`                              | `https://9router.com`                    | Backward-compatible/public cloud URL (prefer `CLOUD_URL` for server runtime)        |
+| `NEXT_PUBLIC_CLOUD_URL`                              | `https://hxrouter.com`                    | Backward-compatible/public cloud URL (prefer `CLOUD_URL` for server runtime)        |
 | `API_KEY_SECRET`                                     | `endpoint-proxy-api-key-secret`          | HMAC secret for generated API keys                                                  |
 | `MACHINE_ID_SALT`                                    | `endpoint-proxy-salt`                    | Salt for stable machine ID hashing                                                  |
 | `ENABLE_REQUEST_LOGS`                                | `false`                                  | Enables request/response logs under `logs/`                                         |
@@ -1476,7 +1476,7 @@ Authorization: Bearer your-api-key
 
 ## 📧 Support
 
-- **Website**: [9router.com](https://9router.com)
+- **Website**: [9router.com](https://hxrouter.com)
 - **GitHub**: [github.com/Huathy/HxRouter](https://github.com/Huathy/HxRouter)
 - **Issues**: [github.com/Huathy/HxRouter/issues](https://github.com/Huathy/HxRouter/issues)
 

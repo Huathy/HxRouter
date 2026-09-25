@@ -1,8 +1,11 @@
-export const GROK_MAIN_MODEL_SLOT = "9router";
+export const GROK_MAIN_MODEL_SLOT = "hxrouter";
 export const GROK_BUILTIN_DEFAULT = "grok-build";
 export const GROK_SUBAGENT_TYPES = ["general-purpose", "explore", "plan"];
 
-const UNSET_SENTINEL = "__9router_unset__";
+export const LEGACY_GROK_MODEL_SLOTS = ["9router", "VansRoute", "VansRouter"];
+const GROK_MODEL_SLOTS = [GROK_MAIN_MODEL_SLOT, ...LEGACY_GROK_MODEL_SLOTS];
+const UNSET_SENTINEL = "__hxrouter_unset__";
+const LEGACY_UNSET_SENTINELS = ["__9router_unset__", "__VansRoute_unset__", "__VansRouter_unset__"];
 const MODELS_SECTION = "models";
 const SUBAGENT_MODELS_SECTION = "subagents.models";
 
@@ -17,10 +20,30 @@ const sectionRegExp = (section) =>
 
 const modelSlot = (type) => `${GROK_MAIN_MODEL_SLOT}-${type}`;
 
-const previousDefaultRegExp = /^# 9router-prev-default = "([^"]*)"[ \t]*\r?\n?/m;
+function migrateLegacySlots(toml) {
+  let next = toml;
+  for (const legacySlot of LEGACY_GROK_MODEL_SLOTS) {
+    const legacy = escapeRegExp(legacySlot);
+    next = next.replace(
+      new RegExp(`^\\[model\\.${legacy}([^\\]]*)\\]`, "gm"),
+      `[model.${GROK_MAIN_MODEL_SLOT}$1]`,
+    );
+    next = next.replace(
+      new RegExp(`(["'])${legacy}(-[^"'\\r\\n]*)?\\1`, "g"),
+      (_match, quote, suffix = "") => `${quote}${GROK_MAIN_MODEL_SLOT}${suffix}${quote}`,
+    );
+    next = next.replace(
+      new RegExp(`# ${legacy}-prev-`, "gi"),
+      `# ${GROK_MAIN_MODEL_SLOT}-prev-`,
+    );
+  }
+  return next;
+}
+
+const previousDefaultRegExp = /^(?:# (?:hxrouter|9router|vansroute|vansrouter)-prev-default = )"([^"]*)"[ \t]*\r?\n?/im;
 const previousSubagentRegExp = (type) =>
   new RegExp(
-    `^# 9router-prev-subagent-${escapeRegExp(type)} = "([^"]*)"[ \\t]*\\r?\\n?`,
+    `^# (?:hxrouter|9router|vansroute|vansrouter)-prev-subagent-${escapeRegExp(type)} = "([^"]*)"[ \\t]*\\r?\\n?`,
     "m",
   );
 
@@ -97,7 +120,7 @@ function buildModelSection({ slot, model, baseUrl, apiKey, contextWindow, name }
     `model = ${tomlString(model)}`,
     `base_url = ${tomlString(baseUrl)}`,
     `name = ${tomlString(name)}`,
-    `description = ${tomlString("Routed via 9Router gateway")}`,
+    `description = ${tomlString("Routed via HxRouter gateway")}`,
     `api_backend = "chat_completions"`,
   ];
   if (apiKey) lines.push(`api_key = ${tomlString(apiKey)}`);
@@ -132,7 +155,7 @@ function rememberPreviousDefault(toml) {
   if (previousDefaultRegExp.test(toml)) return toml;
   const current = getSectionField(toml, MODELS_SECTION, "default");
   if (!current || current === GROK_MAIN_MODEL_SLOT) return toml;
-  return insertMarker(toml, `# 9router-prev-default = ${tomlString(current)}\n`);
+  return insertMarker(toml, `# hxrouter-prev-default = ${tomlString(current)}\n`);
 }
 
 function restorePreviousDefault(toml) {
@@ -151,7 +174,7 @@ function rememberPreviousSubagent(toml, type) {
   const previous = current == null ? UNSET_SENTINEL : current;
   return insertMarker(
     toml,
-    `# 9router-prev-subagent-${type} = ${tomlString(previous)}\n`,
+    `# hxrouter-prev-subagent-${type} = ${tomlString(previous)}\n`,
   );
 }
 
@@ -162,25 +185,34 @@ function restorePreviousSubagent(toml, type) {
   if (getSectionField(next, SUBAGENT_MODELS_SECTION, type) !== modelSlot(type)) {
     return next;
   }
-  if (previous === UNSET_SENTINEL) {
+  if (previous === UNSET_SENTINEL || LEGACY_UNSET_SENTINELS.includes(previous)) {
     return deleteSectionField(next, SUBAGENT_MODELS_SECTION, type);
   }
   return setSectionField(next, SUBAGENT_MODELS_SECTION, type, previous);
 }
 
+function getConfiguredModelSlot(toml) {
+  return GROK_MODEL_SLOTS.find((slot) => sectionRegExp(`model.${slot}`).test(toml)) || null;
+}
+
+function getConfiguredSubagentSlot(mapping, type) {
+  if (typeof mapping !== "string") return null;
+  return GROK_MODEL_SLOTS.find((slot) => mapping === `${slot}-${type}`) || null;
+}
+
 export function parseGrokBuildConfig(toml) {
+  const mainSlot = getConfiguredModelSlot(toml);
   const subagentModels = {};
   const subagentMappings = {};
   for (const type of GROK_SUBAGENT_TYPES) {
     const mapping = getSectionField(toml, SUBAGENT_MODELS_SECTION, type);
+    const slot = getConfiguredSubagentSlot(mapping, type);
     subagentMappings[type] = mapping;
-    subagentModels[type] = mapping === modelSlot(type)
-      ? parseModelSection(toml, mapping)
-      : null;
+    subagentModels[type] = slot ? parseModelSection(toml, slot) : null;
   }
 
   return {
-    model: parseModelSection(toml, GROK_MAIN_MODEL_SLOT),
+    model: mainSlot ? parseModelSection(toml, mainSlot) : null,
     default: getSectionField(toml, MODELS_SECTION, "default"),
     subagentModels,
     subagentMappings,
@@ -195,14 +227,15 @@ export function applyGrokBuildConfig(
   toml,
   { baseUrl, apiKey, model, contextWindow, subagentModels },
 ) {
-  let next = rememberPreviousDefault(toml);
+  let next = migrateLegacySlots(toml);
+  next = rememberPreviousDefault(next);
   next = upsertModelSection(next, {
     slot: GROK_MAIN_MODEL_SLOT,
     model,
     baseUrl,
     apiKey,
     contextWindow,
-    name: "9Router",
+    name: "HxRouter",
   });
   next = setSectionField(next, MODELS_SECTION, "default", GROK_MAIN_MODEL_SLOT);
 
@@ -218,7 +251,7 @@ export function applyGrokBuildConfig(
           baseUrl,
           apiKey,
           contextWindow: selected.contextWindow,
-          name: `9Router ${type}`,
+          name: `HxRouter ${type}`,
         });
         next = setSectionField(next, SUBAGENT_MODELS_SECTION, type, slot);
       } else {
@@ -232,7 +265,7 @@ export function applyGrokBuildConfig(
 }
 
 export function resetGrokBuildConfig(toml) {
-  let next = toml;
+  let next = migrateLegacySlots(toml);
   for (const type of GROK_SUBAGENT_TYPES) {
     next = restorePreviousSubagent(next, type);
     next = removeModelSection(next, modelSlot(type));

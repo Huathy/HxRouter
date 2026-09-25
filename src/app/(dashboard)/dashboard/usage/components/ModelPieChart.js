@@ -1,31 +1,18 @@
 "use client";
 
 import { useMemo, useRef, useEffect, useState, useCallback } from "react";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { getProviderAlias } from "@/shared/constants/providers";
 import { getPricingForModel } from "open-sse/providers/pricing.js";
+import { getCurrentLocale, onLocaleChange, translate } from "@/i18n/runtime";
+import { assignStableModelColors, getVividModelColor } from "./modelChartPalette";
 
 const RADIAN = Math.PI * 2;
 const MAX_ACTIVE_DOTS = 80;
 const MAX_COMPLETED_DOTS = 500;
+const EMPTY_ACTIVE_REQUESTS = [];
+const EMPTY_DISABLED_MODELS = {};
 
-// Running (active) stars get vivid, hash-spread hues so the palette is not
-// limited to a fixed 赤橙黄绿青蓝紫 set. High saturation + bright lightness
-// keeps them from ever looking gray; only completed/stopped dots use gray.
-function vividColor(key) {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  const sat = 80 + ((h >> 9) % 16);   // 80-95% — never washed out
-  const light = 60 + ((h >> 17) % 10); // 60-69% — a touch brighter than before
-  return `hsl(${hue} ${sat}% ${light}%)`;
-}
-
-// Radial gap between the edges of stars on neighbouring orbits (px).
 const ORBIT_EDGE_GAP = 9;
-
-function getProviderConfig(providerId) {
-  return AI_PROVIDERS[providerId] || { color: "#6b7280", name: providerId };
-}
 
 function getModelLabel(key) {
   const match = key.match(/^(.*) \((.*)\)$/);
@@ -33,8 +20,6 @@ function getModelLabel(key) {
   return { model: key, provider: "" };
 }
 
-// ponytail: log-scale price → radius. active [6,12] colored+glow, completed [0.5,3.0] gray.
-// Upgrade to a tunable scale if visual granularity needs finer control.
 function priceRadius(provider, model, isActive) {
   const p = getPricingForModel(provider, model);
   const sum = p ? (p.input + p.output) : 1;
@@ -44,7 +29,7 @@ function priceRadius(provider, model, isActive) {
   return isActive ? 6 + f * 6 : 0.5 + f * 2.5;
 }
 
-export default function ModelPieChart({ byModel, activeRequests = [], last10Minutes = [] }) {
+export default function ModelPieChart({ byModel, activeRequests = EMPTY_ACTIVE_REQUESTS, disabledModels = EMPTY_DISABLED_MODELS, last10Minutes = [] }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const animRef = useRef(null);
@@ -54,6 +39,32 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
   const dimsRef = useRef({ cx: 0, cy: 0, innerR: 0, outerR: 0 });
   const [dims, setDims] = useState({ width: 0, height: 0, dpr: 1 });
   const [hover, setHover] = useState(null);
+  const [locale, setLocale] = useState(getCurrentLocale());
+
+  useEffect(() => onLocaleChange(() => setLocale(getCurrentLocale())), []);
+
+  const deletedModelKeys = useMemo(() => {
+    const deleted = new Set();
+    const keys = new Set(Object.keys(byModel || {}));
+    for (const request of activeRequests) {
+      keys.add(`${request.model} (${request.provider})`);
+    }
+    for (const key of keys) {
+      const { model, provider } = getModelLabel(key);
+      const providerAlias = getProviderAlias(provider);
+      const ids = disabledModels[provider] || disabledModels[providerAlias] || [];
+      if (ids.includes(model)) deleted.add(key);
+    }
+    return deleted;
+  }, [activeRequests, byModel, disabledModels]);
+
+  const colorAssignments = useMemo(() => {
+    const keys = new Set(Object.keys(byModel || {}));
+    for (const request of activeRequests) {
+      keys.add(`${request.model} (${request.provider})`);
+    }
+    return assignStableModelColors([...keys], deletedModelKeys);
+  }, [activeRequests, byModel, deletedModelKeys]);
 
   const chartData = useMemo(() => {
     const entries = Object.entries(byModel || {});
@@ -61,7 +72,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
     return entries
       .map(([key, data]) => {
         const cfg = getModelLabel(key);
-        const provCfg = cfg.provider ? getProviderConfig(cfg.provider) : { color: "#6b7280" };
+        const colorEntry = colorAssignments.get(key);
         const latencyMs = data.latencyMs || 0;
         const latencyCount = data.latencyCount || 0;
         const totalTokens = (data.promptTokens || 0) + (data.completionTokens || 0);
@@ -69,7 +80,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
           value: key,
           name: cfg.model,
           provider: cfg.provider,
-          color: provCfg.color || "#6b7280",
+          color: colorEntry?.color || getVividModelColor(0),
           requests: data.requests || 0,
           successCount: data.successCount || 0,
           failCount: data.failCount || 0,
@@ -78,7 +89,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
         };
       })
       .sort((a, b) => b.requests - a.requests);
-  }, [byModel]);
+  }, [byModel, colorAssignments]);
 
   const totalRequests = useMemo(() => chartData.reduce((sum, d) => sum + d.requests, 0), [chartData]);
 
@@ -112,7 +123,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
       const req = activeRequests[ri];
       const key = `${req.model} (${req.provider})`;
       const speed = speedMap[key] || 0.5;
-      const color = vividColor(key);
+      const color = colorAssignments.get(key)?.color || getVividModelColor(0);
       const r = priceRadius(req.provider, req.model, true);
       const count = Math.min(req.count || 1, MAX_ACTIVE_DOTS - placedActive);
       placedActive += count;
@@ -158,13 +169,14 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
           angularSpeed: (Math.random() - 0.5) * 0.15,
           phase: Math.random() * RADIAN,
           twinkleSpeed: 0.002 + Math.random() * 0.004,
+          color: entry.color,
         });
       }
       placedCompleted += count;
     }
 
     dotsRef.current = { active, completed };
-  }, [activeRequests, speedMap, chartData]);
+  }, [activeRequests, colorAssignments, speedMap, chartData]);
 
   const hasData = chartData.length > 0 || totalActive > 0;
 
@@ -261,12 +273,12 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
 
       ctx.fillStyle = "#9ca3af";
       ctx.font = `400 ${mainFontSize * 0.68}px ui-sans-serif, system-ui`;
-      ctx.fillText("requests", cx, cy + mainFontSize * 0.7);
+      ctx.fillText(translate("requests"), cx, cy + mainFontSize * 0.7);
 
       if (totalActive > 0) {
         ctx.fillStyle = "#818cf8";
         ctx.font = `500 ${mainFontSize * 0.6}px ui-sans-serif, system-ui`;
-        ctx.fillText(`● ${totalActive} active`, cx, cy + mainFontSize * 1.35);
+        ctx.fillText(`● ${totalActive} ${translate("active")}`, cx, cy + mainFontSize * 1.35);
       }
 
       const { completed } = dotsRef.current;
@@ -277,7 +289,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
 
         const twinkle = 0.5 + 0.5 * Math.sin(now * dot.twinkleSpeed + dot.phase);
         ctx.globalAlpha = 0.35 + 0.45 * twinkle;
-        ctx.fillStyle = "rgba(107, 114, 126, 1)";
+        ctx.fillStyle = dot.color;
         const dist = scatterMin + dot.distFactor * (scatterMax - scatterMin);
         const x = cx + dist * Math.cos(dot.angle);
         const y = cy + dist * Math.sin(dot.angle);
@@ -312,7 +324,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [dims, chartData, totalRequests, totalActive]);
+  }, [dims, chartData, locale, totalRequests, totalActive]);
 
   const handleMouseMove = useCallback((e) => {
     const { cx, cy, innerR, outerR } = dimsRef.current;
@@ -349,7 +361,7 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
   if (chartData.length === 0 && totalActive === 0) {
     return (
       <div className="h-[320px] w-full min-w-0 rounded-lg border border-border bg-bg-subtle/30 sm:h-[480px] flex items-center justify-center text-text-muted text-sm">
-        No usage
+        {translate("No usage")}
       </div>
     );
   }
@@ -379,13 +391,13 @@ export default function ModelPieChart({ byModel, activeRequests = [], last10Minu
             <p className="text-text-muted">{hover.entry.provider}</p>
           )}
           <div className="mt-1 space-y-0.5 font-mono text-[11px] text-text-muted">
-            <p>Requests: <span className="text-text-main">{hover.entry.requests.toLocaleString()}</span></p>
-            <p>Share: <span className="text-text-main">{hoverPct}%</span></p>
+            <p>{translate("Requests:")} <span className="text-text-main">{hover.entry.requests.toLocaleString()}</span></p>
+            <p>{translate("Share:")} <span className="text-text-main">{hoverPct}%</span></p>
             {successRate != null && (
-              <p>Success: <span className={Number(successRate) >= 95 ? "text-success" : Number(successRate) >= 80 ? "text-warning" : "text-error"}>{successRate}%</span></p>
+              <p>{translate("Success:")} <span className={Number(successRate) >= 95 ? "text-success" : Number(successRate) >= 80 ? "text-warning" : "text-error"}>{successRate}%</span></p>
             )}
             {hover.entry.tokensPerSecond > 0 && (
-              <p>Speed: <span className="text-text-main">{hover.entry.tokensPerSecond.toFixed(1)} t/s</span></p>
+              <p>{translate("Speed:")} <span className="text-text-main">{hover.entry.tokensPerSecond.toFixed(1)} t/s</span></p>
             )}
           </div>
         </div>

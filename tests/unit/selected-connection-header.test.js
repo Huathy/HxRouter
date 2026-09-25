@@ -1,12 +1,12 @@
-// Tests for X-VansRoute-Selected-Connection-Id response header.
+// Tests for X-HxRouter-Selected-Connection-Id response header.
 import { describe, it, expect } from "vitest";
 import { withSelectedConnectionHeader, errorResponse } from "open-sse/utils/error.js";
 
 describe("withSelectedConnectionHeader", () => {
-  it("adds X-VansRoute-Selected-Connection-Id to a non-streaming response", () => {
+  it("adds X-HxRouter-Selected-Connection-Id to a non-streaming response", () => {
     const original = errorResponse(400, "bad request");
     const tagged = withSelectedConnectionHeader(original, "conn-123");
-    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-123");
+    expect(tagged.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-123");
   });
 
   it("preserves the original status code", () => {
@@ -42,7 +42,7 @@ describe("withSelectedConnectionHeader", () => {
       headers: { "Content-Type": "text/event-stream" },
     });
     const tagged = withSelectedConnectionHeader(original, "conn-stream-1");
-    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-stream-1");
+    expect(tagged.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-stream-1");
     expect(tagged.headers.get("Content-Type")).toBe("text/event-stream");
     expect(tagged.status).toBe(200);
     // Body is still readable — stream was not consumed
@@ -72,22 +72,22 @@ describe("withSelectedConnectionHeader", () => {
     });
     const tagged = withSelectedConnectionHeader(original, "conn-ratelimited");
     expect(tagged.headers.get("Retry-After")).toBe("60");
-    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-ratelimited");
+    expect(tagged.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-ratelimited");
   });
 
   it("does not mutate the original response headers", () => {
     const original = errorResponse(200, "ok");
     const tagged = withSelectedConnectionHeader(original, "conn-mutation-test");
     // Original should NOT have the header
-    expect(original.headers.get("X-VansRoute-Selected-Connection-Id")).toBe(null);
+    expect(original.headers.get("X-HxRouter-Selected-Connection-Id")).toBe(null);
     // Tagged should
-    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe("conn-mutation-test");
+    expect(tagged.headers.get("X-HxRouter-Selected-Connection-Id")).toBe("conn-mutation-test");
   });
 
   it("handles connection IDs with special characters (UUIDs)", () => {
     const uuid = "550e8400-e29b-41d4-a716-446655440000";
     const original = errorResponse(200, "ok");
     const tagged = withSelectedConnectionHeader(original, uuid);
-    expect(tagged.headers.get("X-VansRoute-Selected-Connection-Id")).toBe(uuid);
+    expect(tagged.headers.get("X-HxRouter-Selected-Connection-Id")).toBe(uuid);
   });
 });

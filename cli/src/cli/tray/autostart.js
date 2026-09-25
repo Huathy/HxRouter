@@ -12,7 +12,7 @@ const APP_LABEL = "com.9router.autostart";
  * Order of preference:
  *   1. Explicit `cliPath` argument — cleanest, used when called from running
  *      cli.js with `__filename`.
- *   2. `process.argv[1]` if it's our cli.js — true when 9router is currently
+ *   2. `process.argv[1]` if it's our cli.js — true when HxRouter is currently
  *      running and the tray menu fires this code path.
  *   3. Compute relative to this file's own location. autostart.js lives at
  *      `<pkg>/src/cli/tray/autostart.js`, so cli.js is three levels up.
@@ -115,7 +115,7 @@ function isAutoStartEnabled() {
  * launchd is managing under our agent label.
  *
  * `launchctl unload <plist>` (and `load`) for an Aqua user-domain agent sends
- * SIGTERM to the running process. When the running 9router cli.js was itself
+ * SIGTERM to the running process. When the running HxRouter cli.js was itself
  * spawned by the autostart launchd agent (i.e. user enabled autostart at
  * some point, then rebooted, then clicked the tray icon's "Disable
  * Auto-start" menu item), an unload would kill the very process executing

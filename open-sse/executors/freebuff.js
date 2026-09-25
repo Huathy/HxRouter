@@ -449,7 +449,7 @@ export class FreebuffExecutor extends BaseExecutor {
     body.codebuff_metadata = {
       client_id:
         credentials?.providerSpecificData?.fingerprintId ||
-        `9router-${crypto.randomUUID()}`,
+        `hxrouter-${crypto.randomUUID()}`,
       cost_mode: "free",
     };
     body.provider = { allow_fallbacks: false };

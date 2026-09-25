@@ -198,10 +198,10 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const handleApplySettings = async () => {
     dispatch({ type: "APPLY_START" });
     try {
-      // Use sk_VansRoute for localhost if no key, otherwise use selected key
+      // Use sk_HxRouter for localhost if no key, otherwise use selected key
       const keyToUse = (selectedApiKey && selectedApiKey.trim())
         ? selectedApiKey
-        : (!cloudEnabled ? "sk_VansRoute" : selectedApiKey);
+        : (!cloudEnabled ? "sk_HxRouter" : selectedApiKey);
 
       const res = await fetch("/api/cli-tools/codex-settings", {
         method: "POST",
@@ -256,20 +256,20 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
-      : (!cloudEnabled ? "sk_VansRoute" : "<API_KEY_FROM_DASHBOARD>");
+      : (!cloudEnabled ? "sk_HxRouter" : "<API_KEY_FROM_DASHBOARD>");
 
     const effectiveSubagentModel = subagentModel || selectedModel;
 
-    const configContent = `# HXAI Configuration for Codex CLI
+    const configContent = `# HxRouter Configuration for Codex CLI
 model = "${selectedModel}"
-model_provider = "VansRoute"
+model_provider = "hxrouter"
 
-[model_providers.VansRoute]
-name = "HXAI"
+[model_providers.hxrouter]
+name = "HxRouter"
 base_url = "${getEffectiveBaseUrl()}"
 wire_api = "responses"
 
-[model_providers.VansRoute.http_headers]
+[model_providers.hxrouter.http_headers]
 Authorization = "Bearer ${keyToUse}"
 
 [agents]

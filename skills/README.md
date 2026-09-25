@@ -1,8 +1,8 @@
-# 9Router — Agent Skills
+# HxRouter — Agent Skills
 
-Drop-in skills for any AI agent (Claude, Cursor, ChatGPT, custom SDK). Just **copy a link** below and paste it to your AI — it will fetch the skill and use 9Router for you.
+Drop-in skills for any AI agent (Claude, Cursor, ChatGPT, custom SDK). Just **copy a link** below and paste it to your AI — it will fetch the skill and use HxRouter for you.
 
-> Tip: start with the **9router** entry skill — it covers setup and links to all capability skills.
+> Tip: start with the **HxRouter** entry skill — it covers setup and links to all capability skills.
 
 ## Skills
 
@@ -39,4 +39,4 @@ Verify: `curl $NINEROUTER_URL/api/health` → `{"ok":true}`.
 ## Links
 
 - Source: https://github.com/decolua/9router
-- Dashboard: https://9router.com
+- Dashboard: https://hxrouter.com

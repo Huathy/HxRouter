@@ -15,7 +15,7 @@
  * response body to return a `kind` and the appropriate `cooldownMs`.
  *
  * Ported from OmniRoute's classify429.ts, extended with the `daily_quota`
- * kind required by VansRoute's generalized daily quota detection.
+ * kind required by HxRouter's generalized daily quota detection.
  *
  * @module open-sse/utils/classify429
  */

@@ -28,7 +28,7 @@ export default function HowItWorks() {
             </div>
           </div>
 
-          {/* Step 2: 9Router Hub */}
+          {/* Step 2: HxRouter Hub */}
           <div className="flex flex-col gap-6 relative group md:items-center md:text-center">
             <div className="w-24 h-24 rounded-2xl bg-[#141121] border-2 border-[#6366f1] flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.2)] z-10 mx-auto">
               <svg viewBox="0 0 32 32" className="w-10 h-10" fill="none">

@@ -2,7 +2,7 @@
 //
 // When ALL accounts for a provider are rate-limited, OmniRoute waits briefly
 // for the earliest account to come off cooldown and retries the whole request
-// once instead of immediately returning 503. VansRoute ports the same idea but
+// once instead of immediately returning 503. HxRouter ports the same idea but
 // with tighter bounds: max 30s wait, max 1 retry, clean abort on client
 // disconnect.
 //

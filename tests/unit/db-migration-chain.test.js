@@ -36,7 +36,7 @@ describe("Schema migrations", () => {
     const tables = db.all(`SELECT name FROM sqlite_master WHERE type='table'`).map(t => t.name);
     expect(tables).toEqual(expect.arrayContaining([
       "_meta", "settings", "providerConnections", "providerNodes",
-      "proxyPools", "apiKeys", "combos", "kv", "usageHistory", "usageDaily", "requestDetails",
+      "proxyPools", "proxyPoolFitness", "checkinScripts", "checkinRuns", "apiKeys", "combos", "kv", "usageHistory", "usageDaily", "requestDetails",
     ]));
   });
 
@@ -120,7 +120,7 @@ describe("Schema migrations", () => {
 
     await expect(runMigrationOnce(adapter)).rejects.toThrow("transient migration failure");
     await expect(runMigrationOnce(adapter)).resolves.toBeUndefined();
-    expect(parseInt(adapter.get(`SELECT value FROM _meta WHERE key='schemaVersion'`).value, 10)).toBe(8);
+    expect(parseInt(adapter.get(`SELECT value FROM _meta WHERE key='schemaVersion'`).value, 10)).toBe(10);
     expect(adapter.all(`PRAGMA table_info(combos)`).map((c) => c.name)).toContain("context_length");
     adapter.close();
   });

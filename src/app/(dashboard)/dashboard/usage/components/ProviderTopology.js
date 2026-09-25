@@ -129,7 +129,7 @@ function ProviderNode({ data }) {
 }
 
 
-// Center 9Router node — pulse/glow on card only (no expanding rings)
+// Center HxRouter node — pulse/glow on card only (no expanding rings)
 function RouterNode({ data }) {
   const powering = (data.activeCount || 0) > 0;
   return (
