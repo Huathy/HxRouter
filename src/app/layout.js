@@ -17,7 +17,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "HXAI - AI Infrastructure Management",
+  title: "HxRouter - AI Infrastructure Management",
   description: "One endpoint for all your AI providers. Manage keys, monitor usage, and scale effortlessly.",
   icons: {
     icon: "/favicon.svg",
@@ -28,12 +28,15 @@ export const viewport = {
   themeColor: "#0a0a0a",
 };
 
+const themeInitScript = `(function(){try{var raw=localStorage.getItem("theme");var t="system";if(raw){var p=JSON.parse(raw);t=(p&&p.state&&p.state.theme)||p&&p.theme||"system";}var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d){r.classList.add("dark");}else{r.classList.remove("dark");}r.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>

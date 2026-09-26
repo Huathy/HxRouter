@@ -7,6 +7,12 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { acquireLock, activate, getFreePort, pruneReleases, readCurrentTarget, selectRollbackRelease, staticDirOf, verifyRelease } from "../../scripts/deploy-atomic.cjs";
 
+// `activate()` swaps the release by renaming a symlink onto `current`. Creating
+// and renaming symlinks needs Developer Mode / elevation on Windows, so those two
+// cases fail with EPERM there. The other 7 cases never touch a symlink and run
+// everywhere.
+const symlinkIt = it.skipIf(process.platform === "win32");
+
 const tempRoots = [];
 
 function makeRelease(root, name, chunk = "chunk.js") {
@@ -51,7 +57,7 @@ describe("atomic deployment artifact", () => {
     expect(staticDirOf(release)).toBe(path.join(release, ".next", "static"));
   });
 
-  it("activates a complete release with one symlink replacement", () => {
+  symlinkIt("activates a complete release with one symlink replacement", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "deploy-atomic-test-"));
     tempRoots.push(root);
     const current = path.join(root, "current");
@@ -67,7 +73,7 @@ describe("atomic deployment artifact", () => {
     expect(fs.existsSync(path.join(newRelease, ".next", "static", "chunks", "chunk.js"))).toBe(true);
   });
 
-  it("never exposes a missing asset to concurrent HTTP requests during activation", async () => {
+  symlinkIt("never exposes a missing asset to concurrent HTTP requests during activation", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "deploy-atomic-test-"));
     tempRoots.push(root);
     const current = path.join(root, "current");

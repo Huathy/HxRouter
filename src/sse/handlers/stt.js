@@ -6,6 +6,7 @@ import {
 import { isModelAllowed } from "../services/allowedModels.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleSttCore } from "open-sse/handlers/sttCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -32,9 +33,11 @@ export async function handleStt(request) {
 
   const settings = await getSettings();
   let apiKeyInfo = null;
+  // Hoisted to function scope (not declared inside the requireApiKey branch) so the
+  // spend budget below can read the raw presented key, mirroring tts.js:44.
+  const apiKey = extractApiKey(request);
   const trustedInternal = await isTrustedInternalRequest(request);
   if (!trustedInternal && settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     apiKeyInfo = await isValidApiKey(apiKey);
     if (!apiKeyInfo) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -73,44 +76,55 @@ export async function handleStt(request) {
 
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
 
-  // noAuth providers
-  if (!CREDENTIALED_PROVIDERS.has(provider)) {
-    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
-    if (result.success) return result.response;
-    return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
-  }
+  // Spend budget gate: after every cheap/ACL check (so a malformed or forbidden
+  // request stays 4xx rather than 402) and before any upstream dispatch. Without
+  // it, /v1/audio/transcriptions is a way to keep spending an already-capped key's
+  // money. `body` is a FormData, not a plain object, so the prompt estimate is
+  // deliberately empty and the reserve bottoms out at MIN_RESERVE_CENTS — a loose
+  // gate is correct here; an ungated endpoint is not.
+  const budget = await reserveSpend({ settings, apiKeyInfo, apiKey, modality: "stt", body: null, modelStr });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
 
-  // Credentialed — fallback loop
-  const excludeConnectionIds = new Set();
-  let lastError = null;
-  let lastStatus = null;
+  return budget.dispatch(async () => {
+    // noAuth providers
+    if (!CREDENTIALED_PROVIDERS.has(provider)) {
+      const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+      if (result.success) return result.response;
+      return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
+    }
 
-  while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    // Credentialed — fallback loop
+    const excludeConnectionIds = new Set();
+    let lastError = null;
+    let lastStatus = null;
 
-    if (!credentials || credentials.allRateLimited) {
-      if (credentials?.allRateLimited) {
-        const msg = lastError || credentials.lastError || "Unavailable";
-        const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
-        return unavailableResponse(status, `[${provider}/${model}] ${msg}`, credentials.retryAfter, credentials.retryAfterHuman);
+    while (true) {
+      const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+
+      if (!credentials || credentials.allRateLimited) {
+        if (credentials?.allRateLimited) {
+          const msg = lastError || credentials.lastError || "Unavailable";
+          const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
+          return unavailableResponse(status, `[${provider}/${model}] ${msg}`, credentials.retryAfter, credentials.retryAfterHuman);
+        }
+        if (excludeConnectionIds.size === 0) return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+        return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
       }
-      if (excludeConnectionIds.size === 0) return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
-      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
+
+      log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
+
+      const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
+
+      if (result.success) return result.response;
+
+      const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
+      if (shouldFallback) {
+        excludeConnectionIds.add(credentials.connectionId);
+        lastError = result.error;
+        lastStatus = result.status;
+        continue;
+      }
+      return result.response || errorResponse(result.status, result.error);
     }
-
-    log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
-
-    const result = await handleSttCore({ provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig });
-
-    if (result.success) return result.response;
-
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
-    if (shouldFallback) {
-      excludeConnectionIds.add(credentials.connectionId);
-      lastError = result.error;
-      lastStatus = result.status;
-      continue;
-    }
-    return result.response || errorResponse(result.status, result.error);
-  }
+  });
 }

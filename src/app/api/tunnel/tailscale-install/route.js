@@ -1,10 +1,12 @@
 "use server";
 
+import { NextResponse } from "next/server";
 import os from "os";
 import { execSync } from "child_process";
 import { installTailscale, loadState, generateShortId } from "@/lib/tunnel";
 import { getCachedPassword, loadEncryptedPassword, initDbHooks } from "@/mitm/manager";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 initDbHooks(getSettings, updateSettings);
 
@@ -15,6 +17,8 @@ function hasBrew() {
 }
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await request.json().catch(() => ({}));
   const platform = os.platform();
   const isWindows = platform === "win32";

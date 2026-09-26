@@ -169,11 +169,26 @@ export default function NewProviderPage() {
           {formData.authMethod === "oauth2" && (
             <Card.Section>
               <p className="text-sm text-text-muted mb-4">
-                Connect your account using OAuth2 authentication.
+                Connect your account using OAuth2 authentication. The OAuth
+                flow is provider-specific, so it continues on the provider page.
               </p>
-              <Button type="button" variant="secondary" icon="link">
-                Connect with OAuth2
+              <Button
+                type="button"
+                variant="secondary"
+                icon="link"
+                disabled={!formData.provider}
+                onClick={() =>
+                  router.push(`/dashboard/providers/${formData.provider}`)
+                }
+              >
+                Continue to connect with OAuth2
               </Button>
+              {formData.provider && (
+                <p className="mt-3 text-xs text-text-muted">
+                  Opens {selectedProvider?.name || formData.provider} — click
+                  &ldquo;Connect&rdquo; there to start the OAuth flow.
+                </p>
+              )}
             </Card.Section>
           )}
 

@@ -1,5 +1,9 @@
-// Eagerly import every translator so register() side-effects run under ESM/vitest.
-// translator/index.js uses require() (bundler-only) which no-ops in vitest → import directly.
+// Eagerly import every translator so register() side-effects run.
+//
+// NOTE: this is now redundant. `open-sse/translator/index.js` uses static
+// `import` side-effects (not the old bundler-only `require()` that no-opped
+// under ESM), so importing that module already populates the registry. Kept
+// because existing test files import it; do not treat it as load-bearing.
 import "../../open-sse/translator/request/claude-to-openai.js";
 import "../../open-sse/translator/request/openai-to-claude.js";
 import "../../open-sse/translator/request/gemini-to-openai.js";

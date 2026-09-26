@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { cleanupTempDb } from "../helpers/tempDb.js";
 
 const originalDataDir = process.env.DATA_DIR;
 let tempDir;
@@ -28,14 +29,14 @@ beforeAll(async () => {
   adapter = await getAdapter();
 });
 
-afterAll(() => {
-  if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+afterAll(async () => {
+  if (tempDir) await cleanupTempDb(tempDir);
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
 });
 
-describe("request details â€” tab crash-risk cases", () => {
-  it("corrupt data column â†’ parseJson fallback {}, no throw", async () => {
+describe("request details â€?tab crash-risk cases", () => {
+  it("corrupt data column â†?parseJson fallback {}, no throw", async () => {
     // Inject a row with invalid JSON directly, bypassing save path
     adapter.run(
       `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?)`,
@@ -48,7 +49,7 @@ describe("request details â€” tab crash-risk cases", () => {
     expect(corrupt).toEqual({});
   });
 
-  it("pagination beyond last page â†’ empty details, valid meta", async () => {
+  it("pagination beyond last page â†?empty details, valid meta", async () => {
     const res = await db.getRequestDetails({ page: 9999, pageSize: 20 });
     expect(res.details).toEqual([]);
     expect(res.pagination.page).toBe(9999);
@@ -56,12 +57,12 @@ describe("request details â€” tab crash-risk cases", () => {
     expect(res.pagination.totalItems).toBeGreaterThanOrEqual(0);
   });
 
-  it("invalid startDate â†’ gracefully ignores invalid date filter", async () => {
+  it("invalid startDate â†?gracefully ignores invalid date filter", async () => {
     const res = await db.getRequestDetails({ startDate: "not-a-date" });
     expect(Array.isArray(res.details)).toBe(true);
   });
 
-  it("valid date filter range â†’ no throw", async () => {
+  it("valid date filter range â†?no throw", async () => {
     const res = await db.getRequestDetails({
       startDate: "2020-01-01T00:00:00",
       endDate: "2999-01-01T00:00:00",
@@ -69,7 +70,7 @@ describe("request details â€” tab crash-risk cases", () => {
     expect(Array.isArray(res.details)).toBe(true);
   });
 
-  it("large pageSize (providers route uses 9999) â†’ returns all, no crash", async () => {
+  it("large pageSize (providers route uses 9999) â†?returns all, no crash", async () => {
     await saveDetail({
       id: "big-1", provider: "anthropic", model: "claude-3",
       status: "ok", tokens: { input_tokens: 5 },
@@ -81,7 +82,7 @@ describe("request details â€” tab crash-risk cases", () => {
     expect(res.pagination.pageSize).toBe(9999);
   });
 
-  it("oversized field â†’ stored truncated + reparseable (no circular)", async () => {
+  it("oversized field â†?stored truncated + reparseable (no circular)", async () => {
     const huge = "x".repeat(20 * 1024);
     await saveDetail({
       id: "trunc-1", provider: "openai", model: "gpt-4",
@@ -96,14 +97,14 @@ describe("request details â€” tab crash-risk cases", () => {
     expect(got.request._truncated).toBe(true);
   });
 
-  it("missing tokens/timestamp on row â†’ getInputTokens-style access safe", async () => {
+  it("missing tokens/timestamp on row â†?getInputTokens-style access safe", async () => {
     adapter.run(
       `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?)`,
       ["sparse-1", new Date().toISOString(), "openai", null, null, null, JSON.stringify({ id: "sparse-1" })]
     );
     const got = await db.getRequestDetailById("sparse-1");
     expect(got.tokens).toBeUndefined();
-    // Drawer reads tokens?.prompt_tokens â€” optional chaining tolerates undefined
+    // Drawer reads tokens?.prompt_tokens â€?optional chaining tolerates undefined
     expect(got.tokens?.prompt_tokens || 0).toBe(0);
   });
 });
@@ -122,7 +123,7 @@ function getInputTokens(tokens) {
   return prompt < cache ? cache : prompt;
 }
 
-describe("backupDbLite â€” excludes requestDetails, keeps critical data", () => {
+describe("backupDbLite â€?excludes requestDetails, keeps critical data", () => {
   it("backup file omits requestDetails rows but keeps other tables", async () => {
     const { backupDbLite } = await import("@/lib/db/backup.js");
     await saveDetail({ id: "bk-1", provider: "openai", model: "m", status: "ok", tokens: {}, request: {}, response: {} });
@@ -135,7 +136,7 @@ describe("backupDbLite â€” excludes requestDetails, keeps critical data", () => 
     const Database = (await import("better-sqlite3")).default;
     const bak = new Database(dest);
     try {
-      // requestDetails is fully excluded â€” table must not exist in the backup
+      // requestDetails is fully excluded â€?table must not exist in the backup
       const rdTable = bak.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='requestDetails'").get();
       expect(rdTable).toBeUndefined();
       // Critical data preserved
@@ -148,7 +149,7 @@ describe("backupDbLite â€” excludes requestDetails, keeps critical data", () => 
   });
 });
 
-describe("getDistinctProviders â€” providers route (no full-row parse)", () => {
+describe("getDistinctProviders â€?providers route (no full-row parse)", () => {
   it("returns unique provider list without parsing data blobs", async () => {
     await saveDetail({ id: "dp-1", provider: "openai", model: "m", status: "ok", tokens: {}, request: {}, response: {} });
     await saveDetail({ id: "dp-2", provider: "anthropic", model: "m", status: "ok", tokens: {}, request: {}, response: {} });
@@ -170,15 +171,15 @@ describe("getDistinctProviders â€” providers route (no full-row parse)", () => {
   });
 });
 
-describe("token helpers â€” render-time crash safety", () => {
-  it("undefined/null tokens â†’ 0, no throw", () => {
+describe("token helpers â€?render-time crash safety", () => {
+  it("undefined/null tokens â†?0, no throw", () => {
     expect(getInputTokens(undefined)).toBe(0);
     expect(getInputTokens(null)).toBe(0);
     expect(getCachedTokens(undefined)).toBe(0);
     expect(getCacheCreationTokens(null)).toBe(0);
   });
 
-  it("empty object â†’ 0 across all helpers", () => {
+  it("empty object â†?0 across all helpers", () => {
     expect(getInputTokens({})).toBe(0);
     expect(getCachedTokens({})).toBe(0);
     expect(getCacheCreationTokens({})).toBe(0);
@@ -189,7 +190,7 @@ describe("token helpers â€” render-time crash safety", () => {
     expect(getInputTokens({ input_tokens: 50 })).toBe(50);
   });
 
-  it("legacy Claude row (prompt < cache) â†’ returns cache", () => {
+  it("legacy Claude row (prompt < cache) â†?returns cache", () => {
     expect(getInputTokens({ prompt_tokens: 10, cached_tokens: 200 })).toBe(200);
   });
 
@@ -202,7 +203,7 @@ describe("token helpers â€” render-time crash safety", () => {
   });
 });
 
-describe("API route contract â€” validation boundary", () => {
+describe("API route contract â€?validation boundary", () => {
   let GET;
   beforeAll(async () => {
     ({ GET } = await import("@/app/api/usage/request-details/route.js"));
@@ -212,40 +213,72 @@ describe("API route contract â€” validation boundary", () => {
     return new Request(`http://localhost/api/usage/request-details?${query}`);
   }
 
-  it("page=0 â†’ 400 (guard now reachable after NaN-check fix)", async () => {
+  it("page=0 â†?400 (guard now reachable after NaN-check fix)", async () => {
     const res = await GET(makeReq("page=0"));
     expect(res.status).toBe(400);
   });
 
-  it("page=-5 â†’ 400", async () => {
+  it("page=-5 â†?400", async () => {
     const res = await GET(makeReq("page=-5"));
     expect(res.status).toBe(400);
   });
 
-  it("pageSize=101 â†’ 400", async () => {
+  it("pageSize=101 â†?400", async () => {
     const res = await GET(makeReq("pageSize=101"));
     expect(res.status).toBe(400);
   });
 
-  it("pageSize=abc (NaN) â†’ defaults to 20, returns 200", async () => {
+  it("pageSize=abc (NaN) â†?defaults to 20, returns 200", async () => {
     const res = await GET(makeReq("pageSize=abc"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.pagination.pageSize).toBe(20);
   });
 
-  it("invalid startDate â†’ ignores invalid date filter, returns 200", async () => {
+  it("invalid startDate â†?ignores invalid date filter, returns 200", async () => {
     const res = await GET(makeReq("startDate=not-a-date"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body.details)).toBe(true);
   });
 
-  it("valid request â†’ 200 with details + pagination shape", async () => {
+  it("valid request â†?200 with details + pagination shape", async () => {
     const res = await GET(makeReq("page=1&pageSize=20"));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body.details)).toBe(true);
     expect(body.pagination).toMatchObject({ page: 1, pageSize: 20 });
+  });
+});
+
+// routeDecision is persisted top-level by requestDetailsRepo (never nested inside
+// `request`, which truncateField replaces wholesale once it exceeds maxJsonSize).
+// These assertions pin the read side: the field is written, survives the round
+// trip, and is actually rendered ¡ª a write-only column plus a section-numbering
+// gap is what made the plumbing unobservable.
+describe("route decision rendering", () => {
+  const SRC = path.resolve(
+    path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")),
+    "../../src/app/(dashboard)/dashboard/usage/components/RequestDetailsTab.js"
+  );
+  const read = () => fs.readFileSync(SRC, "utf8");
+
+  it("renders the persisted routeDecision object", () => {
+    const src = read();
+    expect(src).toMatch(/selectedDetail\.routeDecision/);
+    // Not just a guard: the fields have to reach the screen.
+    for (const field of ["strategy", "comboName", "provider", "model", "hit"]) {
+      expect(src, `routeDecision.${field} must be rendered`).toMatch(
+        new RegExp(`routeDecision\\.${field}\\b`)
+      );
+    }
+  });
+
+  it("gives the Route Decision section a number, and the numbers are contiguous", () => {
+    const src = read();
+    const numbers = [...src.matchAll(/<CollapsibleSection\s+title="(\d+)\./g)].map((m) => Number(m[1]));
+    expect(numbers.length).toBeGreaterThan(0);
+    // A gap here is a visible defect in the drawer: the user sees 1, 2, 3, 5, 6.
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
   });
 });

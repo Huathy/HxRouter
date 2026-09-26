@@ -212,6 +212,7 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 value={weight ?? 1}
                 onChange={(e) => onWeightChange?.(e.target.value)}
                 className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+                aria-label={`Round-robin weight for ${connection.name || connection.email || "this connection"}`}
                 title="Round-robin weight"
               />
             )}

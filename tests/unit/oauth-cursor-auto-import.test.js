@@ -60,7 +60,17 @@ vi.mock("child_process", () => ({
   }),
 }));
 
+// The route is now guarded by requireDashboardAuth. This suite exercises token
+// extraction and macOS path probing, not auth policy — so auth is stubbed open
+// rather than coupled to it. The guard itself is covered by
+// tests/unit/route-auth-gate.test.js.
+vi.mock("../../src/lib/auth/routeAuth.js", () => ({
+  requireDashboardAuth: async () => true,
+  isAuthorizedDashboardRequest: async () => true,
+}));
+
 let GET;
+const authedRequest = () => ({ headers: new Headers(), cookies: { get: () => undefined } });
 
 describe("GET /api/oauth/cursor/auto-import", () => {
   const originalPlatform = process.platform;
@@ -87,12 +97,15 @@ describe("GET /api/oauth/cursor/auto-import", () => {
   it("returns not-found when no macOS cursor db paths are accessible", async () => {
     vi.mocked(fsPromises.access).mockRejectedValue(new Error("ENOENT"));
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(false);
     expect(response.body.error).toContain("Cursor database not found");
-    // Lists the probed candidate locations
-    expect(response.body.error).toContain("Library/Application Support/Cursor");
+    // Lists the probed candidate locations. path.join normalises to the host
+    // separator, so compare with separators flattened — the darwin branch is
+    // exercised on every platform.
+    const flat = response.body.error.replace(/[\\/]/g, "/");
+    expect(flat).toContain("Library/Application Support/Cursor");
   });
 
   // ── Token extraction ──────────────────────────────────────────────────
@@ -102,7 +115,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     mockStore.set("cursorAuth/accessToken", "test-token");
     mockStore.set("storage.serviceMachineId", "test-machine-id");
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(true);
     expect(response.body.accessToken).toBe("test-token");
@@ -115,7 +128,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     mockStore.set("cursorAuth/accessToken", '"json-token"');
     mockStore.set("storage.serviceMachineId", '"json-machine-id"');
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(true);
     expect(response.body.accessToken).toBe("json-token");
@@ -128,7 +141,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     mockStore.set("cursorAuth/token", "fallback-token");
     mockStore.set("storage.machineId", "fallback-machine");
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(true);
     expect(response.body.accessToken).toBe("fallback-token");
@@ -139,7 +152,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     vi.mocked(fsPromises.access).mockResolvedValue();
     // db opens fine but contains none of the known keys
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(false);
     // Source asks the user to paste manually (windowsManual flag + dbPath)
@@ -153,7 +166,7 @@ describe("GET /api/oauth/cursor/auto-import", () => {
     Object.defineProperty(process, "platform", { value: "linux", writable: true });
     vi.mocked(fsPromises.access).mockRejectedValue(new Error("ENOENT"));
 
-    const response = await GET();
+    const response = await GET(authedRequest());
 
     expect(response.body.found).toBe(false);
     expect(response.body.error).toContain("Cursor database not found");

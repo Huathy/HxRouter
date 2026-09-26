@@ -218,3 +218,24 @@ export function getAdapterSync() {
   if (!state.instance) throw new Error("[DB] adapter not initialized — await getAdapter() first");
   return state.instance;
 }
+
+/**
+ * Close the process-wide adapter and clear the cached instance.
+ *
+ * On Windows an open SQLite handle makes the data file (and its WAL/SHM
+ * sidecars) undeletable, which breaks temp-dir cleanup in tests and blocks
+ * database replacement. Callers that swap DATA_DIR — tests, migrations,
+ * import/export — must close before touching the filesystem.
+ */
+export async function closeAdapter() {
+  const pending = state.initPromise;
+  state.instance = null;
+  state.initPromise = null;
+  if (!pending) return;
+  try {
+    const adapter = await pending;
+    await adapter.close?.();
+  } catch {
+    // An adapter that never resolved has nothing to close.
+  }
+}

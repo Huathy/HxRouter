@@ -121,7 +121,7 @@ export async function handleStreamingResponse({
   providerResponse, provider, model, sourceFormat, targetFormat, userAgent,
   body, stream, translatedBody, finalBody, requestStartTime, connectionId,
   apiKey, apiKeyInfo, apiKeyName, clientModelId, clientRawRequest, onRequestSuccess,
-  reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe, finishPending,
+  reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId, pxpipe, finishPending, routeDecision,
 }) {
   if (onRequestSuccess) {
     Promise.resolve()
@@ -188,6 +188,7 @@ export async function handleStreamingResponse({
       providerResponse: "[Streaming - raw response not captured]",
       response: { content: "[Streaming in progress...]", thinking: null, type: "streaming" },
       pxpipe,
+      routeDecision,
       status: "success"
     }, { id: streamDetailId })).catch(err => {
       console.error("[RequestDetail] Failed to save streaming request:", err.message);
@@ -212,7 +213,7 @@ export async function handleStreamingResponse({
 /**
  * Build onStreamComplete callback for streaming usage tracking.
  */
-export function buildOnStreamComplete({ provider, model, connectionId, apiKey, apiKeyInfo, apiKeyName, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe }) {
+export function buildOnStreamComplete({ provider, model, connectionId, apiKey, apiKeyInfo, apiKeyName, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, routeDecision }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
   const onStreamComplete = (contentObj, usage, ttftAt) => {
@@ -232,6 +233,7 @@ export function buildOnStreamComplete({ provider, model, connectionId, apiKey, a
       providerResponse: safeContent,
       response: { content: safeContent, thinking: safeThinking, type: "streaming" },
       pxpipe,
+      routeDecision,
       status: "success"
     }, { id: streamDetailId })).catch(err => {
       console.error("[RequestDetail] Failed to update streaming content:", err.message);

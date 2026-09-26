@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -65,7 +66,9 @@ const hasRouterConfig = (settings) => {
 };
 
 // GET - Check droid CLI and read current settings
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const isInstalled = await checkDroidInstalled();
     
@@ -96,6 +99,8 @@ export async function GET() {
 // Accepts either `model` (string, legacy single-model) or `models` (array of strings, multi-model)
 // Also accepts `activeModel` to set which model is active/primary
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, model, models, activeModel } = await request.json();
     
@@ -180,7 +185,9 @@ export async function POST(request) {
 }
 
 // DELETE - Remove HxRouter customModels only (keep other settings)
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const settingsPath = getDroidSettingsPath();
 

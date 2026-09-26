@@ -308,6 +308,7 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                         value={weights[model] ?? 1}
                         onChange={(e) => handleWeightChange(model, e.target.value)}
                         className="w-9 rounded border border-border bg-surface px-1 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+                        aria-label={`Round-robin weight for ${model}`}
                         title={`Weight for ${model}`}
                       />
                     )}
@@ -317,6 +318,14 @@ function ComboCard({ combo, getCaps, activeProviders = [], copied, onCopy, onEdi
                 ))
               )}
             </div>
+            {isRoundRobin && combo.models.length > 0 && (
+              <p className="mt-1.5 text-[11px] leading-snug text-text-muted">
+                Weight expands a model into that many round-robin slots — ×3
+                means 3 of every 10 requests go to it. Changing a weight
+                mid-session re-expands the rotation immediately, so the observed
+                distribution lags the new setting for a few requests.
+              </p>
+            )}
             {/* Fusion: judge picker (Auto = first model) */}
             {isFusion && (
               <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -477,6 +486,7 @@ function ModelItem({ id, index, model, isFirst, isLast, onEdit, onMoveUp, onMove
           value={weight}
           onChange={(e) => onWeightChange?.(e.target.value)}
           className="w-7 shrink-0 rounded border border-border bg-surface px-0.5 py-0.5 text-center font-mono text-[11px] text-text-main focus:outline-none focus:ring-1 focus:ring-primary/40"
+          aria-label={`Round-robin weight for ${model}`}
           title={`Weight for ${model}`}
         />
       )}

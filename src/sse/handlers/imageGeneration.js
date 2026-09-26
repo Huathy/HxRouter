@@ -13,6 +13,7 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleImageGenerationCore } from "open-sse/handlers/imageGenerationCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -56,10 +57,17 @@ export async function handleImageGeneration(request) {
   if (!isKindAllowed(apiKeyInfo, "image")) return errorResponse(HTTP_STATUS.FORBIDDEN, "Image generation requests are not allowed for this API key");
   if (!body.prompt) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: prompt");
 
+  // Spend budget gate: after cheap validation, before any combo expansion or
+  // upstream dispatch, so a refusal costs zero upstream spend.
+  const budget = await reserveSpend({ settings, apiKeyInfo, apiKey, modality: "image", body, modelStr });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
+
   // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
     if (!isComboAllowed(apiKeyInfo, modelStr)) {
+      // Refused after the reservation was taken, before any upstream dispatch.
+      await budget.release();
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
     }
     const comboNameImg = stripComboPrefix(modelStr);
@@ -68,7 +76,7 @@ export async function handleImageGeneration(request) {
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[comboNameImg]?.weights;
     log.info("IMAGE", `Combo "${comboNameImg}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, apiKeyInfo }),
@@ -79,10 +87,10 @@ export async function handleImageGeneration(request) {
       comboWeights,
       timeoutMs: comboStrategies[comboNameImg]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameImg]?.queueDepth ?? null,
-    });
+    }));
   }
 
-  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKeyInfo });
+  return budget.dispatch(() => handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKeyInfo }));
 }
 
 async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, apiKeyInfo } = {}) {

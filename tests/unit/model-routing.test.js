@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { cleanupTempDb } from "../helpers/tempDb.js";
 
 const originalDataDir = process.env.DATA_DIR;
 
@@ -16,8 +17,8 @@ async function setupDb() {
   return {
     createProviderNode,
     getModelInfo,
-    cleanup() {
-      fs.rmSync(tempDir, { recursive: true, force: true });
+    async cleanup() {
+      await cleanupTempDb(tempDir);
     },
   };
 }
@@ -29,10 +30,10 @@ describe("model routing", () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    cleanup();
+    await cleanup();
     cleanup = () => {};
     if (originalDataDir === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = originalDataDir;

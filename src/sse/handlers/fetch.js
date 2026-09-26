@@ -16,6 +16,7 @@ import { handleComboChat, getComboModelsFromData, stripComboPrefix } from "open-
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleFetchCore } from "open-sse/handlers/fetch/index.js";
 import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 
@@ -97,11 +98,31 @@ export async function handleFetch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, err.message);
   }
 
+  // Spend budget gate: after cheap validation and the SSRF guard, before any combo
+  // expansion or upstream dispatch, so a refusal costs zero upstream spend.
+  // NOTE: for web fetch the "model" IS the provider (no model field), so
+  // providerInput is passed as modelStr AND as the pricing provider.
+  // This handler does not import isTrustedInternalRequest, so apiKeyInfo is
+  // structurally null unless requireApiKey is on; the gate therefore falls back to
+  // the presented raw key (see budgetKeyId) or the __local__ bucket.
+  const budget = await reserveSpend({
+    settings,
+    apiKeyInfo,
+    apiKey,
+    modality: "webFetch",
+    body,
+    modelStr: providerInput,
+    provider: resolveProviderId(providerInput),
+  });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
+
   // Combo expansion: providerInput may be a combo name → run fallback/round-robin across providers
   const combos = await getCombos();
   const comboModels = getComboModelsFromData(providerInput, combos);
   if (comboModels) {
     if (!isComboAllowed(apiKeyInfo, providerInput)) {
+      // Refused after the reservation was taken, before any upstream dispatch.
+      await budget.release();
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${providerInput}" is not allowed for this API key`);
     }
     const comboNameFetch = stripComboPrefix(providerInput);
@@ -110,7 +131,7 @@ export async function handleFetch(request) {
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[comboNameFetch]?.weights;
     log.info("FETCH", `Combo "${comboNameFetch}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleProviderFetch(b, m, request, apiKey, settings, apiKeyInfo),
@@ -121,10 +142,10 @@ export async function handleFetch(request) {
       comboWeights,
       timeoutMs: comboStrategies[comboNameFetch]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameFetch]?.queueDepth ?? null,
-    });
+    }));
   }
 
-  return handleSingleProviderFetch(body, providerInput, request, apiKey, settings, apiKeyInfo);
+  return budget.dispatch(() => handleSingleProviderFetch(body, providerInput, request, apiKey, settings, apiKeyInfo));
 }
 
 async function handleSingleProviderFetch(body, providerInput, request, apiKey, settings, apiKeyInfo = null) {

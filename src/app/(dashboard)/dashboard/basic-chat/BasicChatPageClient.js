@@ -2,9 +2,102 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { marked } from "marked";
 import { Badge, Button } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias, isAnthropicCompatibleProvider, isOpenAICompatibleProvider } from "@/shared/constants/providers";
+import { usageFromChunk, formatUsageSummary } from "@/shared/utils/sseUsage.js";
+
+marked.setOptions({ gfm: true, breaks: true });
+
+// Same sanitizer + policy as ChangelogModal.js: marked output is untrusted
+// model text, so it never reaches the DOM without DOMPurify.
+function sanitizeHtml(html) {
+  if (typeof window === "undefined") return "";
+  const DOMPurify = require("dompurify");
+  return DOMPurify.sanitize(html, { FORBID_TAGS: ["script", "iframe", "object", "embed", "form"], FORBID_ATTR: ["onerror", "onload", "onclick"] });
+}
+
+// Markdown is applied to the ASSISTANT message only. It costs a ~40KB gzip of
+// `marked` + `dompurify` in the client bundle and an HTML parse per render, so
+// the user's own input — which is plain text typed into the textarea — is
+// rendered as text, never as markdown.
+function renderMarkdown(md) {
+  if (!md) return "";
+  return sanitizeHtml(marked.parse(md));
+}
+
+// Assistant bubble body. A component (not an inline block in the message map)
+// so `marked.parse` can be memoized per content string.
+//
+// The memo is only effective if its key changes at a BOUNDED rate, not once per
+// streamed chunk: during a stream `content` is the whole accumulated answer, so
+// memoizing on it would re-parse and re-sanitize the entire reply for every
+// chunk — quadratic over a long answer. The caller therefore feeds this
+// component a throttled value (see useThrottledValue below); a finished message
+// passes its final text straight through and renders immediately.
+function AssistantMarkdown({ content, showCursor = false }) {
+  const html = useMemo(() => renderMarkdown(content), [content]);
+
+  return (
+    <>
+      <div
+        className="break-words text-[15px] leading-7 [&_a]:text-blue-300 [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:text-white/60 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[13px] [&_h1]:mb-1 [&_h1]:mt-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-1 [&_h2]:mt-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:mt-2 [&_h3]:text-[15px] [&_h3]:font-semibold [&_hr]:my-3 [&_hr]:border-white/10 [&_img]:max-w-full [&_img]:rounded-lg [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-black/40 [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_table]:block [&_table]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5"
+        // SECURITY: html is sanitized via DOMPurify.sanitize() before reaching this element
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {showCursor ? <span className="inline-block animate-pulse">▋</span> : null}
+    </>
+  );
+}
+
+// ~8fps. Fast enough that the bubble still visibly fills as the reply streams,
+// slow enough that marked.parse + DOMPurify.sanitize run a bounded number of
+// times instead of once per chunk.
+const MARKDOWN_REFRESH_MS = 120;
+
+/**
+ * Rate-limit a rapidly-changing value to at most one update per `delayMs`.
+ *
+ * Used for the streaming assistant text, whose consumer (AssistantMarkdown) does
+ * O(len) work per render: re-rendering it on every chunk makes a streamed reply
+ * quadratic. The raw text still advances on every chunk — only what the markdown
+ * layer sees is throttled, so typing/cursor feedback is unaffected.
+ *
+ * A pending timer always commits the LATEST value (not the one captured when it
+ * was scheduled), so a burst of chunks can never leave stale text on screen.
+ */
+function useThrottledValue(value, delayMs = MARKDOWN_REFRESH_MS) {
+  const [throttled, setThrottled] = useState(value);
+  const latestRef = useRef(value);
+  const lastCommitRef = useRef(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    latestRef.current = value;
+    if (timerRef.current !== null) return; // an update is already scheduled
+    const wait = delayMs - (Date.now() - lastCommitRef.current);
+    if (wait <= 0) {
+      lastCommitRef.current = Date.now();
+      setThrottled(value);
+      return;
+    }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      lastCommitRef.current = Date.now();
+      setThrottled(latestRef.current);
+    }, wait);
+  }, [value, delayMs]);
+
+  useEffect(() => () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  return throttled;
+}
 
 const STORAGE_KEYS = {
   sessions: "basic-chat.sessions",
@@ -516,6 +609,11 @@ export default function BasicChatPageClient() {
   const refreshSeqRef = useRef(0);
   const changeDebounceRef = useRef(null);
 
+  // Bounded-rate view of the streaming text for the markdown layer. Falls back to
+  // "" the moment streaming stops, so a finished message renders its own final
+  // content immediately (see the map below).
+  const throttledStreamingText = useThrottledValue(streamingText, MARKDOWN_REFRESH_MS);
+
   const refreshGroups = useCallback(async ({ refresh = false, silent = true } = {}) => {
     const seq = refreshSeqRef.current + 1;
     refreshSeqRef.current = seq;
@@ -1011,6 +1109,28 @@ export default function BasicChatPageClient() {
 
           try {
             const chunk = JSON.parse(payload);
+
+            // A usage report arrives as its own frame whose `choices` array is
+            // EMPTY (OpenAI `include_usage`) or as `usage` bolted onto the last
+            // content frame (every other provider's response translator). It
+            // must therefore be read BEFORE the text bail-out below: with an
+            // empty `choices`, readAssistantText() returns "" and
+            // `if (!text) continue` would drop the only chunk that carries the
+            // token counts, leaving the footnote permanently empty.
+            //
+            // `usageFromChunk(chunk)`, not `extractUsageFromSSE(line)`: this loop
+            // has already split, trimmed and parsed `chunk` above, so passing the
+            // raw line would re-do all three plus a second JSON.parse of the same
+            // payload on every frame of the stream.
+            const usage = usageFromChunk(chunk);
+            if (usage) {
+              updateSession(sessionId, (currentSession) => ({
+                ...currentSession,
+                messages: currentSession.messages.map((message) => (message.id === assistantMessageId ? { ...message, usage } : message)),
+                updatedAt: new Date().toISOString(),
+              }));
+            }
+
             const text = readAssistantText(chunk);
             if (!text) continue;
 
@@ -1257,6 +1377,14 @@ export default function BasicChatPageClient() {
                 const isAssistant = message.role === "assistant";
                 const isStreaming = isAssistant && message.id === streamingMessageId && message.status === "streaming";
                 const content = textValue(message.content) || (isAssistant ? streamingText : "");
+                // The streaming bubble renders the throttled text so markdown
+                // parse+sanitize runs at most every MARKDOWN_REFRESH_MS instead of
+                // once per chunk; every other message renders its own final
+                // content immediately.
+                const markdownContent = isStreaming ? throttledStreamingText : content;
+                const usageFootnote = isAssistant
+                  ? formatUsageSummary(message.usage, { provider: activeModel?.providerId, model: activeModel?.id })
+                  : "";
 
                 return (
                   <div key={message.id} className={`flex w-full ${isUser ? "justify-end" : "justify-start"} mb-6`}>
@@ -1275,10 +1403,16 @@ export default function BasicChatPageClient() {
                         </div>
                       ) : null}
 
-                      <div className="whitespace-pre-wrap break-words text-[15px] leading-7">
-                        {content}
-                        {isAssistant && isStreaming && !streamingText ? <span className="inline-block animate-pulse">▋</span> : null}
-                      </div>
+                      {isAssistant ? (
+                        <AssistantMarkdown content={markdownContent} showCursor={isStreaming && !streamingText} />
+                      ) : (
+                        // User input stays plain text on purpose — see renderMarkdown().
+                        <div className="whitespace-pre-wrap break-words text-[15px] leading-7">{content}</div>
+                      )}
+
+                      {usageFootnote ? (
+                        <p className="mt-2 text-[11px] leading-5 text-white/35">{usageFootnote}</p>
+                      ) : null}
                     </div>
                   </div>
                 );

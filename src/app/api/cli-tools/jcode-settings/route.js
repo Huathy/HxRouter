@@ -7,6 +7,7 @@ import os from "os";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { parseTOML, stringifyTOML } from "confbox";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -128,7 +129,9 @@ const removeProviderEnvKeys = async (providerName) => {
   await writeProviderEnv(env, providerName);
 };
 
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const isInstalled = await checkJcodeInstalled();
 
   if (!isInstalled) {
@@ -154,6 +157,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, models } = await request.json();
 
@@ -212,7 +217,9 @@ export async function POST(request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const config = await readConfig();
 

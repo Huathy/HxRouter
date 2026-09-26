@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -99,7 +100,9 @@ const hasRouterConfig = (modelCfg) => {
   return modelCfg.provider === "custom" && /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(modelCfg.base_url);
 };
 
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const installed = await checkHermesInstalled();
     if (!installed) {
@@ -121,6 +124,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, model } = await request.json();
     if (!baseUrl || !model) {
@@ -154,7 +159,9 @@ export async function POST(request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const configPath = getHermesConfigPath();
     const yaml = await readConfigYaml();

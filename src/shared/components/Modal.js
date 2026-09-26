@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { cn } from "@/shared/utils/cn";
+import { useDialogFocusTrap } from "@/shared/hooks/useDialogFocusTrap";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
 
@@ -27,6 +28,8 @@ export default function Modal({
 }) {
   const sizeClass = MODAL_SIZES[size] || MODAL_SIZES.md;
   const onCloseRef = useRef(onClose);
+  const panelRef = useRef(null);
+  const titleId = useId();
   useEffect(() => {
     onCloseRef.current = onClose;
   });
@@ -48,6 +51,10 @@ export default function Modal({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen]);
 
+  // Dialog a11y: initial focus, Tab/Shift+Tab cycling, focus restore on close.
+  // Shared with Drawer so a fix cannot land in one and miss the other.
+  useDialogFocusTrap({ isOpen, panelRef });
+
   if (!isOpen) return null;
 
   return (
@@ -61,6 +68,11 @@ export default function Modal({
 
       {/* Modal content */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
         className={cn(
           "relative w-full bg-surface",
           "border border-border-subtle",
@@ -92,7 +104,7 @@ export default function Modal({
                 </div>
               )}
               {title && (
-                <h2 className="text-lg font-semibold text-text-main">{title}</h2>
+                <h2 id={titleId} className="text-lg font-semibold text-text-main">{title}</h2>
               )}
             </div>
             {/* X button — mobile only */}

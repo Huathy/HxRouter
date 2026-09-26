@@ -1,12 +1,88 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
+import { diffJsonLines } from "./requestDiff";
+
+/**
+ * Side-by-side view of what translation changed between the client request and
+ * the upstream request. Diffing is windowed and cell-budgeted in `requestDiff`
+ * so a large tool-heavy payload cannot stall the panel.
+ */
+function RequestDiffView({ clientRequest, providerRequest }) {
+  const result = useMemo(
+    () => diffJsonLines(clientRequest, providerRequest),
+    [clientRequest, providerRequest],
+  );
+
+  if (result.status === "identical") {
+    return (
+      <p className="text-xs text-text-muted">
+        No difference — this request was forwarded to the upstream provider
+        without translation.
+      </p>
+    );
+  }
+
+  if (result.status === "too-large") {
+    return (
+      <p className="text-xs text-text-muted">{result.reason}</p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-text-muted">
+        {result.leftTotal} lines in, {result.rightTotal} lines out.{" "}
+        <span className="text-red-500">-</span> removed /{" "}
+        <span className="text-green-600">+</span> added by translation and token
+        savers.
+      </p>
+      <div className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 font-mono text-xs dark:border-white/5 dark:bg-white/5">
+        {result.omittedBefore > 0 && (
+          <DiffOmitted count={result.omittedBefore} label="identical lines above" />
+        )}
+        {result.rows.map((row, index) => (
+          <DiffRowView key={index} row={row} />
+        ))}
+        {result.omittedAfter > 0 && (
+          <DiffOmitted count={result.omittedAfter} label="identical lines below" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DiffOmitted({ count, label }) {
+  return (
+    <div className="border-b border-black/5 px-3 py-1 text-[11px] italic text-text-muted dark:border-white/5">
+      … {count} {label}
+    </div>
+  );
+}
+
+const DIFF_ROW_STYLE = {
+  equal: "text-text-muted",
+  delete: "bg-red-500/10 text-red-600 dark:text-red-300",
+  insert: "bg-green-500/10 text-green-700 dark:text-green-300",
+};
+
+const DIFF_ROW_MARK = { equal: "  ", delete: "- ", insert: "+ " };
+
+function DiffRowView({ row }) {
+  const text = row.type === "insert" ? row.right : row.left;
+  return (
+    <div className={cn("whitespace-pre-wrap break-all px-3 py-px", DIFF_ROW_STYLE[row.type])}>
+      <span className="select-none opacity-60">{DIFF_ROW_MARK[row.type]}</span>
+      {text}
+    </div>
+  );
+}
 
 let providerNameCache = null;
 let providerNodesCache = null;
@@ -516,22 +592,70 @@ export default function RequestDetailsTab() {
             )}
 
             <div className="space-y-4">
-              <CollapsibleSection title="1. Client Request (Input)" defaultOpen={true} icon="input">
+              {selectedDetail.providerRequest && (
+                <CollapsibleSection title="1. Translation Diff (what changed)" icon="difference" defaultOpen={false}>
+                  <RequestDiffView
+                    clientRequest={selectedDetail.request}
+                    providerRequest={selectedDetail.providerRequest}
+                  />
+                </CollapsibleSection>
+              )}
+
+              <CollapsibleSection title="2. Client Request (Input)" defaultOpen={true} icon="input">
                 <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                   {JSON.stringify(selectedDetail.request, null, 2)}
                 </pre>
               </CollapsibleSection>
 
               {selectedDetail.providerRequest && (
-                <CollapsibleSection title="2. Provider Request (Translated)" icon="translate">
+                <CollapsibleSection title="3. Provider Request (Translated)" icon="translate">
                   <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                     {JSON.stringify(selectedDetail.providerRequest, null, 2)}
                   </pre>
                 </CollapsibleSection>
               )}
 
+              {/* 4. Route Decision — the reason this request landed on this
+                  provider/model. Persisted top-level by requestDetailsRepo (never
+                  nested inside `request`, which truncateField can replace
+                  wholesale), and null for rows written before the field existed. */}
+              {selectedDetail.routeDecision && (
+                <CollapsibleSection title="4. Route Decision (why this target)" icon="alt_route" defaultOpen={false}>
+                  <div className="mb-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                    <div>
+                      <span className="text-text-muted block text-xs">Strategy</span>
+                      <span className="font-mono">{selectedDetail.routeDecision.strategy || "direct"}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Combo</span>
+                      <span className="break-all font-mono">{selectedDetail.routeDecision.comboName || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Provider</span>
+                      <span className="break-all font-mono">{selectedDetail.routeDecision.provider || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-xs">Model</span>
+                      <span className="break-all font-mono">{selectedDetail.routeDecision.model || "-"}</span>
+                    </div>
+                  </div>
+                  {Number.isFinite(Number(selectedDetail.routeDecision.hit)) && (
+                    <p className="mb-3 text-xs text-text-muted">
+                      Served on credential attempt{" "}
+                      <span className="font-mono text-text-main">{selectedDetail.routeDecision.hit}</span>
+                      {Number(selectedDetail.routeDecision.hit) > 1
+                        ? " — earlier account(s) failed and this request fell back."
+                        : "."}
+                    </p>
+                  )}
+                  <pre className="max-h-[200px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
+                    {JSON.stringify(selectedDetail.routeDecision, null, 2)}
+                  </pre>
+                </CollapsibleSection>
+              )}
+
               {selectedDetail.providerResponse && (
-                <CollapsibleSection title="3. Provider Response (Raw)" icon="data_object">
+                <CollapsibleSection title="5. Provider Response (Raw)" icon="data_object">
                   <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
                     {typeof selectedDetail.providerResponse === 'object'
                       ? JSON.stringify(selectedDetail.providerResponse, null, 2)
@@ -541,7 +665,7 @@ export default function RequestDetailsTab() {
                 </CollapsibleSection>
               )}
 
-              <CollapsibleSection title="4. Client Response (Final)" defaultOpen={true} icon="output">
+              <CollapsibleSection title="6. Client Response (Final)" defaultOpen={true} icon="output">
                 {selectedDetail.response?.thinking && (
                   <div className="mb-4">
                     <h4 className="font-semibold text-text-main mb-2 flex items-center gap-2 text-xs uppercase tracking-wide opacity-70">

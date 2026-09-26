@@ -11,6 +11,7 @@ import {
 import { getSettings, getProviderConnectionById } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets } from "open-sse/handlers/videoCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -55,13 +56,14 @@ const CREATE_ROTATION_STATUSES = new Set([
 async function requireValidApiKey(request) {
   const settings = await getSettings();
   const trustedInternal = await isTrustedInternalRequest(request);
-  if (trustedInternal || !settings.requireApiKey) return { apiKeyInfo: null };
-
   const apiKey = extractApiKey(request);
+  if (trustedInternal || !settings.requireApiKey) return { apiKeyInfo: null, settings, apiKey };
   if (!apiKey) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key") };
   const apiKeyInfo = await isValidApiKey(apiKey);
   if (!apiKeyInfo) return { error: errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key") };
-  return { apiKeyInfo };
+  // `settings` and `apiKey` ride along so the spend budget gate in
+  // handleVideoCreate can read both without re-parsing the request.
+  return { apiKeyInfo, settings, apiKey };
 }
 
 /**
@@ -148,66 +150,85 @@ export async function handleVideoCreate(request, action) {
   const preferredConnectionId = request.headers.get("x-connection-id") || null;
   const idempotencyKey = request.headers.get("idempotency-key") || null;
 
-  const excludeConnectionIds = new Set();
-  let lastError = null;
-  let lastStatus = null;
+  // Spend budget gate: after every ACL check (so a forbidden request stays 403
+  // rather than 402) and before the credential loop, i.e. before any upstream
+  // dispatch. Without it, /v1/videos/* is a way to keep spending an already-capped
+  // key's money. `bodyInfo.parsed` is null for binary uploads, and video is billed
+  // per job rather than per token, so the reserve bottoms out at MIN_RESERVE_CENTS
+  // — a loose gate is correct here; an ungated endpoint is not.
+  const budget = await reserveSpend({
+    settings: auth.settings,
+    apiKeyInfo: auth.apiKeyInfo,
+    apiKey: auth.apiKey,
+    modality: "video",
+    body: bodyInfo.parsed,
+    modelStr: model || provider,
+    provider,
+  });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
 
-  while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
+  return budget.dispatch(async () => {
+    const excludeConnectionIds = new Set();
+    let lastError = null;
+    let lastStatus = null;
 
-    if (!credentials || credentials.allRateLimited) {
-      if (credentials?.allRateLimited) {
-        const errorMsg = lastError || credentials.lastError || "Unavailable";
-        const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
-        return unavailableResponse(status, `[${provider}/${model || "video"}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+    while (true) {
+      const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { preferredConnectionId });
+
+      if (!credentials || credentials.allRateLimited) {
+        if (credentials?.allRateLimited) {
+          const errorMsg = lastError || credentials.lastError || "Unavailable";
+          const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
+          return unavailableResponse(status, `[${provider}/${model || "video"}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+        }
+        if (excludeConnectionIds.size === 0) {
+          return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+        }
+        return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
       }
-      if (excludeConnectionIds.size === 0) {
-        return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+
+      const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+
+      const result = await handleVideoProxyCore({
+        provider,
+        action,
+        rawBody: forwardBody,
+        contentType: bodyInfo.contentType || null,
+        idempotencyKey,
+        credentials: refreshedCredentials,
+        signal: request.signal,
+        log,
+        onCredentialsRefreshed: async (newCreds) => {
+          await updateProviderCredentials(credentials.connectionId, {
+            accessToken: newCreds.accessToken,
+            refreshToken: newCreds.refreshToken,
+            providerSpecificData: newCreds.providerSpecificData,
+            testStatus: "active",
+          });
+        },
+      });
+
+      if (result.success) {
+        await clearAccountError(credentials.connectionId, credentials, model);
+        log.info("VIDEO", `${provider.toUpperCase()} | ${action} accepted (connection ${credentials.connectionId})`);
+        return withConnectionHeader(result.response, credentials.connectionId);
       }
-      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
+
+      // Record the failure (dashboard shows lastError/errorCode → user sees re-auth is needed)
+      const { shouldFallback } = await markAccountUnavailable(
+        credentials.connectionId, result.status, sanitizeSecrets(result.error, refreshedCredentials), provider, model
+      );
+
+      if (shouldFallback && CREATE_ROTATION_STATUSES.has(result.status)) {
+        excludeConnectionIds.add(credentials.connectionId);
+        lastError = result.error;
+        lastStatus = result.status;
+        continue;
+      }
+
+      return result.response;
     }
-
-    const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
-
-    const result = await handleVideoProxyCore({
-      provider,
-      action,
-      rawBody: forwardBody,
-      contentType: bodyInfo.contentType || null,
-      idempotencyKey,
-      credentials: refreshedCredentials,
-      signal: request.signal,
-      log,
-      onCredentialsRefreshed: async (newCreds) => {
-        await updateProviderCredentials(credentials.connectionId, {
-          accessToken: newCreds.accessToken,
-          refreshToken: newCreds.refreshToken,
-          providerSpecificData: newCreds.providerSpecificData,
-          testStatus: "active",
-        });
-      },
-    });
-
-    if (result.success) {
-      await clearAccountError(credentials.connectionId, credentials, model);
-      log.info("VIDEO", `${provider.toUpperCase()} | ${action} accepted (connection ${credentials.connectionId})`);
-      return withConnectionHeader(result.response, credentials.connectionId);
-    }
-
-    // Record the failure (dashboard shows lastError/errorCode → user sees re-auth is needed)
-    const { shouldFallback } = await markAccountUnavailable(
-      credentials.connectionId, result.status, sanitizeSecrets(result.error, refreshedCredentials), provider, model
-    );
-
-    if (shouldFallback && CREATE_ROTATION_STATUSES.has(result.status)) {
-      excludeConnectionIds.add(credentials.connectionId);
-      lastError = result.error;
-      lastStatus = result.status;
-      continue;
-    }
-
-    return result.response;
-  }
+  });
 }
 
 /**

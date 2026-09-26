@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -82,7 +83,9 @@ const stripRouterPrefix = (model) => {
 };
 
 // GET - Check opencode CLI and read current settings
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const isInstalled = await checkOpenCodeInstalled();
 
@@ -121,6 +124,8 @@ export async function GET() {
 
 // POST - Apply HxRouter as an OpenAI-compatible provider (multi-model support)
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, model, models, activeModel, subagentModel } = await request.json();
 
@@ -211,6 +216,8 @@ export async function POST(request) {
 
 // PATCH - Update specific settings (e.g., clear active model)
 export async function PATCH(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { clearActiveModel } = await request.json();
     if (clearActiveModel !== true) {
@@ -243,6 +250,8 @@ export async function PATCH(request) {
 
 // DELETE - Remove HxRouter provider or specific models from config
 export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { searchParams } = new URL(request.url);
     const modelToRemove = searchParams.get("model");

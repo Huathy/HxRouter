@@ -33,12 +33,19 @@ const STATUS_GETTERS = {
   devin: devinGet,
 };
 
-// Batch endpoint: gather all CLI tool statuses in one round-trip
-export async function GET() {
+// Batch endpoint: gather all CLI tool statuses in one round-trip.
+//
+// `request` MUST be forwarded to every getter. The per-tool GET handlers all
+// open with `requireDashboardAuth(request)`, which dereferences
+// `request.headers` — calling them without an argument throws a TypeError that
+// the `catch {}` below turns into `null`, silently blanking every tool status.
+// Forwarding the real request also means each tool evaluates the caller's
+// actual cookies/headers instead of being waved through.
+export async function GET(request) {
   const entries = await Promise.all(
     Object.entries(STATUS_GETTERS).map(async ([toolId, getter]) => {
       try {
-        const res = await getter();
+        const res = await getter(request);
         const data = await res.json();
         return [toolId, data];
       } catch {

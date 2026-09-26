@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
@@ -958,6 +959,16 @@ export default function APIPageClient() {
             copyId="local_url"
             copied={copied}
             onCopy={copy}
+            actions={
+              <Link
+                href="/dashboard/cli-tools"
+                title="Configure a CLI client against this endpoint"
+                className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">terminal</span>
+                CLI Tools
+              </Link>
+            }
           />
           {/* Cloudflare Tunnel */}
           <div className="flex items-center gap-2">

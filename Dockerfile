@@ -8,9 +8,13 @@ WORKDIR /app
 
 RUN apk add --no-cache python3 make g++ linux-headers
 
-COPY package.json ./
+COPY package.json package-lock.json ./
+# `npm ci` installs exactly what package-lock.json pins. `npm install` would
+# float `next` (and everything else) to the newest match, so two builds of the
+# same commit could produce different images. Keep the lockfile in sync with
+# package.json: regenerate it with `npm install --package-lock-only`.
 RUN --mount=type=cache,target=/root/.npm \
-  npm install --include=optional --no-audit --no-fund
+  npm ci --include=optional --no-audit --no-fund
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1

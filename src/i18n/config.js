@@ -1,4 +1,4 @@
-export const LOCALES = ["en", "vi", "zh-CN", "zh-TW", "ja", "pt-BR", "pt-PT", "ko", "es", "de", "fr", "he", "ar", "ru", "pl", "cs", "nl", "tr", "uk", "tl", "id", "th", "hi", "bn", "ur", "ro", "sv", "it", "el", "hu", "fi", "da", "no"];
+export const LOCALES = ["en", "vi", "zh-CN", "zh-TW", "ja", "pt-BR", "pt-PT", "ko", "es", "de", "fr", "he", "ar", "ru", "pl", "cs", "nl", "tr", "uk", "tl", "id", "th", "hi", "bn", "ur", "ro", "sv", "it", "el", "hu", "fi", "da", "no", "fa"];
 export const DEFAULT_LOCALE = "en";
 export const LOCALE_COOKIE = "locale";
 
@@ -35,7 +35,8 @@ const LOCALE_NAMES = {
   "hu": "Magyar",
   "fi": "Suomi",
   "da": "Dansk",
-  "no": "Norsk"
+  "no": "Norsk",
+  "fa": "فارسی"
 };
 
 export function normalizeLocale(locale) {
@@ -137,6 +138,9 @@ export function normalizeLocale(locale) {
   }
   if (locale === "no") {
     return "no";
+  }
+  if (locale === "fa") {
+    return "fa";
   }
   return DEFAULT_LOCALE;
 }

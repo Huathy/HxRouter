@@ -96,6 +96,92 @@ export function reorderByCapabilities(models, required) {
  */
 const comboRotationState = new Map();
 
+/**
+ * Warn-once guard for combo strategy misconfigurations. `log.warn` fires on
+ * every call — unlike the once-per-request `log.request`/`log.response` lines it
+ * is not level-gated per request — so an unvalidated strategy would print on
+ * every single dispatch and bury the log. Keyed by
+ * `combo|strategy|modality|firstTargetModel`: a fixed config keeps producing the
+ * same key, so an operator sees one line per broken combination for the life of
+ * the process. Same in-process-lifetime, unbounded-is-fine idiom as
+ * comboRotationState above (bounded by #combos x #strategies x #modalities).
+ * @type {Set<string>}
+ */
+const comboStrategyWarnings = new Set();
+
+/**
+ * Combo strategy vocabulary. The dashboard offers exactly these three
+ * (src/app/(dashboard)/dashboard/combos/page.js:262-266 STRATEGY_OPTIONS) and
+ * getRotatedModels acts on "round-robin" alone.
+ * @type {Set<string>}
+ */
+const COMBO_STRATEGIES = new Set(["fallback", "round-robin", "fusion"]);
+
+// "fusion" needs a chat body to fan out to a panel and synthesize from it
+// (handleFusionChat reads messages/input/contents). Only the chat handler
+// branches on it: src/sse/handlers/chat.js:163 and :225 return through
+// handleFusionChat before reaching handleComboChat. The tts/search/image/fetch
+// callers (tts.js:68, search.js:97, imageGeneration.js:71, fetch.js:113) pass
+// "fusion" straight into handleComboChat, where getRotatedModels sees a
+// non-"round-robin" strategy and returns `models` untouched — the combo runs as
+// plain fallback with no signal. The other two strategies are modality-agnostic.
+const CHAT_ONLY_STRATEGIES = new Set(["fusion"]);
+
+/**
+ * Infer which modality a combo dispatch is serving from the request body shape.
+ * handleComboChat is shared by five handlers and none of them pass a modality,
+ * so the body is the only in-band signal. Conservative by design: returns null
+ * for an unrecognized shape so the caller skips validation rather than guessing.
+ * Field sources: tts.js:54 (`input`), search.js:40 (`query`),
+ * imageGeneration.js:57 (`prompt`), fetch.js:40 (`url`).
+ * @param {object} body - Request body as passed to handleComboChat
+ * @returns {string|null} "chat"|"tts"|"search"|"image"|"fetch", or null if unknown
+ */
+function inferComboModality(body) {
+  if (!body || typeof body !== "object") return null;
+  // Chat first: messages/input/contents are conversation *arrays*. tts `input`
+  // and image `prompt` are strings, so the array test cannot collide with them.
+  if (Array.isArray(body.messages) || Array.isArray(body.input) || body.contents) return "chat";
+  if (typeof body.query === "string") return "search";
+  if (typeof body.url === "string") return "fetch";
+  if (typeof body.prompt === "string") return "image";
+  if (typeof body.input === "string") return "tts";
+  return null;
+}
+
+/**
+ * Make a silent combo-strategy degradation visible: warn once per
+ * (combo, strategy, modality, first target) when the configured strategy cannot
+ * run for this dispatch. No-op for a valid strategy/modality pair.
+ * @param {object} options
+ * @param {object} options.log - Logger (warn level)
+ * @param {object} options.body - Request body (used to infer the modality)
+ * @param {string} [options.comboName] - Combo name
+ * @param {string} [options.strategy] - Configured combo strategy
+ * @param {string[]} [options.models] - Combo target models
+ */
+function warnUnsupportedComboStrategy({ log, body, comboName, strategy, models }) {
+  const effective = strategy || "fallback";
+  const combo = comboName || "__default__";
+  const target = Array.isArray(models) && models.length > 0 ? String(models[0]) : "?";
+  const modality = inferComboModality(body);
+
+  let message;
+  if (COMBO_STRATEGIES.has(effective)) {
+    if (modality === null || !CHAT_ONLY_STRATEGIES.has(effective)) return;
+    message = `Combo "${combo}" is configured with strategy "${effective}" but this is a ${modality} request. `
+      + `"${effective}" needs a chat body (panel + judge); ${target} runs as plain fallback.`;
+  } else {
+    message = `Combo "${combo}" has unknown strategy "${effective}" — valid: fallback | round-robin | fusion. `
+      + `${target} runs as plain fallback.`;
+  }
+
+  const key = `${combo}|${effective}|${modality ?? "unknown"}|${target}`;
+  if (comboStrategyWarnings.has(key)) return;
+  comboStrategyWarnings.add(key);
+  log?.warn?.("COMBO", message);
+}
+
 // Trailing run of items after the last assistant/model turn = the current user
 // turn. It may span several messages (e.g. text + image split across blocks),
 // so we return all of them. History media (older turns) must not pin the combo
@@ -315,7 +401,9 @@ function combineSignals(...signals) {
  * @param {Function} options.handleSingleModel - Function to handle single model: (body, modelStr, { signal }) => Promise<Response>
  * @param {Object} options.log - Logger object
  * @param {string} [options.comboName] - Name of the combo (for round-robin tracking)
- * @param {string} [options.comboStrategy] - Strategy: "fallback" or "round-robin"
+ * @param {string} [options.comboStrategy] - Strategy: "fallback" | "round-robin" | "fusion".
+ *   "fusion" is chat-only (handled by the chat handler before this call) and degrades to
+ *   plain fallback here — warnUnsupportedComboStrategy makes that visible.
  * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
  * @param {Object<string,number>} [options.comboWeights] - Per-model weight map for round-robin (model value → weight ≥1)
  * @param {AbortSignal} [options.signal] - Optional external signal (e.g. client disconnect) that aborts every target
@@ -324,6 +412,11 @@ function combineSignals(...signals) {
  * @returns {Promise<Response>}
  */
 export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, comboWeights = null, autoSwitch = true, signal = null, timeoutMs = DEFAULT_COMBO_TARGET_TIMEOUT_MS, queueDepth = null }) {
+  // L1-5: validate the configured strategy against the modality being served
+  // before rotating, so a strategy this handler cannot run is not silently
+  // downgraded to plain fallback.
+  warnUnsupportedComboStrategy({ log, body, comboName, strategy: comboStrategy, models });
+
   // Apply rotation strategy if enabled
   let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit, comboWeights);
 

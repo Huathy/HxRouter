@@ -9,8 +9,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-package-lock.json
 !cli/package-lock.json
+# Root package-lock.json is committed on purpose: the Docker build runs `npm ci`
+# against it so image builds are reproducible. pnpm-lock.yaml stays the source of
+# truth for local development.
 
 # =============================================================================
 # Build output

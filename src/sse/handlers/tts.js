@@ -8,6 +8,7 @@ import {
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleTtsCore } from "open-sse/handlers/ttsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -40,10 +41,13 @@ export async function handleTts(request) {
 
   const settings = await getSettings();
   let apiKeyInfo = null;
+  // Hoisted to function scope: the spend budget below must be able to read the raw
+  // key (it buckets by presented key even when requireApiKey is off, so an
+  // identified client cannot spend against the __local__ allowance).
+  const apiKey = extractApiKey(request);
   // Trusted internal (dashboard/CLI) requests act as the local owner — bypass ACL.
   const trustedInternal = await isTrustedInternalRequest(request);
   if (!trustedInternal && settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     apiKeyInfo = await isValidApiKey(apiKey);
     if (!apiKeyInfo) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -53,10 +57,17 @@ export async function handleTts(request) {
   if (!isKindAllowed(apiKeyInfo, "tts")) return errorResponse(HTTP_STATUS.FORBIDDEN, "TTS requests are not allowed for this API key");
   if (!body.input) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
 
+  // Spend budget gate: after all cheap validation, before any combo expansion or
+  // upstream dispatch, so a refusal costs zero upstream spend.
+  const budget = await reserveSpend({ settings, apiKeyInfo, apiKey, modality: "tts", body, modelStr });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
+
   // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
     if (!isComboAllowed(apiKeyInfo, modelStr)) {
+      // Refused after the reservation was taken, before any upstream dispatch.
+      await budget.release();
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
     }
     const comboNameTts = stripComboPrefix(modelStr);
@@ -65,7 +76,7 @@ export async function handleTts(request) {
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[comboNameTts]?.weights;
     log.info("TTS", `Combo "${comboNameTts}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, apiKeyInfo),
@@ -76,10 +87,10 @@ export async function handleTts(request) {
       comboWeights,
       timeoutMs: comboStrategies[comboNameTts]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameTts]?.queueDepth ?? null,
-    });
+    }));
   }
 
-  return handleSingleModelTts(body, modelStr, responseFormat, language, style, apiKeyInfo);
+  return budget.dispatch(() => handleSingleModelTts(body, modelStr, responseFormat, language, style, apiKeyInfo));
 }
 
 async function handleSingleModelTts(body, modelStr, responseFormat, language, style, apiKeyInfo = null) {

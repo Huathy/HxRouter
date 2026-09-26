@@ -32,6 +32,7 @@ import {
 import { getProxyHash, resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 import { updateProviderConnection, getProviderConnections } from "@/lib/localDb";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -147,12 +148,21 @@ export async function handleChat(request, clientRawRequest = null) {
   const bypassResponse = handleBypassRequest(body, modelStr, userAgent, !!settings.ccFilterNaming);
   if (bypassResponse) return bypassResponse.response || bypassResponse;
 
+  // Spend budget gate: pre-authorize the worst case for this request before any
+  // upstream dispatch. Placed after the bypass return above (Claude Code warm-up
+  // requests are free and must stay free) and before getComboModels, so a refusal
+  // costs zero upstream spend and never consumes a combo rotation slot.
+  const budget = await reserveSpend({ settings, apiKeyInfo, apiKey, modality: "llm", body, modelStr });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
+
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
     // ACL: check if this combo is allowed for this API key
     if (!isComboAllowed(apiKeyInfo, modelStr)) {
       log.warn("AUTH", `Combo "${modelStr}" not allowed for API key`);
+      // Refused after the reservation was taken, before any upstream dispatch.
+      await budget.release();
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${modelStr}" is not allowed for this API key`);
     }
     // Check for combo-specific strategy first, fallback to global
@@ -162,7 +172,16 @@ export async function handleChat(request, clientRawRequest = null) {
 
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
-      return handleFusionChat({
+      // Fusion fans this ONE client request out into `comboModels.length` parallel
+      // panel calls plus one judge call, each independently billed upstream. The
+      // reservation taken above covers a single dispatch, so raise it to the real
+      // worst case before anything is sent. Escalation is atomic and fails closed:
+      // a budget that cannot fit the fan-out is refused rather than under-reserved.
+      const escalated = await budget.escalate(comboModels.length + 1);
+      if (!escalated.ok) {
+        return errorResponse(escalated.status || HTTP_STATUS.PAYMENT_REQUIRED, escalated.message);
+      }
+      return budget.dispatch(() => handleFusionChat({
         body,
         models: comboModels,
         handleSingleModel: (b, m, isPanel) => {
@@ -171,22 +190,22 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, null, { strategy: "fusion", comboName: modelStr });
         },
         log,
         comboName: modelStr,
         judgeModel: comboStrategies[modelStr]?.judgeModel,
         tuning: comboStrategies[modelStr]?.fusionTuning,
-      });
+      }));
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[modelStr]?.weights;
     log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
+      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts, { strategy: comboStrategy, comboName: modelStr }),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -195,17 +214,17 @@ export async function handleChat(request, clientRawRequest = null) {
       signal: request?.signal ?? null,
       timeoutMs: comboStrategies[modelStr]?.targetTimeoutMs ?? undefined,
       queueDepth: comboStrategies[modelStr]?.queueDepth ?? null,
-    });
+    }));
   }
 
   // Single model request
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo);
+  return budget.dispatch(() => handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, null, { strategy: "direct" }));
 }
 
 /**
  * Handle single model chat request
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, options = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, options = null, routeContext = null) {
   const externalSignal = options?.signal ?? null;
   const clientSignal = request?.signal && externalSignal
     ? AbortSignal.any([request.signal, externalSignal])
@@ -233,7 +252,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, null, { strategy: "fusion", comboName: modelStr });
           },
           log,
           comboName: modelStr,
@@ -248,7 +267,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return handleComboChat({
         body,
         models: comboModels,
-        handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts),
+        handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts, { strategy: comboStrategy, comboName: modelStr }),
         log,
         comboName: modelStr,
         comboStrategy,
@@ -471,6 +490,19 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log,
       clientRawRequest,
       connectionId: credentials.connectionId,
+      routeDecision: {
+        strategy: routeContext?.strategy || "direct",
+        comboName: routeContext?.comboName || null,
+        provider,
+        model,
+        // Which credential attempt actually served this request. `fallbackAttempts`
+        // is the live counter for the loop below, so this is a real 1-based ordinal
+        // — a hardcoded 1 would claim "first hit" for every round-robin rotation
+        // and every fallback. The combo TARGET index is not tracked by
+        // handleComboChat's callback contract, so it is deliberately absent here
+        // rather than guessed.
+        hit: fallbackAttempts,
+      },
       userAgent,
       apiKey,
       apiKeyName: apiKeyInfo?.name || null,

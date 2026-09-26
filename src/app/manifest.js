@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: 'HXAI - AI Infrastructure Management',
-    short_name: 'HXAI',
+    name: 'HxRouter - AI Infrastructure Management',
+    short_name: 'HxRouter',
     description: 'One endpoint for all your AI providers. Manage keys, monitor usage, and scale effortlessly.',
     start_url: '/',
     display: 'standalone',

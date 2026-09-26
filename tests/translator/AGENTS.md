@@ -52,11 +52,15 @@ Add a provider by adding a key to `open-sse/config/providerModels.js` `PROVIDER_
 
 Only add a dedicated test when a provider has a special format that does not round-trip cleanly (see §7).
 
-## 5. `registerAll.js` — why it is required
+## 5. `registerAll.js` — history, and why it is now redundant
 
-`translator/index.js` uses `require(...)` (bundler-only) to lazy-load translators. Under vitest/ESM, `require` **silently no-ops** → empty registry → `translateRequest` skips the translation step → **false pass** (data is lost but the test goes green by mistake).
+**This section used to describe a bug that no longer exists.** `translator/index.js` previously lazy-loaded translators with `require(...)` (bundler-only). Under vitest/ESM that `require` **silently no-opped** → empty registry → `translateRequest` skipped translation → **false pass** (data lost, test green anyway). Importing `registerAll.js` was the workaround.
 
-→ Every test calling `translateRequest`/`translateResponse` MUST `import "./registerAll.js"` at the top of the file.
+That `require` is gone. Registration is now done with **static `import` side-effects** in `translator/index.js` (~line 247: "each module calls register() at load"), and `ensureInitialized()` is an empty no-op. So importing `translator/index.js` is enough to populate the registry.
+
+`registerAll.js` is kept because existing test files still import it and it is harmless. **Its header comment is stale** — it still claims the `require()` no-op.
+
+→ If you write a new test, importing `@/translator/index.js` (or letting the module resolve through the alias) is sufficient. Keep `import "./registerAll.js"` only if you are matching an existing file, and do not add a new test on the assumption that `registerAll.js` is load-bearing — verify with a deliberate break instead.
 
 ## 6. Bug-exposure convention — `it.fails`
 

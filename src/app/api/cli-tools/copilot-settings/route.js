@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const PROVIDER_NAME = "HxRouter";
 const LEGACY_PROVIDER_NAMES = ["VansRouter", "VansRoute", "9Router"];
@@ -49,7 +50,9 @@ const getRouterEntry = (config) => {
 };
 
 // GET - Read current copilot config
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const config = await readConfig();
     const entry = getRouterEntry(config);
@@ -72,6 +75,8 @@ export async function GET() {
 
 // POST - Apply HxRouter config to chatLanguageModels.json
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, models } = await request.json();
 
@@ -131,7 +136,9 @@ export async function POST(request) {
 }
 
 // DELETE - Remove HxRouter entry from chatLanguageModels.json
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const configPath = getConfigPath();
 

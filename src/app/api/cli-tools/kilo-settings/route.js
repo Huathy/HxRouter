@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const PROVIDER_KEY = "hxrouter";
 const LEGACY_PROVIDER_KEYS = ["openai-compatible", "9router", "VansRoute", "VansRouter", "HxRouter"];
@@ -64,7 +65,9 @@ const hasRouterConfig = (auth) => {
   return baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1") || /9router|vansroute|vansrouter|hxrouter/i.test(baseUrl);
 };
 
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const installed = await checkInstalled();
     if (!installed) {
@@ -85,6 +88,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { baseUrl, apiKey, model } = await request.json();
     if (!baseUrl || !apiKey || !model) {
@@ -121,7 +126,9 @@ export async function POST(request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const auth = await readJson(getAuthPath());
     if (!auth) {

@@ -41,6 +41,46 @@ import { markPoolUnfit } from "../services/proxyPoolFitness.js";
 const MAX_POOL_RETRIES = 2;
 const TOOL_PROTOCOL_PROMPT_PROVIDERS = new Set(["kimchi", "nvidia"]);
 
+// Input capabilities translator/concerns/modality.js can strip. Order is the
+// report order.
+const STRIPPABLE_CAPABILITIES = ["vision", "pdf", "audioInput"];
+
+/**
+ * Warn-once guard for the modality strip. `log.warn` is not request-gated, so
+ * warning inline would print on every request to any text-only model. Keyed by
+ * `provider|model`: a fixed model always yields the same key, so one line per
+ * text-only model for the life of the process. Same in-process-lifetime idiom as
+ * the combo strategy guard in services/combo.js.
+ * @type {Set<string>}
+ */
+const modalityStripWarnings = new Set();
+
+/**
+ * Make the silent modality strip visible at warn level (previously only
+ * log?.debug at chatCore.js, invisible under the default LOG_LEVEL=INFO).
+ *
+ * Fires per *model*, not per dropped block: stripUnsupportedModalities returns
+ * true whenever any of vision/pdf/audioInput is false — whether or not the body
+ * actually carried media — and never reports which capability it acted on. So the
+ * honest signal is the capability declaration ("this model is text-only, expect
+ * its media to be dropped"), deduplicated per provider|model.
+ *
+ * Volume note (measured with scripts/audit-capabilities.mjs over 1015 registry
+ * chat models): pdf and audioInput are unsupported by nearly all of them, vision
+ * by most. One line per model — not per capability — keeps this at one warning
+ * per model on first use instead of three.
+ */
+function warnStrippedModalities(log, provider, model, caps) {
+  if (!caps) return;
+  const missing = STRIPPABLE_CAPABILITIES.filter((cap) => caps[cap] === false);
+  if (missing.length === 0) return;
+  const key = `${provider}|${model}`;
+  if (modalityStripWarnings.has(key)) return;
+  modalityStripWarnings.add(key);
+  log?.warn?.("MODALITY",
+    `${provider}/${model} has no ${missing.join(" / ")} support — ${missing.join("/")} media blocks are stripped from the request before translation`);
+}
+
 export function needsTerminationPrompt(provider, model) {
   return /(?:^|[/_-])kimi(?:[/_-]|$)|(?:^|[/_-])kimi-k2\.(?:6|7)(?:\b|[-_/])/i.test(`${provider}/${model}`);
 }
@@ -127,7 +167,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, compressionEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, routeDecision = null, userAgent, apiKey, apiKeyInfo = null, apiKeyName = null, ccFilterNaming, rtkEnabled, compressionEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled = false, pxpipeMinChars = 1000, pxpipeTimeoutMs = 10000, pxpipeTransform = "png", onPxpipeEvent = null, sourceFormatOverride, providerThinking, clientSignal, loopGuardEnabled = true, systemPrompt = null, clientModelId = null, resolveProxyConfig = null }) {
   const { provider, model, accountCount = 0 } = modelInfo;
   const requestStartTime = Date.now();
 
@@ -227,6 +267,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (stripUnsupportedModalities(body, sourceFormat, caps)) {
       log?.debug?.("MODALITY", `stripped unsupported media for ${provider}/${model}`);
     }
+    warnStrippedModalities(log, provider, model, caps);
     // Convert remote image URLs to base64 for targets that can't fetch URLs.
     try {
       const n = await prefetchRemoteImages(body, sourceFormat, targetFormat, { signal: undefined });
@@ -639,7 +680,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, apiKeyInfo, apiKeyName, clientRawRequest, onRequestSuccess, clientModelId, pxpipe: pxpipeSummary, routeDecision: routeDecision || null };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => finishPending();
 

@@ -3,7 +3,7 @@
   
   # HxRouter - FREE AI Router & Token Saver
   
-  **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
+  **Never stop coding. Cut token cost with RTK + auto-fallback to FREE & cheap AI models.**
   
   **Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
   
@@ -35,7 +35,7 @@
 
 **HxRouter solves this:**
 
-- ✅ **RTK Token Saver** - Auto-compress tool_result content, save 20-40% tokens per request
+- ✅ **RTK Token Saver** - Auto-compress tool_result content to cut input tokens per request
 - ✅ **Maximize subscriptions** - Track quota, use every bit before reset
 - ✅ **Auto fallback** - Subscription → Cheap → Free, zero downtime
 - ✅ **Multi-account** - Round-robin between accounts per provider
@@ -68,11 +68,13 @@
 | **Per-API-key ACL** | ✅ fork-only | ✅ inherited | ✅ inherited | ❌ |
 | **Format translation** | ✅ OpenAI↔Claude↔Gemini↔Kiro | ✅ inherited | ✅ inherited | ✅ |
 | **Kimi native tool parser** | ✅ | ✅ inherited + hardened | ✅ inherited | ✅ |
-| **Combo strategies** | 4 (fallback/RR/fusion/capacity) | 4 (inherited) | 4 (inherited) | 17 |
+| **Combo strategies** | 3 (fallback/round-robin/fusion) | 3 (inherited) | 3 (inherited) | 17 |
 | **Settings cache (TPS)** | ❌ (3 sync DB reads/req) | ✅ 5s TTL cache | ✅ inherited | ❌ |
 | **Connections cache (TPS)** | ❌ (1 sync DB read/req) | ✅ 2s TTL cache + invalidation | ✅ inherited | ❌ |
 | **Per-provider mutex** | ❌ (global mutex) | ✅ per-provider parallel selection | ✅ inherited | ❌ |
-| **Provider count** | 40+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ inherited (40+ + AgentRouter + Antigravity 3.7/3.8) | 231+ |
+| **Provider count** | 40+ | 40+ + AgentRouter + Antigravity 3.7 | ✅ **145** in the registry (110 with an HTTP `transport` block, 35 media providers exposing `serviceKinds`) | 352–359 (see note) |
+| **Model count** | 100+ | 100+ | ✅ **1,156** across 124 provider keys (`open-sse/config/providerModels.js`) | 1,000+ (see note) |
+| **OAuth-capable providers** | 12 | 12 | ✅ **21** (`PROVIDER_OAUTH`) | 19 (see note) |
 | **Request success-rate monitoring** | ❌ | ❌ | ✅ **new in HxRouter** — success-rate card with threshold coloring (≥95% green / ≥80% yellow / else red), 24h success-rate badges, status filter (success / error / pending), in-flight requests pinned with live spinners | ❌ |
 | **HTTP status code tracking** | ❌ | ❌ | ✅ **new in HxRouter** — `httpStatus` recorded in usage history (schema v9), failed/aborted requests logged, color-coded Code column (2xx/4xx/5xx) | ❌ |
 | **Weighted round-robin combos** | ❌ | ❌ | ✅ **new in HxRouter** — per-model weight (1-10), slot-expansion proportional distribution (e.g. 3:1), weight input in the combo editor | ❌ |
@@ -81,6 +83,13 @@
 | **Unified recent-request data source** | ❌ | ❌ | ✅ **new in HxRouter** — ring buffer removed, Provider/Account columns, merge guard so partial SSE pushes no longer drop rows | ❌ |
 
 > The VansRouter column is taken from its public `README.md` comparison table (its `README.zh-CN.md` has not synced it). HxRouter descends from VansRouter, so inherited rows are marked "✅ inherited"; the rows marked "✅ new in HxRouter" are HxRouter additions over VansRouter (v1.0.0, summarized from the commit history and detailed below).
+>
+> **How the HxRouter numbers were measured** (all reproducible from this repo):
+> - Provider count = length of the default export of `open-sse/providers/registry/index.js`. 110 of the 145 declare an HTTP `transport` block and appear in the `open-sse/config/providers.js` `PROVIDERS` map; the other 35 are real media providers (TTS / STT / search / image / embedding) that expose `serviceKinds` instead.
+> - Model count = summed `.length` over every value in `open-sse/config/providerModels.js` (124 keys, all arrays).
+> - Combo strategies = `COMBO_STRATEGIES` in `open-sse/services/combo.js:118` → `fallback`, `round-robin`, `fusion`. Earlier revisions of this table said "4" and counted `capacity`; `capacity` is not a strategy, it is the always-on `autoSwitch` behaviour that reorders targets by detected capability, and the UI offers exactly three choices.
+> - The OmniRoute column is **not** a live measurement. Its figures were transcribed from that project's public material on **2026-07-19** and are reproduced here only for rough comparison; treat them as stale.
+> - i18n = the 33 JSON files in `public/i18n/literals` plus `en`, which is the source language. `zh-CN` is the only substantially complete translation (1,464 keys); the rest sit at roughly 13%. Missing keys fall back to the English source string (`src/i18n/runtime.js`, `translate()` returns `translationMap[key] || text`).
 
 ### What VansRouter claims and neither 9Router nor OmniRoute has (inherited by HxRouter)
 
@@ -96,12 +105,12 @@
 - **HTTP status code tracking** — usage history records `httpStatus` (schema v9), failed/aborted requests are now logged, request details show a color-coded Code column (2xx/4xx/5xx)
 - **Weighted round-robin combos** — per-model weight (1-10) with slot-expansion proportional distribution (e.g. 3:1)
 - **Playground** — built-in basic-chat playground with provider/combo model picker, backed by a machine-bound CLI-token proxy route (`/api/dashboard/chat/completions`)
-- **32-language i18n** — dashboard fully localized
+- **34-locale i18n** — Chinese (Simplified) fully localized (1,464 strings); the other 33 locales are partial and fall back to English per-string
 - **Provider page improvements** — enable-first > configured-account sorting, 10-min model cache with search highlighting, custom-protocol nodes grouped separately with `nodeName`
 
 ### What HxRouter does NOT have (yet)
 
-- OmniRoute's 17 combo strategies (VansRouter and HxRouter each have 4)
+- OmniRoute's 17 combo strategies (HxRouter has 3)
 - OmniRoute's `sessionPool` with fingerprint rotation
 - OmniRoute's `autoCombo` with complexity routing and task fitness scoring
 - OmniRoute's 231 providers (VansRouter and HxRouter each have 40+)
@@ -131,7 +140,7 @@
        │   ↓ budget limit
        └─→ [Tier 3: FREE] Kiro, OpenCode Free, Vertex ($300 credits)
 
-Result: Never stop coding, minimal cost + 20-40% token savings via RTK
+Result: Never stop coding at minimal cost, with RTK trimming tool output
 ```
 
 ---
@@ -505,9 +514,9 @@ HxRouter works seamlessly with all major AI coding tools:
 
 | Feature                                                                           | What It Does                                                                             | Why It Matters                                    |
 | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 🚀 **RTK Token Saver** ([RTK](https://github.com/rtk-ai/rtk) ⭐40K)               | Compress tool outputs (`git diff`, `grep`, `ls`, `tree`...) before sending to LLM        | Save **20-40% input tokens** per request          |
+| 🚀 **RTK Token Saver** ([RTK](https://github.com/rtk-ai/rtk) ⭐40K)               | Compress tool outputs (`git diff`, `grep`, `ls`, `tree`...) before sending to LLM        | Trim tool output before it reaches the model       |
 | 🧠 **Inline Context Compression** ([thincontext](https://www.npmjs.com/package/thincontext)) | Compress repeated system and tool context in-process before provider routing | Save context tokens without a sidecar or client changes |
-| 🪨 **Caveman Mode** ([Caveman](https://github.com/JuliusBrussee/caveman) ⭐52K)   | Inject caveman-speak prompt → LLM replies terse, technical substance preserved           | Save **up to 65% output tokens**                  |
+| 🪨 **Caveman Mode** ([Caveman](https://github.com/JuliusBrussee/caveman) ⭐52K)   | Inject caveman-speak prompt → LLM replies terse, technical substance preserved           | Shapes output to be shorter and more technical     |
 | 🐴 **Ponytail** ([Ponytail](https://github.com/DietrichGebert/ponytail))          | Inject "lazy senior dev" prompt → LLM writes minimal, YAGNI-first code (Lite/Full/Ultra) | **Fewer output tokens, less refactoring**         |
 | 🎯 **Smart 3-Tier Fallback**                                                      | Auto-route: Subscription → Cheap → Free                                                  | Never stop coding, zero downtime                  |
 | 📊 **Real-Time Quota Tracking**                                                   | Live token count + reset countdown                                                       | Maximize subscription value                       |
@@ -522,6 +531,8 @@ HxRouter works seamlessly with all major AI coding tools:
 | 🌐 **Deploy Anywhere**                                                            | Localhost, VPS, Docker, Cloudflare Workers                                               | Flexible deployment options                       |
 
 Set `x-hxrouter-token-saver: off` to bypass all token savers for one chat request.
+
+**On the token-saving percentages.** HxRouter does not publish a savings figure for the token savers, because it has not measured one. The percentages previously shown here were inherited from the upstream RTK and Caveman projects and were never validated against this codebase. Third-party measurements of those upstream projects do not support whole-session savings: JetBrains reproduced the Caveman skill on 82 paired agentic coding tasks and measured an 8.5% output-token reduction — the ceiling, with activation forced on — against an advertised 65%; and in its RTK trial the low-effort arm came out **7.6% more expensive** per task (p=0.004), not cheaper, with the result flat at high reasoning effort. That JetBrains run exercised RTK as a standalone CLI hook, not HxRouter's in-process integration, so it bounds what the upstream claim is worth rather than measuring HxRouter. Treat the savers as output-shaping features and measure your own sessions before assuming a discount.
 
 <details>
 <summary><b>📖 Feature Details</b></summary>
@@ -668,7 +679,7 @@ Seamless translation between formats:
 
 | Tier                | Provider              | Cost         | Quota Reset      | Best For                                |
 | ------------------- | --------------------- | ------------ | ---------------- | --------------------------------------- |
-| **🚀 TOKEN SAVER**  | **RTK (built-in)**    | **FREE**     | Always on        | **Save 20-40% tokens on EVERY request** |
+| **🚀 TOKEN SAVER**  | **RTK (built-in)**    | **FREE**     | Always on        | **Trims tool output on every request** |
 | **💳 SUBSCRIPTION** | Claude Code (Pro/Max) | $20-200/mo   | 5h + weekly      | Already subscribed                      |
 |                     | Codex (Plus/Pro)      | $20-200/mo   | 5h + weekly      | OpenAI users                            |
 |                     | GitHub Copilot        | $10-19/mo    | Monthly          | GitHub users                            |
@@ -680,7 +691,7 @@ Seamless translation between formats:
 |                     | OpenCode Free         | $0           | Unlimited        | No auth, auto-fetch models              |
 |                     | Vertex AI             | $300 credits | New GCP accounts | Gemini 3 Pro + DeepSeek + GLM-5         |
 
-**💡 Pro Tip:** RTK + Kiro AI + OpenCode Free combo = **$0 cost + 20-40% token savings**!
+**💡 Pro Tip:** RTK + Kiro AI + OpenCode Free combo = **$0 cost, with tool output trimmed**!
 
 ---
 
@@ -752,7 +763,7 @@ Combo: "free-forever"
   3. oc/<auto>                 (OpenCode Free, no auth)
 
 Monthly cost: $0
-Quality: Production-ready models + RTK saves 20-40% tokens
+Quality: Production-ready models + RTK trims tool output
 ```
 
 ### Case 3: "I need 24/7 coding, no interruptions"
@@ -1111,7 +1122,7 @@ Models:
   2. kr/glm-5 (GLM-5 free via Kiro)
   3. vertex/gemini-3.1-pro-preview ($300 free credits)
 
-Cost: $0 forever (+ 20-40% token savings via RTK)!
+Cost: $0 forever (with RTK trimming tool output)!
 ```
 
 </details>
@@ -1416,7 +1427,7 @@ Notes:
 
 **High costs**
 
-- Enable RTK in Dashboard → Endpoint settings (default ON, saves 20-40% tokens)
+- Enable RTK in Dashboard → Endpoint settings (default ON, trims tool output)
 - Check usage stats in Dashboard
 - Switch primary model to GLM/MiniMax
 - Use free tier (Kiro, OpenCode Free, Vertex) for non-critical tasks
@@ -1513,8 +1524,8 @@ In derivation order: **9Router → OmniRoute / VansRouter → HxRouter**.
 Built on the shoulders of giants:
 
 - **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)** — original Go implementation that inspired this JavaScript port.
-- **[RTK](https://github.com/rtk-ai/rtk)** ![Stars](https://img.shields.io/github/stars/rtk-ai/rtk?style=flat&color=yellow) — Rust token-saver. 9Router ports its compression pipeline to JS → **−20-40% input tokens** on every request.
-- **[Caveman](https://github.com/JuliusBrussee/caveman)** ![Stars](https://img.shields.io/github/stars/JuliusBrussee/caveman?style=flat&color=yellow) by **[@JuliusBrussee](https://github.com/JuliusBrussee)** — viral _"why use many token when few token do trick"_. 9Router adapts its prompt → **−65% output tokens**.
+- **[RTK](https://github.com/rtk-ai/rtk)** ![Stars](https://img.shields.io/github/stars/rtk-ai/rtk?style=flat&color=yellow) — Rust token-saver. 9Router ports its compression pipeline to JS. Upstream advertises **−20-40% input tokens**; that figure is unverified here and has not been reproduced on this codebase.
+- **[Caveman](https://github.com/JuliusBrussee/caveman)** ![Stars](https://img.shields.io/github/stars/JuliusBrussee/caveman?style=flat&color=yellow) by **[@JuliusBrussee](https://github.com/JuliusBrussee)** — viral _"why use many token when few token do trick"_. 9Router adapts its prompt. Upstream advertises **−65% output tokens**; see the note on token-saving percentages above.
 - **[Ponytail](https://github.com/DietrichGebert/ponytail)** ![Stars](https://img.shields.io/github/stars/DietrichGebert/ponytail?style=flat&color=yellow) by **[@DietrichGebert](https://github.com/DietrichGebert)** — _"lazy senior dev"_ skill. 9Router injects its YAGNI-first ladder → **fewer tokens, less code, shorter diffs**.
 
 Huge thanks to these authors — without their work, 9Router's token-saving features wouldn't exist. ⭐ them on GitHub!

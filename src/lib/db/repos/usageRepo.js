@@ -1,4 +1,8 @@
 import { EventEmitter } from "events";
+// Relative, not the `@/` alias: this module is also loaded by plain Node at
+// runtime (the `.next/lib/localDb.js` shim re-exports this repo's barrel from
+// `.next/standalone/src/`), where no bundler alias resolution exists.
+import { bucketCacheHitByHour } from "../../../shared/utils/cacheHitAlert.js";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
@@ -808,6 +812,41 @@ export async function getUsageStats(period = "all") {
     ? (totalTokens / stats.totalLatencyMs * 1000)
     : null;
   return stats;
+}
+
+/**
+ * Hourly prompt-cache hit trend over the last `bucketCount` hours.
+ *
+ * Separate from `getChartData` on purpose: that function's 24h branch builds
+ * chart buckets for tokens/cost, its 7d-30d-60d branch reads a pre-aggregated
+ * daily blob, and neither selects the `tokens` column, so neither can see cached
+ * tokens. Reusing it would mean threading cached-token parsing through a path
+ * that is about plotting.
+ *
+ * Reads rows, then hands them to the shared bucketer. Returns the shape
+ * `detectCacheHitDrop` consumes.
+ */
+// Hard ceiling on rows pulled per trend read. A busy proxy emits far more than
+// this in a 12-hour window, and the bucketer only needs aggregate counts — so
+// when the cap bites, hit rates read slightly low rather than the process
+// materialising the whole window.
+const CACHE_HIT_TREND_MAX_ROWS = 20000;
+
+export async function getCacheHitTrend(bucketCount = 24) {
+  const db = await getAdapter();
+  const now = Date.now();
+  const bucketMs = 3600000;
+  const from = now - bucketCount * bucketMs;
+
+  // LIMIT is a backstop, not the primary control: `usageHistory` has no retention
+  // job, so an unbounded window is a full-table scan on a table that only grows.
+  // Capping the read keeps one poll from becoming a heap-exhaustion vector.
+  const rows = db.all(
+    `SELECT timestamp, promptTokens, tokens FROM usageHistory WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?`,
+    [new Date(from).toISOString(), CACHE_HIT_TREND_MAX_ROWS]
+  );
+
+  return bucketCacheHitByHour(rows, { now, bucketCount, bucketMs });
 }
 
 export async function getChartData(period = "7d") {

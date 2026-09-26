@@ -33,11 +33,22 @@ vi.mock("fs/promises", () => ({
   },
 }));
 
+// The route is now guarded by requireDashboardAuth. This suite is about the
+// OpenCode config contract (canonical vs legacy providers, URL validation,
+// explorer config), not about auth policy — so auth is stubbed open rather than
+// coupled to it. The guard itself is covered by tests/unit/route-auth-gate.test.js.
+vi.mock("../../src/lib/auth/routeAuth.js", () => ({
+  requireDashboardAuth: async () => true,
+  isAuthorizedDashboardRequest: async () => true,
+}));
+
 const { GET, POST, PATCH, DELETE } = await import("../../src/app/api/cli-tools/opencode-settings/route.js");
 
 const request = (body = {}) => ({
   json: async () => body,
   url: "http://localhost/api/cli-tools/opencode-settings",
+  headers: new Headers(),
+  cookies: { get: () => undefined },
 });
 
 beforeEach(() => {
@@ -49,21 +60,21 @@ afterEach(() => vi.clearAllMocks());
 describe("OpenCode HxRouter contract", () => {
   it("detects canonical and legacy providers", async () => {
     state.config = { provider: { VansRoute: { options: {}, models: { alpha: {} } } }, model: "VansRoute/alpha" };
-    let data = await (await GET()).json();
+    let data = await (await GET(request())).json();
     expect(data.hasHxRouter).toBe(true);
     expect(data.hasVansRoute).toBe(true);
     expect(data.has9Router).toBe(true);
     expect(data.opencode.activeModel).toBe("alpha");
 
     state.config = { provider: { "9router": { options: {}, models: { beta: {} } } }, model: "9router/beta" };
-    data = await (await GET()).json();
+    data = await (await GET(request())).json();
     expect(data.hasHxRouter).toBe(true);
     expect(data.opencode.activeModel).toBe("beta");
   });
 
   it("continues to read VansRouter provider entries", async () => {
     state.config = { provider: { VansRouter: { options: {}, models: { gamma: {} } } }, model: "VansRouter/gamma" };
-    const data = await (await GET()).json();
+    const data = await (await GET(request())).json();
     expect(data.hasHxRouter).toBe(true);
     expect(data.opencode.activeModel).toBe("gamma");
   });

@@ -6,6 +6,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -88,7 +89,9 @@ const readAgentModel = async (agentDir) => {
 };
 
 // GET - Check openclaw CLI and read current settings
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const isInstalled = await checkOpenClawInstalled();
     
@@ -155,6 +158,8 @@ const writeAgentModels = async (agentDir, model, baseUrl, apiKey) => {
 
 // POST - Update HxRouter settings (merge with existing settings)
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     // agentModels: { [agentId]: modelId } for per-agent override
     const { baseUrl, apiKey, model, agentModels = {} } = await request.json();
@@ -250,7 +255,9 @@ export async function POST(request) {
 }
 
 // DELETE - Remove HxRouter settings only (keep other settings)
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const settingsPath = getOpenClawSettingsPath();
 

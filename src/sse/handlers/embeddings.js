@@ -18,6 +18,7 @@ import { getProxyHash } from "@/lib/network/connectionProxy";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleEmbeddingsCore } from "open-sse/handlers/embeddingsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -148,92 +149,101 @@ export async function handleEmbeddings(request) {
     );
   }
 
-  // Credential + fallback loop (mirrors handleChat)
-  const excludeConnectionIds = new Set();
-  let lastError = null;
-  let lastStatus = null;
+  // Spend budget gate: after every cheap/ACL check (so a malformed or forbidden
+  // request stays 4xx rather than 402) and before the credential loop, i.e. before
+  // any upstream dispatch. Without it, /v1/embeddings is a way to keep spending an
+  // already-capped key's money.
+  const budget = await reserveSpend({ settings, apiKeyInfo, apiKey, modality: "embedding", body, modelStr });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
 
-  while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+  return budget.dispatch(async () => {
+    // Credential + fallback loop (mirrors handleChat)
+    const excludeConnectionIds = new Set();
+    let lastError = null;
+    let lastStatus = null;
 
-    // All accounts unavailable
-    if (!credentials || credentials.allRateLimited) {
-      if (credentials?.allRateLimited) {
-        const errorMsg = lastError || credentials.lastError || "Unavailable";
-        const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
-        log.warn("EMBEDDINGS", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
-        return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+    while (true) {
+      const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+
+      // All accounts unavailable
+      if (!credentials || credentials.allRateLimited) {
+        if (credentials?.allRateLimited) {
+          const errorMsg = lastError || credentials.lastError || "Unavailable";
+          const status = lastStatus || Number(credentials.lastErrorCode) || HTTP_STATUS.SERVICE_UNAVAILABLE;
+          log.warn("EMBEDDINGS", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
+          return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman);
+        }
+        if (excludeConnectionIds.size === 0) {
+          log.error("AUTH", `No credentials for provider: ${provider}`);
+          return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+        }
+        log.warn("EMBEDDINGS", "No more accounts available", { provider });
+        return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
       }
-      if (excludeConnectionIds.size === 0) {
-        log.error("AUTH", `No credentials for provider: ${provider}`);
-        return errorResponse(HTTP_STATUS.BAD_REQUEST, `No credentials for provider: ${provider}`);
+
+      log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
+
+      const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+
+      if (circuitBreakerEnabled) {
+        const proxyHash = getProxyHash(credentials.providerSpecificData || {});
+        if (isProviderInCooldown(provider, proxyHash)) {
+          log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
+          excludeConnectionIds.add(credentials.connectionId);
+          lastError = "Provider temporarily unavailable (circuit breaker open)";
+          lastStatus = HTTP_STATUS.SERVICE_UNAVAILABLE;
+          continue;
+        }
       }
-      log.warn("EMBEDDINGS", "No more accounts available", { provider });
-      return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable");
-    }
 
-    log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
+      const result = await handleEmbeddingsCore({
+        body: { ...body, model: `${provider}/${model}` },
+        modelInfo: { provider, model },
+        credentials: refreshedCredentials,
+        log,
+        onCredentialsRefreshed: async (newCreds) => {
+          await updateProviderCredentials(credentials.connectionId, {
+            ...newCreds,
+            existingProviderSpecificData: credentials.providerSpecificData,
+            testStatus: "active"
+          });
+        },
+        onRequestSuccess: async () => {
+          await clearAccountError(credentials.connectionId, credentials, model);
+        }
+      });
 
-    const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
+      if (result.success) {
+        const usage = exactEmbeddingUsage(result.usage);
+        if (usage) {
+          saveRequestUsage({
+            provider,
+            model,
+            connectionId: credentials.connectionId,
+            apiKey,
+            endpoint: url.pathname,
+            tokens: usage,
+            status: "success",
+          }).catch(() => {});
+        }
+        return result.response;
+      }
 
-    if (circuitBreakerEnabled) {
-      const proxyHash = getProxyHash(credentials.providerSpecificData || {});
-      if (isProviderInCooldown(provider, proxyHash)) {
-        log.warn("AUTH", `${provider} proxy bucket ${proxyHash} circuit breaker OPEN — skipping account ${credentials.connectionName}`);
+      const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, null, { disableLock: !circuitBreakerEnabled });
+
+      if (circuitBreakerEnabled) {
+        recordProviderFailure(provider, result.status, result.error, log, credentials.connectionId, getProxyHash(credentials.providerSpecificData || {}));
+      }
+
+      if (shouldFallback) {
+        log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
         excludeConnectionIds.add(credentials.connectionId);
-        lastError = "Provider temporarily unavailable (circuit breaker open)";
-        lastStatus = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        lastError = result.error;
+        lastStatus = result.status;
         continue;
       }
-    }
 
-    const result = await handleEmbeddingsCore({
-      body: { ...body, model: `${provider}/${model}` },
-      modelInfo: { provider, model },
-      credentials: refreshedCredentials,
-      log,
-      onCredentialsRefreshed: async (newCreds) => {
-        await updateProviderCredentials(credentials.connectionId, {
-          ...newCreds,
-          existingProviderSpecificData: credentials.providerSpecificData,
-          testStatus: "active"
-        });
-      },
-      onRequestSuccess: async () => {
-        await clearAccountError(credentials.connectionId, credentials, model);
-      }
-    });
-
-    if (result.success) {
-      const usage = exactEmbeddingUsage(result.usage);
-      if (usage) {
-        saveRequestUsage({
-          provider,
-          model,
-          connectionId: credentials.connectionId,
-          apiKey,
-          endpoint: url.pathname,
-          tokens: usage,
-          status: "success",
-        }).catch(() => {});
-      }
       return result.response;
     }
-
-    const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model, null, { disableLock: !circuitBreakerEnabled });
-
-    if (circuitBreakerEnabled) {
-      recordProviderFailure(provider, result.status, result.error, log, credentials.connectionId, getProxyHash(credentials.providerSpecificData || {}));
-    }
-
-    if (shouldFallback) {
-      log.warn("AUTH", `Account ${credentials.connectionName} unavailable (${result.status}), trying fallback`);
-      excludeConnectionIds.add(credentials.connectionId);
-      lastError = result.error;
-      lastStatus = result.status;
-      continue;
-    }
-
-    return result.response;
-  }
+  });
 }

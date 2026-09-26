@@ -513,6 +513,13 @@ export default function ProvidersPage() {
             >
               Add OpenAI Compatible
             </Button>
+            <Link
+              href="/dashboard/providers/new"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border-subtle px-3 py-2 text-sm text-text-muted transition-colors hover:bg-surface-2 hover:text-text-main w-full sm:w-auto"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Add by API Key
+            </Link>
           </div>
         </div>
         {compatibleProviders.length === 0 &&

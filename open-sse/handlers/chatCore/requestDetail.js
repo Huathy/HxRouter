@@ -93,6 +93,11 @@ export function buildRequestDetail(base, overrides = {}) {
     response: base.response || {},
     pxpipe: base.pxpipe || undefined,
     status: base.status || "success",
+    // Which route actually served this request. Set by src/sse/handlers/chat.js,
+    // which is the only layer that knows whether it was a direct model call, a
+    // combo dispatch, or a fusion panel. Kept top-level and untruncated on the
+    // persistence side — see requestDetailsRepo.js.
+    routeDecision: base.routeDecision || null,
     ...overrides
   };
 }

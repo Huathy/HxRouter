@@ -5,6 +5,7 @@ import { exec, execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
 import { resolveDevinBin } from "../../../../../open-sse/shared/cliResolver.js";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -39,7 +40,9 @@ const readDevinVersion = async (bin) => {
 };
 
 // GET — install detection only. No config to write: the binary handles its own auth.
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const bin = resolveDevinBin();
     const { installed, source } = await checkDevinInstalled();

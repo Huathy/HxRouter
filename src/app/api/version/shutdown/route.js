@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { killAppProcesses } from "@/lib/appUpdater";
 import { detectRuntime, updateAndRestartCommand } from "@/shared/utils/runtime";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 // POST /api/version/shutdown
 //
@@ -23,6 +24,8 @@ import { detectRuntime, updateAndRestartCommand } from "@/shared/utils/runtime";
 //     installCommand?: string, // when mode="manual" or runtime unsupported
 //     autoRestartCommand?: string }
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   // Detect runtime as early as possible — it informs the response shape.
   const runtime = detectRuntime();
 

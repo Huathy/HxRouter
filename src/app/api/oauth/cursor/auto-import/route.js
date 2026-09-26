@@ -4,6 +4,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -199,7 +200,9 @@ async function isCursorInstalledLinux() {
  * Auto-detect and extract Cursor tokens from local SQLite database.
  * Strategy: better-sqlite3 → sqlite3 CLI → manual fallback
  */
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const platform = process.platform;
     const dbPath = await resolveDbPath();

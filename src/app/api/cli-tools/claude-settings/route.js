@@ -7,6 +7,7 @@ import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { DEFAULT_PLUGINS } from "@/shared/constants/coworkPlugins";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const execAsync = promisify(exec);
 
@@ -88,7 +89,9 @@ const readSettings = async () => {
 };
 
 // GET - Check claude CLI and read current settings
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const isInstalled = await checkClaudeInstalled();
     
@@ -124,6 +127,8 @@ export async function GET() {
 
 // POST - Backup old fields and write new settings
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const { env, exaMcpEnabled } = await request.json();
     
@@ -200,7 +205,9 @@ const RESET_ENV_KEYS = [
 ];
 
 // DELETE - Reset settings (remove env fields)
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const settingsPath = getClaudeSettingsPath();
 

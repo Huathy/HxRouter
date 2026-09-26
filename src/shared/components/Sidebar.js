@@ -11,36 +11,16 @@ import Button from "./Button";
 import { ConfirmModal } from "./Modal";
 import NineRemotePromoModal from "./NineRemotePromoModal";
 import ChangelogModal from "./ChangelogModal";
+import { debugItems, navItems, systemItems } from "./sidebarItems";
 
 // const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
 const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt"];
 // Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
 const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
-const navItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
-  { href: "/dashboard/providers", label: "Providers", icon: "dns" },
-  // { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" }, // Hidden
-  { href: "/dashboard/combos", label: "Combos", icon: "layers" },
-  { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
-  { href: "/dashboard/basic-chat", label: "Playground", icon: "sports_esports" },
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
-  { href: "/dashboard/model-pricing", label: "Model Pricing", icon: "sell" },
-  { href: "/dashboard/token-saver", label: "Token Saver", icon: "savings" },
-  { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
-];
-
-const debugItems = [
-  { href: "/dashboard/console-log", label: "Console Log", icon: "terminal" },
-  { href: "/dashboard/translator", label: "Translator", icon: "translate" },
-];
-
-const systemItems = [
-  { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
-  { href: "/dashboard/proxy-fitness", label: "Proxy Fitness", icon: "network_check" },
-  { href: "/dashboard/checkin-scripts", label: "Check-in Scripts", icon: "event_available" },
-  { href: "/dashboard/skills", label: "Skills", icon: "extension" },
-];
+// Nav groups live in ./sidebarItems.js so tests can import them without pulling
+// in this file's JSX, which the vitest node environment cannot parse.
+export { debugItems, navItems, systemItems };
 
 export default function Sidebar({ onClose }) {
   const pathname = usePathname();

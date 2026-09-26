@@ -12,7 +12,14 @@ import path from "path";
  * the build early.
  */
 describe("eslint react-hooks regression guard", () => {
-  it("the project has zero react-hooks errors", { timeout: 300_000 }, () => {
+  // Standalone this eslint run takes ~85s. Under the full suite it competes with
+  // every other worker and has been observed at 260-330s, so the previous 300s
+  // limit sat right at the noise ceiling and failed intermittently — which made
+  // `pnpm test` exit non-zero for a clean tree. 600s keeps roughly 2x headroom
+  // over the observed worst case while still bounding a genuine hang. This does
+  // not slow the failure path: when there really is a violation eslint exits
+  // immediately with the error, and the long duration is only paid on a clean run.
+  it("the project has zero react-hooks errors", { timeout: 600_000 }, () => {
     let stdout;
     try {
       stdout = execFileSync(

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { cn } from "@/shared/utils/cn";
+import { useDialogFocusTrap } from "@/shared/hooks/useDialogFocusTrap";
 
 const DRAWER_WIDTHS = {
   sm: "w-full sm:w-[400px] max-w-full",
@@ -21,6 +22,8 @@ export default function Drawer({
 }) {
   const widths = DRAWER_WIDTHS;
   const onCloseRef = useRef(onClose);
+  const panelRef = useRef(null);
+  const titleId = useId();
   useEffect(() => {
     onCloseRef.current = onClose;
   });
@@ -42,6 +45,10 @@ export default function Drawer({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen]);
 
+  // Dialog a11y: initial focus, Tab/Shift+Tab cycling, focus restore on close.
+  // Shared with Modal so a fix cannot land in one and miss the other.
+  useDialogFocusTrap({ isOpen, panelRef });
+
   if (!isOpen) return null;
 
   return (
@@ -54,7 +61,13 @@ export default function Drawer({
       />
 
       {/* Drawer panel */}
-      <div className={cn(
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        className={cn(
         "absolute right-0 top-0 h-full bg-surface flex flex-col max-w-full",
         "shadow-[var(--shadow-elev)]",
         "slide-in-right",
@@ -66,7 +79,7 @@ export default function Drawer({
         <div className="flex items-center justify-between p-6 border-b border-border-subtle flex-shrink-0">
           <div className="flex items-center gap-3">
             {title && (
-              <h2 className="text-lg font-semibold text-text-main">{title}</h2>
+              <h2 id={titleId} className="text-lg font-semibold text-text-main">{title}</h2>
             )}
           </div>
           <button

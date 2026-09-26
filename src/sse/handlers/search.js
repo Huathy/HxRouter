@@ -17,6 +17,7 @@ import { handleComboChat, getComboModelsFromData, stripComboPrefix } from "open-
 import { getSettings, getCombos } from "@/lib/localDb";
 import { AI_PROVIDERS, resolveProviderId } from "@/shared/constants/providers.js";
 import { isModelAllowed } from "../services/allowedModels.js";
+import { reserveSpend } from "../services/spendBudget.js";
 import { handleSearchCore } from "open-sse/handlers/search/index.js";
 
 /**
@@ -81,11 +82,28 @@ export async function handleSearch(request) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing required field: query");
   }
 
+  // Spend budget gate: after cheap validation, before any combo expansion or
+  // upstream dispatch, so a refusal costs zero upstream spend.
+  // NOTE: for web search the "model" IS the provider (no model field), so
+  // providerInput is passed as modelStr AND as the pricing provider.
+  const budget = await reserveSpend({
+    settings,
+    apiKeyInfo,
+    apiKey,
+    modality: "webSearch",
+    body,
+    modelStr: providerInput,
+    provider: resolveProviderId(providerInput),
+  });
+  if (!budget.allowed) return errorResponse(budget.status, budget.message);
+
   // Combo expansion: providerInput may be a combo name → run fallback/round-robin across providers
   const combos = await getCombos();
   const comboModels = getComboModelsFromData(providerInput, combos);
   if (comboModels) {
     if (!isComboAllowed(apiKeyInfo, providerInput)) {
+      // Refused after the reservation was taken, before any upstream dispatch.
+      await budget.release();
       return errorResponse(HTTP_STATUS.FORBIDDEN, `Combo "${providerInput}" is not allowed for this API key`);
     }
     const comboNameSearch = stripComboPrefix(providerInput);
@@ -94,7 +112,7 @@ export async function handleSearch(request) {
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[comboNameSearch]?.weights;
     log.info("SEARCH", `Combo "${comboNameSearch}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
       handleSingleModel: (b, m) => handleSingleProviderSearch(b, m, request, apiKey, settings, apiKeyInfo),
@@ -105,10 +123,10 @@ export async function handleSearch(request) {
       comboWeights,
       timeoutMs: comboStrategies[comboNameSearch]?.targetTimeoutMs ?? null,
       queueDepth: comboStrategies[comboNameSearch]?.queueDepth ?? null,
-    });
+    }));
   }
 
-  return handleSingleProviderSearch(body, providerInput, request, apiKey, settings, apiKeyInfo);
+  return budget.dispatch(() => handleSingleProviderSearch(body, providerInput, request, apiKey, settings, apiKeyInfo));
 }
 
 async function handleSingleProviderSearch(body, providerInput, request, apiKey, settings, apiKeyInfo = null) {

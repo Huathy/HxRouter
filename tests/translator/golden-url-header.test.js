@@ -28,7 +28,19 @@ const SPECIALIZED = new Set([
 function sanitize(headers) {
   const out = {};
   const dynamicValues = [process.version, hostname()].filter(Boolean);
+  // Values that embed the host platform/hostname are too short or too varied to
+  // fold into the regex below without false positives, so normalize by key.
+  const keyedValues = {
+    "x-platform": "<PLATFORM>",
+    "x-msh-device-model": "<OS> <ARCH>",
+    "x-msh-device-name": "<HOSTNAME>",
+  };
   for (const [k, v] of Object.entries(headers)) {
+    const keyed = keyedValues[k.toLowerCase()];
+    if (keyed) {
+      out[k] = keyed;
+      continue;
+    }
     out[k] = typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")

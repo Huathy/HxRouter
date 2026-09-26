@@ -43,6 +43,10 @@ afterEach(() => {
 });
 
 describe("DevinCliExecutor", () => {
+  // The 6 spawn-backed cases need a POSIX-style child process: the executor uses
+  // `spawn(bin, args, { shell: false })` with a deliberate env allowlist that omits
+  // PATHEXT/COMSPEC, so Windows cannot launch the .mjs fixture (spawn EFTYPE).
+  // The 2 pure cases below (bin resolution + spawn-failure handling) still run.
   it("honors CLI_DEVIN_BIN through the shared server-safe resolver", () => {
     const previous = process.env.CLI_DEVIN_BIN;
     process.env.CLI_DEVIN_BIN = "/custom/devin";
@@ -51,7 +55,7 @@ describe("DevinCliExecutor", () => {
     else process.env.CLI_DEVIN_BIN = previous;
   });
 
-  it("uses an allowlisted environment and dedicated cwd", async () => {
+  it.skipIf(process.platform === "win32")("uses an allowlisted environment and dedicated cwd", async () => {
     const { logs } = await run({ credentials: { apiKey: "request-secret" } });
     const observation = logs.filter((line) => line.includes("FAKE_DEVIN_OBSERVED")).join("\n");
     expect(observation).toContain("[REDACTED]");
@@ -60,7 +64,7 @@ describe("DevinCliExecutor", () => {
     expect(observation).not.toContain(process.cwd());
   });
 
-  it("runs initialize, session/new, and session/prompt then emits one DONE", async () => {
+  it.skipIf(process.platform === "win32")("runs initialize, session/new, and session/prompt then emits one DONE", async () => {
     const { events, logs } = await run();
     const observation = logs.filter((line) => line.includes("FAKE_DEVIN_OBSERVED")).join("\n");
     expect(observation).toContain("initialize,session/new,session/prompt");
@@ -70,7 +74,7 @@ describe("DevinCliExecutor", () => {
     expect(events.at(-2).choices[0].finish_reason).toBe("stop");
   });
 
-  it("handles a correlated session/prompt result", async () => {
+  it.skipIf(process.platform === "win32")("handles a correlated session/prompt result", async () => {
     const { events } = await run({ prompt: "correlated" });
     expect(events.filter((event) => event === "[DONE]")).toHaveLength(1);
     expect(events.map((event) => event.choices?.[0]?.delta?.content).filter(Boolean).join(""))
@@ -78,20 +82,20 @@ describe("DevinCliExecutor", () => {
     expect(events.at(-2).choices[0].finish_reason).toBe("stop");
   });
 
-  it("handles fragmented NDJSON output", async () => {
+  it.skipIf(process.platform === "win32")("handles fragmented NDJSON output", async () => {
     const { events } = await run();
     expect(events.some((event) => event.choices?.[0]?.delta?.content === "frag")).toBe(true);
     expect(events.some((event) => event.choices?.[0]?.delta?.content === "mented")).toBe(true);
   });
 
-  it("times out a hanging CLI and emits one DONE", async () => {
+  it.skipIf(process.platform === "win32")("times out a hanging CLI and emits one DONE", async () => {
     const { events } = await run({ hang: true });
     expect(events.at(-1)).toBe("[DONE]");
     expect(events.at(-2).error.message).toMatch(/timed out after 1000ms/);
     expect(events.filter((event) => event === "[DONE]")).toHaveLength(1);
   });
 
-  it("aborts the CLI and emits one DONE", async () => {
+  it.skipIf(process.platform === "win32")("aborts the CLI and emits one DONE", async () => {
     const controller = new AbortController();
     const pending = run({ signal: controller.signal, hang: true });
     setTimeout(() => controller.abort(), 10);

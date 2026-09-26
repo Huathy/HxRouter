@@ -6,6 +6,22 @@ let translationMap = {};
 let currentLocale = DEFAULT_LOCALE;
 let reloadCallbacks = [];
 
+// Locales whose own literals are far from complete: zh-TW ships ~270 of the
+// ~1464 keys zh-CN has, so a zh-TW user would see English for ~1194 strings.
+// The locale's own literals win over the fallback's.
+//
+// Deliberately NOT configured: pt-BR <-> pt-PT (~196 keys each, so the merged
+// map would gain almost nothing) and fa/th -> en (translate() already returns
+// the original text on a miss, which is exactly the en behaviour — a no-op).
+const LOCALE_FALLBACKS = {
+  "zh-TW": "zh-CN",
+};
+
+// Per-page-session cache of loaded literal files, keyed by locale. Values are
+// in-flight promises, so concurrent callers dedupe on the same request. A load
+// that fails is evicted so a later navigation can retry.
+const localeLiterals = new Map();
+
 // Read locale from cookie
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return DEFAULT_LOCALE;
@@ -16,20 +32,47 @@ function getLocaleFromCookie() {
   return normalizeLocale(value);
 }
 
+// Fetch one locale's literals, at most once per page session
+async function requestLocaleLiterals(locale) {
+  const response = await fetch(`/i18n/literals/${locale}.json`);
+  return response.json();
+}
+
+function fetchLocaleLiterals(locale) {
+  const cached = localeLiterals.get(locale);
+  if (cached) return cached;
+
+  const pending = requestLocaleLiterals(locale).catch((err) => {
+    console.error("Failed to load translations:", err);
+    localeLiterals.delete(locale);
+    return {};
+  });
+
+  localeLiterals.set(locale, pending);
+  return pending;
+}
+
 // Load translation map
 async function loadTranslations(locale) {
   if (locale === "en") {
     translationMap = {};
     return;
   }
-  
-  try {
-    const response = await fetch(`/i18n/literals/${locale}.json`);
-    translationMap = await response.json();
-  } catch (err) {
-    console.error("Failed to load translations:", err);
-    translationMap = {};
+
+  const fallbackLocale = LOCALE_FALLBACKS[locale];
+
+  if (fallbackLocale) {
+    // Costs one extra request the first time this locale is used; both files
+    // are then served from the session cache like any other locale.
+    const [own, fallback] = await Promise.all([
+      fetchLocaleLiterals(locale),
+      fetchLocaleLiterals(fallbackLocale),
+    ]);
+    translationMap = { ...fallback, ...own };
+    return;
   }
+
+  translationMap = await fetchLocaleLiterals(locale);
 }
 
 // Translate text - exported for use in components
@@ -108,6 +151,9 @@ function processTextNode(node) {
   // Only update if different to avoid unnecessary DOM mutations
   if (translated !== node.nodeValue) {
     node.nodeValue = translated;
+    // Record the exact value the runtime last wrote, so the characterData
+    // observer can recognise its own mutation and leave _originalText alone.
+    node._translatedText = translated;
   }
 }
 
@@ -144,9 +190,26 @@ export async function initRuntimeI18n() {
   // Process existing DOM
   processElement(document.body);
   
-  // Watch for new nodes
+  // Watch for new nodes and for React text updates
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
+      // React 19's commitTextUpdate writes textInstance.nodeValue, which is a
+      // characterData mutation — a childList-only observer never sees it, so
+      // re-rendered text stayed English.
+      if (mutation.type === "characterData") {
+        const node = mutation.target;
+        // Skip the runtime's own write, otherwise _originalText would be
+        // overwritten with the already-translated string and the text would be
+        // translated again on top of its own output.
+        if (node.nodeValue === node._translatedText) return;
+        // A foreign write (React re-render): treat the new value as the new
+        // source text and translate from it.
+        node._translatedText = null;
+        node._originalText = node.nodeValue;
+        processTextNode(node);
+        return;
+      }
+
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
           processElement(node);
@@ -156,9 +219,10 @@ export async function initRuntimeI18n() {
       });
     });
   });
-  
+
   observer.observe(document.body, {
     childList: true,
+    characterData: true,
     subtree: true,
   });
 }

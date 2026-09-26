@@ -9,6 +9,7 @@ import { DEFAULT_PLUGINS, LOCAL_STDIO_PLUGINS, ALLOWED_MCP_COMMANDS, buildManage
 import { UPDATER_CONFIG } from "@/shared/constants/config";
 import { DATA_DIR } from "@/lib/dataDir";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
 
 const APP_PORT = UPDATER_CONFIG.appPort;
 const CLI_TOKEN_HEADER = "x-9r-cli-token";
@@ -246,7 +247,9 @@ async function writeSkipApprovals(managedServers) {
   return { written: Object.keys(skip).length };
 }
 
-export async function GET() {
+export async function GET(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const installed = await checkInstalled();
     if (!installed) {
@@ -321,6 +324,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   // Cowork disabled: spawns arbitrary processes (RCE risk).
   return NextResponse.json({ error: "Cowork is disabled" }, { status: 403 });
   try {
@@ -405,7 +410,9 @@ export async function POST(request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
+  if (!await requireDashboardAuth(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const meta = await readJson(await getMetaPath());
     if (!meta?.appliedId) {

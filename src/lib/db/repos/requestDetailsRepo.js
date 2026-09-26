@@ -96,6 +96,11 @@ async function flushToDatabase() {
             status: item.status || null,
             latency: item.latency || {},
             tokens: item.tokens || {},
+            // Routing decision stays top-level and untruncated. Nesting it inside
+            // `request` would let truncateField() replace that whole object with
+            // {_truncated,...} once it passes maxJsonSize, losing the decision
+            // silently — same pattern as the sibling `latency` / `tokens` objects.
+            routeDecision: item.routeDecision || null,
             request: truncateField(item.request, config.maxJsonSize),
             providerRequest: truncateField(item.providerRequest, config.maxJsonSize),
             providerResponse: truncateField(item.providerResponse, config.maxJsonSize),

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { cleanupTempDb } from "../helpers/tempDb.js";
 
 const originalDataDir = process.env.DATA_DIR;
 
@@ -22,7 +23,13 @@ async function setupRoute() {
 
   const { POST } = await import("@/app/api/provider-nodes/route.js");
   const { getProviderNodes } = await import("@/models/index.js");
-  return { POST, getProviderNodes, cleanup() { fs.rmSync(tempDir, { recursive: true, force: true }); } };
+  return {
+    POST,
+    getProviderNodes,
+    async cleanup() {
+      await cleanupTempDb(tempDir);
+    },
+  };
 }
 
 function makeRequest(body) {
@@ -36,11 +43,11 @@ function makeRequest(body) {
 describe("provider node creation", () => {
   let cleanup = () => {};
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.doUnmock("next/server");
     vi.resetModules();
     vi.clearAllMocks();
-    cleanup();
+    await cleanup();
     cleanup = () => {};
     if (originalDataDir === undefined) delete process.env.DATA_DIR;
     else process.env.DATA_DIR = originalDataDir;

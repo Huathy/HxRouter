@@ -56,6 +56,15 @@ const eslintConfig = defineConfig([
       },
     },
   },
+  // ─── Line-count ratchet (§5.2 gate 3) ────────────────────────────────────
+  // `max: 2191` is the current true maximum
+  // (src/app/(dashboard)/dashboard/providers/[id]/page.js = 2191 lines;
+  //  second largest is 1861). It is deliberately a "warn", never an "error":
+  // an error would turn the ratchet into a tripwire that blocks unrelated work
+  // the moment someone adds a line to an already-oversized file. Lower it when
+  // the largest file is split — never raise it to silence a warning.
+  // Standalone block (no `files`) so it applies to every linted file.
+  { rules: { "max-lines": ["warn", { max: 2191 }] } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
