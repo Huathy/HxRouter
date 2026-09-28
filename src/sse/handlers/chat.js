@@ -1,4 +1,5 @@
 import "open-sse/index.js";
+import { readBoundedJson } from "../utils/boundedBody.js";
 
 import {
   getProviderCredentials,
@@ -46,6 +47,7 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { maybeWaitForCooldown, MAX_COOLDOWN_RETRIES } from "open-sse/utils/cooldownRetry.js";
+import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 
 function checkCircuitBreaker(provider, proxyHash = null, enabled = true) {
   if (!enabled) return false;
@@ -66,12 +68,10 @@ function cloneAttemptBody(body, model) {
  * Format detection and translation handled by translator
  */
 export async function handleChat(request, clientRawRequest = null) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    log.warn("CHAT", "Invalid JSON body");
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  const { body, bytes: requestBytes, error } = await readBoundedJson(request);
+  if (error) {
+    log.warn("CHAT", error.status === HTTP_STATUS.PAYLOAD_TOO_LARGE ? "Body too large" : "Invalid JSON body");
+    return error;
   }
 
   // Accept header negotiation: curl/httpx send Accept: text/event-stream to
@@ -97,7 +97,11 @@ export async function handleChat(request, clientRawRequest = null) {
 
   // Log request endpoint and model
   const url = new URL(request.url);
-  const modelStr = body.model;
+  // Claude Code marks a 1M-context request as `<model>[1m]`; the marker matches
+  // no combo, alias or provider/model pair, so it must not reach resolution.
+  // The capability travels in the anthropic-beta header, forwarded as-is.
+  const { model: modelStr, contextMarker } = stripModelContextMarker(body.model);
+  if (contextMarker) body.model = modelStr;
 
   // Count messages (support both messages[] and input[] formats)
   const msgCount = body.messages?.length || body.input?.length || 0;
@@ -190,7 +194,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, null, { strategy: "fusion", comboName: modelStr });
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes }, { strategy: "fusion", comboName: modelStr });
         },
         log,
         comboName: modelStr,
@@ -205,7 +209,7 @@ export async function handleChat(request, clientRawRequest = null) {
     return budget.dispatch(() => handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts, { strategy: comboStrategy, comboName: modelStr }),
+      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }, { strategy: comboStrategy, comboName: modelStr }),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -218,13 +222,14 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   // Single model request
-  return budget.dispatch(() => handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, null, { strategy: "direct" }));
+  return budget.dispatch(() => handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes }, { strategy: "direct" }));
 }
 
 /**
  * Handle single model chat request
  */
 async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, apiKeyInfo = null, options = null, routeContext = null) {
+  const clientBodyBytes = options?.clientBodyBytes;
   const externalSignal = options?.signal ?? null;
   const clientSignal = request?.signal && externalSignal
     ? AbortSignal.any([request.signal, externalSignal])
@@ -252,7 +257,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, null, { strategy: "fusion", comboName: modelStr });
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, apiKeyInfo, { clientBodyBytes }, { strategy: "fusion", comboName: modelStr });
           },
           log,
           comboName: modelStr,
@@ -267,7 +272,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return handleComboChat({
         body,
         models: comboModels,
-        handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, opts, { strategy: comboStrategy, comboName: modelStr }),
+        handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes }, { strategy: comboStrategy, comboName: modelStr }),
         log,
         comboName: modelStr,
         comboStrategy,
@@ -507,6 +512,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       apiKey,
       apiKeyName: apiKeyInfo?.name || null,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
+      clientBodyBytes,
       rtkEnabled: !!chatSettings.rtkEnabled,
       compressionEnabled: !!chatSettings.compressionEnabled,
       cavemanEnabled: !!chatSettings.cavemanEnabled,

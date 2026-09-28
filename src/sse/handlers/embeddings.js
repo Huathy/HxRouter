@@ -1,3 +1,4 @@
+import { readBoundedJson } from "../utils/boundedBody.js";
 import {
   getProviderCredentials,
   markAccountUnavailable,
@@ -42,12 +43,10 @@ function exactEmbeddingUsage(raw) {
  * @param {Request} request
  */
 export async function handleEmbeddings(request) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    log.warn("EMBEDDINGS", "Invalid JSON body");
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  const { body, error } = await readBoundedJson(request);
+  if (error) {
+    log.warn("EMBEDDINGS", error.status === HTTP_STATUS.PAYLOAD_TOO_LARGE ? "Body too large" : "Invalid JSON body");
+    return error;
   }
 
   const url = new URL(request.url);

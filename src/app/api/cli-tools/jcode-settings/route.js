@@ -4,12 +4,9 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { probeCliInstalled } from "../_shared/cliConfig.js";
 import { parseTOML, stringifyTOML } from "confbox";
 import { requireDashboardAuth } from "@/lib/auth/routeAuth.js";
-
-const execAsync = promisify(exec);
 
 const PROVIDER_NAME = "HxRouter";
 const LEGACY_PROVIDER_NAMES = ["VansRoute", "VansRouter", "9router", "9Router"];
@@ -26,21 +23,7 @@ const getProviderEnvPath = (providerName = PROVIDER_NAME) => {
   return path.join(configDir, "jcode", `provider-${providerName}.env`);
 };
 
-const checkJcodeInstalled = async () => {
-  try {
-    const isWindows = os.platform() === "win32";
-    const command = isWindows ? "where jcode" : "which jcode";
-    await execAsync(command, { windowsHide: true });
-    return true;
-  } catch {
-    try {
-      await fs.access(getJcodeConfigDir());
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
+const checkJcodeInstalled = () => probeCliInstalled("jcode", [getJcodeConfigDir()]);
 
 const readConfig = async () => {
   try {

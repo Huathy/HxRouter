@@ -1427,6 +1427,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > openai → headers (
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > opencode-zen → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > openrouter → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1548,6 +1567,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > predibase → header
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > publicai → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > qoder-cn → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -2360,6 +2398,13 @@ exports[`GOLDEN buildUrl (default executor providers) > openai → url (stream +
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > opencode-zen → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://opencode.ai/zen/v1/chat/completions",
+  "stream": "https://opencode.ai/zen/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > openrouter → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://openrouter.ai/api/v1/chat/completions",
@@ -2409,6 +2454,13 @@ exports[`GOLDEN buildUrl (default executor providers) > publicai → url (stream
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > qoder-cn → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://gateway.qoder.com.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
+  "stream": "https://gateway.qoder.com.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > sambanova → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.sambanova.ai/v1/chat/completions",
@@ -2446,8 +2498,8 @@ exports[`GOLDEN buildUrl (default executor providers) > together → url (stream
 
 exports[`GOLDEN buildUrl (default executor providers) > tokenrouter → url (stream + non-stream) 1`] = `
 {
-  "nonStream": "https://www.tokenrouter.com/v1/chat/completions",
-  "stream": "https://www.tokenrouter.com/v1/chat/completions",
+  "nonStream": "https://api.tokenrouter.com/v1/chat/completions",
+  "stream": "https://api.tokenrouter.com/v1/chat/completions",
 }
 `;
 

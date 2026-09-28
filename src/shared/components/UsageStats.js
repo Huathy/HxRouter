@@ -16,6 +16,8 @@ import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/Overview
 import UsageTable, { fmt, fmtTime, fmtSpeed } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
 import ModelPieChart from "@/app/(dashboard)/dashboard/usage/components/ModelPieChart";
 import UsageChart from "@/app/(dashboard)/dashboard/usage/components/UsageChart";
+import ProviderBarChart from "@/app/(dashboard)/dashboard/usage/components/ProviderBarChart";
+import TopModelsChart from "@/app/(dashboard)/dashboard/usage/components/TopModelsChart";
 
 function fmtToken(n) {
   if (n == null || isNaN(n)) return "0";
@@ -381,12 +383,13 @@ const PERIODS = [
   { value: "7d", label: "7D" },
   { value: "30d", label: "30D" },
   { value: "60d", label: "60D" },
+  { value: "all", label: "All" },
 ];
 
 function PeriodSelector({ period, setPeriod, fetching }) {
   return (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:self-end">
-          <div className="grid flex-1 grid-cols-5 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
+          <div className="grid flex-1 grid-cols-6 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:flex sm:flex-none">
             {PERIODS.map((p) => (
               <button type="button"
                 key={p.value}
@@ -729,6 +732,14 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
       {/* Token / Cost chart - sync period */}
       {loading ? chartSkeleton : <UsageChart period={period} />}
+
+      {/* Provider and model breakdown charts */}
+      {!loading && (stats.byProvider || stats.byModel) && (
+        <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
+          <ProviderBarChart byProvider={stats.byProvider} />
+          <TopModelsChart byModel={stats.byModel} />
+        </div>
+      )}
 
       {/* Table with dropdown selector */}
       <div className="flex flex-col gap-3">
