@@ -1,8 +1,75 @@
-# v1.0.0 (2026-09-14)
+# v1.0.0 (2026-09-28)
 
-## Branding & Compatibility
+First tagged release of the HxRouter line: the repository carried no release tag before this one, and every artifact below (npm `hxrouter@1.0.0`, `ghcr.io/huathy/hxrouter:1.0.0` for `linux/amd64` + `linux/arm64`) is produced from this commit by the `v*` tag workflow. It builds on the v0.91.30 upstream-sync line, which is merged in at `ed1bc297`; the HxRouter rebrand, packaging, and the work listed below are what this release adds on top.
 
-- Standardized newly written CLI providers, default keys, updater metadata, response headers, UI, landing copy, and current documentation on HxRouter (`HxRouter` / `hxrouter` / `sk_HxRouter`). Legacy `VansRoute`, `VansRouter`, and `9router` configuration remains readable and is migrated to the canonical HxRouter key when settings are saved or reset.
+## Branding & Packaging
+
+- **Package, image, and command rename** (`9144bad4`, `7c9e0cfb`, `d171fcc7`, `ac5d0a6d`, `38548765`): npm package `vansrouter` → `hxrouter`, CLI command `vansrouter` → `hxrouter`, env prefix `VANSROUTER_` → `HXROUTER_`, Docker image `ghcr.io/vanszs/vansrouter` → `ghcr.io/huathy/hxrouter`, and `VansRouter`/`VansAI` → `HxRouter`/`HXAI` across UI, landing copy, CLI, manifest, and 25 locale files. The `9router` data-volume name and `APP_NAME` are deliberately unchanged so existing installations keep their SQLite data.
+- **BREAKING**: the response header `X-VansRoute` is now `X-HxRouter`, with `X-Msh-Platform` following the HxRouter values. Existing users must uninstall `vansrouter` and install `hxrouter`. Legacy `VansRoute`, `VansRouter`, and `9router` configuration stays readable and is rewritten to the canonical HxRouter key when settings are saved or reset.
+- Standardized newly written CLI providers, default keys, updater metadata, response headers, UI, landing copy, and current documentation on HxRouter (`HxRouter` / `hxrouter` / `sk_HxRouter`).
+- `package.json` and `cli/package.json` are both `1.0.0`; the version-bearing golden header snapshots (`User-Agent`, `X-CLIENT-VERSION`, `X-CORE-VERSION`, `X-Msh-Version`) were refreshed for 1.0.0.
+
+## Security
+
+- **21 previously unauthenticated routes now require dashboard auth** (`8269b82f`): every `cli-tools` route plus `antigravity-mitm`, `tunnel`, `version`, and the Cursor auto-import call `requireDashboardAuth`; `all-statuses` forwards the real request instead of the empty state its `catch` used to swallow.
+- **Spend budget gate** (`8269b82f`): `src/sse/services/spendBudget.js` reserves worst-case upstream cost before dispatch on every SSE entry point (chat, tts, stt, image, video, embeddings, search, fetch), and Fusion upgrades the reservation atomically before fan-out.
+- Request bodies are bounded on every entry point and while the stream is being read, not only after (`10e1df12`, `2408afb1`); SSRF hardening and legacy `db.json` migration inside Docker volumes (`ac5d0a6d`).
+- A request-scoped 4xx no longer cools down an account, and re-validation clears stale connection health state (`2ab78a22`, `7979a7ee`).
+
+## Observability
+
+- `routeDecision` now flows through the streaming, non-streaming, and forced SSE→JSON paths and is persisted as a top-level field; the usage detail tab adds **路由决策** and **翻译差异** panels (`8269b82f`).
+- Cache hit-rate trend and fallback warnings; modality stripping and illegal combo-strategy downgrades moved to `warn` (`8269b82f`). The gateway error log is wired and its policy flag has a reader (`dd974a4b`).
+- Request success-rate aggregation, per-provider 24h success badge, and live in-flight request status in the usage dashboard (`cb99f13e`, `8269b82f`).
+- HTTP status codes are recorded for every request including error paths, shown colour-coded in the request-details list (`48cc782c`).
+
+## Features
+
+- **Playground**: sidebar entry, combos exposed as their own selectable model group, and a `/api/dashboard/chat/completions` proxy that injects a machine-bound CLI token so the assistant is not blocked by the dashboard ACL (`131580d5`, `7c9e0cfb`).
+- **Model pricing**: `/api/pricing/catalog` synced from models.dev (input/output/cached/reasoning/cache-creation derived rates) plus a Model Pricing page, and the Kilo Code free-model catalog merged into the model list and `allowedModels` (`55f25a89`, `0a909c5e`).
+- **Usage latency**: `usageHistory.latencyMs`, avg-latency and tokens/s aggregation, `ModelPieChart`, a Speed column, and 万/亿-adaptive token formatting (`f2022a62`, `0558979b`, `6dfc2b7b`, `a2bb785c`).
+- **Weighted scheduling**: per-connection weights with slot-rotation round robin for providers and combos, ignoring weights in `fallback` (`c85588a1`, `cb99f13e`).
+- **Provider disable switch** and a `/api/models/events` SSE bus that replaces TTL polling in the dashboard (`3007a20d`).
+- **Check-in scheduling**: declarative HTTP check-in scripts, secret encryption, cron scheduling, and run history, persisted by migration #10 (`ac5d0a6d`).
+- Model selector: TTL cache invalidated by catalog version, collapsible groups fixed (CSS clipping instead of DOM removal) to stop an expand/collapse loop, ResizeObserver-based measurement (`470a59be`, `c85588a1`); model grouping and provider ordering with compatible nodes split out (`7f54f0d3`, `08081e5d`).
+- Combo capabilities aggregated into `/v1/models`, vision capability surfaced in the combo editor, and per-target combo timeouts with client-abort propagation (`4e787bc0`, `1ca4c996`).
+- UI localisation pass, including registering the Persian locale so `fa.json` is reachable (`5eda34c8`, `77cba875`, `63486c19`).
+
+## Reliability & Compatibility
+
+- **Inlined context compression replaces the Headroom sidecar** (`ff9e4925`): `open-sse/rtk/headroom.js`, the `src/lib/headroom/` process manager, and every Headroom API route are deleted; `open-sse/rtk/contextCompression.js` compresses in-process via `thincontext` (1.0.3) with per-session isolation, and settings migrate from `headroomEnabled`/`headroomUrl` to `compressionEnabled`. CLI, dashboard, Compose, and docs updated.
+- **Modal layout and accessibility** (`a5f7377c`, `8269b82f`): fixed sizing, flex layout, and explicit scroll regions for the combo editor and model picker so long lists and the action row are no longer clipped on short viewports; `Modal`/`Drawer` share a focus-trap hook; Playground assistant messages render through marked + DOMPurify with throttled streaming text.
+- **UTF-8 build gate** (`a5f7377c`): `scripts/check-utf8.cjs` runs inside `pnpm run build` and reports every non-UTF-8 source file at once, instead of webpack failing ~40s into a Docker build on one file at a time.
+- Provider/translator fixes on the v0.91.30 sync line carried into this build: Cursor AgentService empty turns and silent tool hangs (`ee8273a9`), stream aborts reported in-band after a 200 (`f4daf750`), Codex review routing (`d1a07eef`), Kiro tool-name underscores and tool-result images (`d9209a44`), and the Claude content-filter refusal no longer counted as a provider failure (`6c61c4b8`).
+- API route modularisation and code-style normalisation across SSE core modules and `cli-tools` routes; no behavior change (`c8e7ba5d`).
+
+## Release Infrastructure
+
+- **The release branch is now `master`** (`8e0309e0`): `release.yml` compares the tag against `origin/$RELEASE_BRANCH` (job output renamed `is-release-branch`) instead of `origin/main`, and `.agent/cicd.md` was updated to match. `main` stays the integration branch.
+- Tag workflow: mandatory QEMU, multi-arch `linux/amd64,linux/arm64` build with manifest and native-SQLite verification, CLI tarball pack + validation + offline smoke test, npm publish with a first-publish name claim for the not-yet-registered `hxrouter` package, image promotion to `1.0.0` and `latest` only after npm succeeds, then GitHub Release creation with generated notes.
+- Automated release notes and GitHub Release generation; the artifact gate's ENOBUFS failure fixed (`35bc780e`).
+- Docker builds with `npm ci` against a committed lockfile; Next.js pinned to 16.3.6 (`8269b82f`).
+- New `test:baseline` / `verify` scripts with a known-fails baseline, an ESLint `max-lines` ratchet, and `closeAdapter` on the DB layer (`8269b82f`).
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures, 97.92s. Run twice on the release tree with identical results.
+- `pnpm run build` → exit 0. `utf-8 check: clean (5430 files)`, `Compiled successfully in 41s`, 150 static pages generated.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider was called during this release.
+
+## Install
+
+```bash
+# Docker
+docker pull ghcr.io/huathy/hxrouter:1.0.0
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data ghcr.io/huathy/hxrouter:1.0.0
+
+# npm
+npm install -g hxrouter@1.0.0
+hxrouter
+```
+
+Dashboard: http://localhost:20128
 
 # v0.91.30 (2026-09-23)
 
