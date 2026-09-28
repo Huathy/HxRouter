@@ -180,7 +180,27 @@ jobs:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
         run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
 
+      # npm versions are immutable, so a first release whose name is not yet
+      # registered on npmjs.com must claim the name with a local publish before
+      # Trusted Publishing can be configured for the package. Without this guard
+      # the workflow would fail permanently on that already-published version,
+      # which also blocks create-github-release (it needs publish-npm).
+      # This matches .agent/cicd.md: "npm already published but GHCR promotion
+      # failed: promote/recover the exact staging image; do not republish npm."
+      - name: Check whether this version is already on the registry
+        id: registry
+        env:
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          if npm view "hxrouter@$RELEASE_VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::hxrouter@$RELEASE_VERSION is already published; the local first publish claimed the name"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish validated CLI tarball
+        if: steps.registry.outputs.published != 'true'
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
         run: npm publish "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" --provenance
@@ -211,3 +231,105 @@ jobs:
         run: |
           docker buildx imagetools create --tag "$RELEASE_IMAGE" "$STAGING_IMAGE"
           docker buildx imagetools create --tag "$LATEST_IMAGE" "$STAGING_IMAGE"
+
+  # Runs last: the GitHub Release (and therefore the generated contributors list)
+  # must not exist before both published artifacts are live in the registries.
+  create-github-release:
+    needs: [check-branch, publish-npm, promote-ghcr]
+    if: needs.check-branch.outputs.is-main == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify both published artifacts
+        env:
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          set -euo pipefail
+          published=""
+          for attempt in $(seq 1 10); do
+            if published="$(npm view "hxrouter@$RELEASE_VERSION" version 2>/dev/null)" && [ "$published" = "$RELEASE_VERSION" ]; then
+              break
+            fi
+            echo "npm registry is not serving hxrouter@$RELEASE_VERSION yet (attempt $attempt/10)"
+            sleep 6
+          done
+          test "${published:-}" = "$RELEASE_VERSION"
+          echo "npm: hxrouter@$published"
+          docker buildx imagetools inspect "$GHCR_IMAGE:$RELEASE_VERSION" | tee /tmp/release-manifest.txt
+          grep -q 'linux/amd64' /tmp/release-manifest.txt
+          grep -q 'linux/arm64' /tmp/release-manifest.txt
+          echo "ghcr: $GHCR_IMAGE:$RELEASE_VERSION (amd64 + arm64)"
+
+      - name: Build install section
+        env:
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          cat > /tmp/install.md <<'EOF'
+
+          ---
+
+          ## 安装 / Install
+
+          本次发布同时产出两个包：GHCR 镜像 + npm CLI 包。
+
+          ### Docker
+
+          ```bash
+          docker pull ghcr.io/huathy/hxrouter:__VERSION__
+          docker pull ghcr.io/huathy/hxrouter:latest
+
+          docker run -d --name hxrouter -p 20128:20128 \
+            -v 9router-data:/app/data \
+            -e DATA_DIR=/app/data \
+            ghcr.io/huathy/hxrouter:__VERSION__
+          ```
+
+          或使用仓库根目录的 `docker-compose.yml`：`docker compose up -d`
+
+          ### npm
+
+          ```bash
+          npm install -g hxrouter@__VERSION__
+          hxrouter
+          ```
+
+          Dashboard: http://localhost:20128
+          EOF
+          sed -i "s/__VERSION__/$RELEASE_VERSION/g" /tmp/install.md
+          test "$(grep -c '__VERSION__' /tmp/install.md)" = "0"
+
+      - name: Create GitHub release with generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          if gh release view "$TAG" --json tagName >/dev/null 2>&1; then
+            echo "::notice::GitHub release $TAG already exists; leaving the existing notes untouched"
+            exit 0
+          fi
+          if gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$TAG" \
+              -f target_commitish="$(git rev-parse HEAD)" \
+              --jq .body > /tmp/notes.md 2>/tmp/notes-error.txt; then
+            test -s /tmp/notes.md
+            cat /tmp/install.md >> /tmp/notes.md
+          else
+            echo "::warning::generate-notes API failed, falling back to gh --generate-notes"
+            cat /tmp/notes-error.txt
+            gh release create "$TAG" --generate-notes --verify-tag --title "$TAG"
+            exit 0
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/notes.md
+          gh release view "$TAG" --json url,tagName --jq '"Created \(.tagName): \(.url)"'

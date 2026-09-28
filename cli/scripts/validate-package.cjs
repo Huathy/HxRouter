@@ -13,7 +13,12 @@ if (!fs.existsSync(tarball)) {
   throw new Error(`Tarball does not exist: ${tarball}`);
 }
 
-const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" })
+// The bundled CLI ships ~14k files, so the full `tar -tzf` listing is >1 MB.
+// Node's execFileSync defaults to a 1 MB stdout buffer and fails with ENOBUFS
+// before any assertion runs. Raise the limit, and strip CR so the gate behaves the
+// same on Windows (bsdtar emits CRLF) as on the Linux runner. Checks are unchanged.
+const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  .replace(/\r/g, "")
   .trim()
   .split("\n")
   .filter(Boolean);

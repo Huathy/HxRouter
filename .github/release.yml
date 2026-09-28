@@ -1,0 +1,48 @@
+# Auto-generated release notes configuration for GitHub Releases.
+# Read by GitHub from the default branch when `gh release create --generate-notes`
+# or POST /repos/{owner}/{repo}/releases/generate-notes runs.
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# Category titles intentionally mirror the headings required by .agent/cicd.md so
+# the generated notes and CHANGELOG.md stay consistent.
+# Categories only take effect for PRs that carry the matching label; unlabeled PRs
+# land in the "*" catch-all, which is required or they are dropped entirely.
+changelog:
+  exclude:
+    authors:
+      - dependabot
+      - github-actions
+      - renovate
+    labels:
+      - skip-release
+      - duplicate
+  categories:
+    - title: Features
+      labels:
+        - feature
+        - enhancement
+    - title: Reliability & Compatibility
+      labels:
+        - fix
+        - bug
+        - compatibility
+    - title: Frontend & Accessibility
+      labels:
+        - ui
+        - frontend
+        - a11y
+    - title: Release Infrastructure
+      labels:
+        - ci
+        - release
+        - docker
+        - npm
+    - title: Tests
+      labels:
+        - test
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other Changes
+      labels:
+        - "*"
