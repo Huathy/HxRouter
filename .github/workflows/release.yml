@@ -11,29 +11,32 @@ concurrency:
 
 env:
   GHCR_IMAGE: ghcr.io/huathy/hxrouter
+  # The tag must point at the current tip of this branch. `main` stays the
+  # integration branch; releases are cut from `master`.
+  RELEASE_BRANCH: master
 
 jobs:
   check-branch:
     runs-on: ubuntu-latest
     outputs:
-      is-main: ${{ steps.check.outputs.is-main }}
+      is-release-branch: ${{ steps.check.outputs.is-release-branch }}
       version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify tag/commit is on main
+      - name: Verify tag/commit is on the release branch
         id: check
         run: |
-          git fetch origin main
+          git fetch origin "$RELEASE_BRANCH"
           git fetch origin "refs/tags/$GITHUB_REF_NAME:refs/tags/release-validation"
-          if test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"; then
-            echo "is-main=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Release target is the current main commit"
+          if test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$RELEASE_BRANCH")"; then
+            echo "is-release-branch=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Release target is the current $RELEASE_BRANCH commit"
           else
-            echo "is-main=false" >> "$GITHUB_OUTPUT"
-            echo "⛔ Release blocked: tag must point to the current main commit"
+            echo "is-release-branch=false" >> "$GITHUB_OUTPUT"
+            echo "⛔ Release blocked: tag must point to the current $RELEASE_BRANCH commit"
             exit 1
           fi
 
@@ -41,7 +44,7 @@ jobs:
 
   build-and-verify-ghcr:
     needs: check-branch
-    if: needs.check-branch.outputs.is-main == 'true'
+    if: needs.check-branch.outputs.is-release-branch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -91,7 +94,7 @@ jobs:
 
   package-npm:
     needs: check-branch
-    if: needs.check-branch.outputs.is-main == 'true'
+    if: needs.check-branch.outputs.is-release-branch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -151,7 +154,7 @@ jobs:
 
   publish-npm:
     needs: [check-branch, package-npm]
-    if: needs.check-branch.outputs.is-main == 'true' && needs.package-npm.result == 'success'
+    if: needs.check-branch.outputs.is-release-branch == 'true' && needs.package-npm.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -207,7 +210,7 @@ jobs:
 
   promote-ghcr:
     needs: [check-branch, build-and-verify-ghcr]
-    if: needs.check-branch.outputs.is-main == 'true' && needs.build-and-verify-ghcr.result == 'success'
+    if: needs.check-branch.outputs.is-release-branch == 'true' && needs.build-and-verify-ghcr.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -236,7 +239,7 @@ jobs:
   # must not exist before both published artifacts are live in the registries.
   create-github-release:
     needs: [check-branch, publish-npm, promote-ghcr]
-    if: needs.check-branch.outputs.is-main == 'true'
+    if: needs.check-branch.outputs.is-release-branch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

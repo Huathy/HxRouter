@@ -4,7 +4,7 @@ Mandatory for every AI-assisted release. Do not bypass these rules with force ta
 
 ## Release Contract
 
-- Release source: annotated Git tag `vX.Y.Z` pushed to the current tip of `main`.
+- Release source: annotated Git tag `vX.Y.Z` pushed to the current tip of `master`. `main` stays the integration branch; releases are cut from `master`.
 - `package.json` and `cli/package.json` versions must equal `X.Y.Z`.
 - `CHANGELOG.md` must start with `# vX.Y.Z (YYYY-MM-DD)`.
 - The top release entry must be detailed enough to mirror the shipped scope: group changes under meaningful headings such as Features, Reliability & Compatibility, Frontend & Accessibility, Release Infrastructure, and Tests; name affected providers/modules; document user-visible behavior and compatibility changes; include verified test/build evidence. Do not use a vague one-line summary for a multi-feature release.
@@ -12,7 +12,7 @@ Mandatory for every AI-assisted release. Do not bypass these rules with force ta
 - The commit immediately before the tag must be the last commit changing only `CHANGELOG.md`.
 - All code, workflow, test, and version changes must be complete before the changelog-only commit.
 - Never retag or move an existing release tag. Use the next version.
-- Never tag an older commit: CI requires the tag commit to equal `origin/main`.
+- Never tag an older commit: CI requires the tag commit to equal `origin/master`.
 - Never publish npm manually outside the release workflow.
 - GitHub Actions checkout may dereference an annotated tag to its commit. CI must fetch the original tag object into a temporary ref before validating annotation:
 
@@ -50,7 +50,7 @@ git diff --cached --name-only
 # Expected output: CHANGELOG.md
 git commit -m "docs(changelog): release v0.91.10"
 
-git push origin main
+git push origin master
 node cli/scripts/validate-release.cjs v0.91.10 --pretag
 git tag -a v0.91.10 -m "Release v0.91.10"
 git push origin v0.91.10
@@ -60,10 +60,10 @@ Before using another version, replace every `0.91.10` occurrence above with the 
 
 ## Pre-Tag Validation
 
-Run from a clean `main` checkout:
+Run from a clean `master` checkout:
 
 ```bash
-git pull --ff-only origin main
+git pull --ff-only origin master
 git status --short
 git -c core.whitespace=cr-at-eol diff --check
 node -e 'const a=require("./package.json"),b=require("./cli/package.json"); if(a.version!==b.version) throw Error(`${a.version} !== ${b.version}`); console.log(a.version)'
@@ -81,7 +81,7 @@ The `--pretag` command checks the changelog-only commit before the tag exists. A
 
 ## CI Gates
 
-For `origin/main` branch protection, the required status check is exactly `Validate (Ubuntu / Node 22)` from `.github/workflows/ci.yml`. The cross-platform matrix is conditional and must not be a required check because GitHub may legitimately skip it on non-platform changes. Branch protection also requires the branch to be up to date, blocks force-push/deletion, enforces admin rules, and requires conversation resolution.
+For `origin/master` branch protection, the required status check is exactly `Validate (Ubuntu / Node 22)` from `.github/workflows/ci.yml`. The cross-platform matrix is conditional and must not be a required check because GitHub may legitimately skip it on non-platform changes. Branch protection also requires the branch to be up to date, blocks force-push/deletion, enforces admin rules, and requires conversation resolution.
 
 The release workflow must complete in this order:
 
@@ -94,7 +94,7 @@ promote-ghcr
 
 Required evidence:
 
-- `check-branch`: tag points to `main`, versions match, changelog is final commit, tag is annotated.
+- `check-branch`: tag points to `master`, versions match, changelog is final commit, tag is annotated.
 - `check-branch` must validate the original annotated tag object, not the dereferenced checkout ref.
 - `package-npm`: actual tarball contains `app/_nm/sql.js/dist/sql-wasm.wasm`; no `better_sqlite3.node`.
 - Artifact smoke test: extracted CLI starts with a temporary `DATA_DIR`, responds to `/api/settings`, creates `db/data.sqlite`, and migrates legacy `db.json` without network.
