@@ -384,6 +384,10 @@ export default function ModelSelectModal({
     }
   };
 
+  // The "combo" size gives the panel a fixed 1000x600 box, so the body becomes a
+  // flex column and the model list takes the leftover height instead of the 400px cap.
+  const fills = size === "combo";
+
   return (
     <Modal
       isOpen={isOpen}
@@ -394,16 +398,17 @@ export default function ModelSelectModal({
       title={title}
       size={size}
       className="p-4!"
+      bodyClassName={fills ? "flex flex-col" : undefined}
       footer={null}
     >
       {/* Info bar */}
-      <div className="flex items-center gap-2 mb-3 px-2.5 py-2 bg-primary/8 border border-primary/20 rounded-lg text-xs text-text-muted">
+      <div className="flex shrink-0 items-center gap-2 mb-3 px-2.5 py-2 bg-primary/8 border border-primary/20 rounded-lg text-xs text-text-muted">
         <span className="material-symbols-outlined text-primary shrink-0" style={{ fontSize: "14px" }}>info</span>
         <span>Click to add, click again to remove. Changes are saved automatically.</span>
       </div>
 
       {/* Search - compact */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex shrink-0 items-center gap-2">
         <div className="relative flex-1">
           <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">
             search
@@ -429,7 +434,7 @@ export default function ModelSelectModal({
       </div>
 
       {/* Models grouped by provider - compact */}
-      <div className="max-h-[400px] overflow-y-auto space-y-3">
+      <div className={fills ? "flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-3" : "max-h-[400px] overflow-y-auto space-y-3"}>
         {/* Combos section - always first */}
         {filteredCombos.length > 0 && (
           <div>

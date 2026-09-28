@@ -49,7 +49,7 @@ describe("extractUsageFromSSE", () => {
     expect(usage.total_tokens).toBe(1020);
   });
 
-  it("returns null â€?never 0 and never NaN â€?when the stream carries no usage", () => {
+  it("returns null â€”never 0 and never NaN â€”when the stream carries no usage", () => {
     const stream = textFrame("no usage here") + "data: [DONE]\n\n";
 
     const usage = extractUsageFromSSE(stream);
@@ -94,7 +94,7 @@ describe("extractUsageFromSSE", () => {
 
   it("keeps a zero-token usage report as zeros and prices it as a finite $0.00", () => {
     // Distinct from the "no usage report" case above: the upstream answered
-    // and said "zero tokens". Cost must be a number, not NaN â€?an unknown
+    // and said "zero tokens". Cost must be a number, not NaN â€”an unknown
     // model id hits the same path and used to be the NaN source.
     const stream = textFrame("empty answer") + usageFrame({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }) + "data: [DONE]\n\n";
 
@@ -149,7 +149,7 @@ describe("extractUsageFromSSE", () => {
   it("handles a lone \\r frame terminator, which the SSE spec also allows", () => {
     // The discriminating CRLF case: with a bare "\n" split the whole stream
     // stays one line, the payload becomes every frame concatenated, and
-    // JSON.parse rejects it â€?so usage silently disappears. Proxies that
+    // JSON.parse rejects it â€”so usage silently disappears. Proxies that
     // rewrite terminators do produce this.
     const crOnly = `data: ${JSON.stringify({ choices: [], usage: FULL_USAGE })}\r\rdone`;
 
@@ -170,7 +170,7 @@ describe("extractUsageFromSSE", () => {
     expect(extractUsageFromSSE(stream)).toBeNull();
     // Sentinel-only stream: nothing to report, and no throw.
     expect(extractUsageFromSSE("data: [DONE]\n\n")).toBeNull();
-    // Usage before the sentinel still wins â€?the sentinel neither clears nor
+    // Usage before the sentinel still wins â€”the sentinel neither clears nor
     // invalidates what was already collected.
     expect(extractUsageFromSSE(usageFrame(FULL_USAGE) + "data: [DONE]\n\n").total_tokens).toBe(1540);
   });
@@ -229,7 +229,7 @@ describe("formatUsageSummary", () => {
   it("keeps sub-cent costs visible instead of rounding them to $0.00", () => {
     const usage = { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, cached_tokens: 0, cache_creation_input_tokens: 0 };
 
-    // 100 in + 50 out at gpt-5.3-codex rates â‰?$0.000875.
+    // 100 in + 50 out at gpt-5.3-codex rates â‰ˆ$0.000875.
     expect(formatUsageSummary(usage, { provider: "openai", model: "gpt-5.3-codex" })).toContain("$0.0009");
   });
 });
@@ -286,7 +286,7 @@ describe("requestUpstreamUsage (playground route injects stream_options)", () =>
 
 // An SSE read loop already JSON.parses every frame to read the assistant text.
 // Routing that parsed frame back through extractUsageFromSSE re-splits the line,
-// re-trims, re-slices and re-parses the identical payload ¡ª once per frame of a
+// re-trims, re-slices and re-parses the identical payload â€” once per frame of a
 // streamed reply. usageFromChunk is the no-re-parse path, and it must be
 // observationally identical to extractUsageFromSSE on the same frame.
 describe("usageFromChunk", () => {
@@ -306,7 +306,7 @@ describe("usageFromChunk", () => {
     }
   });
 
-  it("returns null ¡ª never 0, never NaN ¡ª for a frame with no usage report", () => {
+  it("returns null â€” never 0, never NaN â€” for a frame with no usage report", () => {
     expect(usageFromChunk({ id: "c", choices: [] })).toBeNull();
     expect(usageFromChunk({ usage: null })).toBeNull();
   });

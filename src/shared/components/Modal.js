@@ -12,8 +12,15 @@ const MODAL_SIZES = {
   lg: "max-w-lg",
   xl: "max-w-xl",
   full: "max-w-4xl",
-  combo: "max-w-[1000px]",
+  // Combo editors (model list + model picker) need a wide, tall canvas:
+  // 1000x600, capped on short viewports. The fixed height makes the panel a
+  // flex column so the body — not the panel — absorbs the extra room.
+  combo: "max-w-[1000px] h-[600px] max-h-[calc(100vh-2rem)] flex flex-col",
 };
+
+// Sizes with a fixed panel height: the body fills the leftover space instead of
+// using the 85vh cap, so inner regions own their own scrolling.
+const FILL_SIZES = new Set(["combo"]);
 
 export default function Modal({
   isOpen,
@@ -25,8 +32,10 @@ export default function Modal({
   closeOnOverlay = true,
   showTrafficLights = true,
   className,
+  bodyClassName,
 }) {
   const sizeClass = MODAL_SIZES[size] || MODAL_SIZES.md;
+  const fills = FILL_SIZES.has(size);
   const onCloseRef = useRef(onClose);
   const panelRef = useRef(null);
   const titleId = useId();
@@ -84,7 +93,7 @@ export default function Modal({
       >
         {/* Header */}
         {(title || showTrafficLights) && (
-          <div className="flex items-center justify-between p-2 border-b border-border-subtle">
+          <div className="flex shrink-0 items-center justify-between p-2 border-b border-border-subtle">
             <div className="flex items-center">
               {/* Traffic lights — desktop only */}
               {showTrafficLights && (
@@ -119,11 +128,15 @@ export default function Modal({
         )}
 
         {/* Body */}
-        <div className="p-6 max-h-[calc(85vh-100px)] overflow-y-auto custom-scrollbar">{children}</div>
+        <div className={cn(
+          "p-6 overflow-y-auto custom-scrollbar",
+          fills ? "flex-1 min-h-0" : "max-h-[calc(85vh-100px)]",
+          bodyClassName
+        )}>{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 p-6 border-t border-border-subtle">
+          <div className="flex shrink-0 items-center justify-end gap-3 p-6 border-t border-border-subtle">
             {footer}
           </div>
         )}

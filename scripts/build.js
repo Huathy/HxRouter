@@ -104,6 +104,15 @@ execFileSync(process.execPath, [path.join(appDir, "scripts", "lint-undef.cjs")],
   cwd: appDir,
 });
 
+// Catch mangled multi-byte sequences before webpack does. Otherwise the build
+// dies 40s in (or, in Docker, after the npm ci layer) with an opaque
+// "stream did not contain valid UTF-8" naming a single file.
+console.log("▶ running utf-8 check");
+execFileSync(process.execPath, [path.join(appDir, "scripts", "check-utf8.cjs")], {
+  stdio: "inherit",
+  cwd: appDir,
+});
+
 // Empty, junction-free HOME for the build.
 fs.mkdirSync(path.join(fakeHome, "AppData", "Roaming"), { recursive: true });
 fs.mkdirSync(path.join(fakeHome, "AppData", "Local"), { recursive: true });

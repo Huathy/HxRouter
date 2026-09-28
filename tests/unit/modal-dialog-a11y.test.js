@@ -200,8 +200,8 @@ describe("Drawer dialog semantics", () => {
 });
 
 // The focus trap, initial focus and focus restore used to be duplicated
-// byte-for-byte in Modal.js and Drawer.js. Divergence there is user visible ¡ª
-// one component focus-traps users while the other drops focus on close ¡ª so the
+// byte-for-byte in Modal.js and Drawer.js. Divergence there is user visible â€”
+// one component focus-traps users while the other drops focus on close â€” so the
 // single-source invariant is pinned here. Behaviour itself still needs a live DOM
 // (see the file header); this asserts the SHAPE that keeps the two in lockstep.
 describe("focus trap has a single source", () => {

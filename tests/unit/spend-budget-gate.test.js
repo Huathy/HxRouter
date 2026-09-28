@@ -1103,7 +1103,7 @@ describe("fusion fan-out is reserved at its real cost", () => {
   });
 });
 
-// safeJsonLength used to be `JSON.stringify(value).length` ¡ª a full deep walk
+// safeJsonLength used to be `JSON.stringify(value).length` â€” a full deep walk
 // plus a throwaway string per field, four times per gated request, right before
 // the body was serialized again for the upstream call. It is now an allocation-
 // free recursive length sum, so the measurement path itself needs pinning.
@@ -1112,7 +1112,7 @@ describe("prompt size measurement", () => {
     const one = estimatePromptChars({ messages: [{ role: "user", content: "hi" }] }, "llm");
     const many = estimatePromptChars({ messages: [{ role: "user", content: "x".repeat(40000) }] }, "llm");
     expect(many).toBeGreaterThan(one);
-    // 4 chars/token, rounded up ¡ª the documented convention.
+    // 4 chars/token, rounded up â€” the documented convention.
     expect(many).toBeGreaterThanOrEqual(40000);
   });
 
@@ -1132,7 +1132,7 @@ describe("prompt size measurement", () => {
 
   it("measures every modality that can reach a billable upstream call", () => {
     // A modality missing from PROMPT_FIELDS silently falls back to the llm field
-    // list, measures nothing, and floors at 1 cent ¡ª which is how a real cost
+    // list, measures nothing, and floors at 1 cent â€” which is how a real cost
     // escapes the budget. These are the modalities the public API exposes.
     const priced = [
       ["llm", { messages: [{ content: "hello" }] }],

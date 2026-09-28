@@ -184,9 +184,9 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={title || (isEdit ? "Edit Combo" : "Create Combo")}>
-        <div className="flex flex-col gap-3">
-          <div>
+      <Modal isOpen={isOpen} onClose={onClose} title={title || (isEdit ? "Edit Combo" : "Create Combo")} size="combo" bodyClassName="flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="shrink-0">
             {forcePrefix ? (
               <>
                 <label htmlFor="combo-name-input" className="text-sm font-medium mb-1 block">Combo Name</label>
@@ -205,7 +205,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
             </p>
           </div>
 
-          <div>
+          <div className="flex min-h-0 flex-1 flex-col">
             <span className="text-sm font-medium mb-1.5 block">Models</span>
             {models.length === 0 ? (
               <div className="text-center py-4 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/[0.01] dark:bg-white/[0.01]">
@@ -215,7 +215,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
                 <SortableContext items={modelItems.map((m) => m.uid)} strategy={verticalListSortingStrategy}>
-                  <div className="flex max-h-[55vh] min-w-0 flex-col gap-1 overflow-y-auto sm:max-h-[350px]">
+                  <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto custom-scrollbar">
                     {modelItems.map(({ uid, model }, index) => (
                       <ModelItem key={uid} id={uid} index={index} model={model}
                         isFirst={index === 0} isLast={index === modelItems.length - 1}
@@ -232,7 +232,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
               </DndContext>
             )}
             {showWeight && models.length > 0 && (
-              <p className="mt-1.5 text-[11px] leading-snug text-text-muted">
+              <p className="mt-1.5 shrink-0 text-[11px] leading-snug text-text-muted">
                 Weight expands a model into that many round-robin slots — ×3
                 means 3 of every 10 requests go to it. Changing a weight
                 mid-session re-expands the rotation immediately, so the observed
@@ -240,7 +240,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
               </p>
             )}
             {models.length > 0 && models.every((model) => getCaps?.(model)?.vision === false) && (
-              <p className="mt-2 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+              <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                 <span className="material-symbols-outlined text-[14px]">visibility_off</span>
                 Cannot see images — add a vision-capable model.
                 <button type="button" onClick={() => { setModelPickerCap("vision"); setShowModelSelect(true); }}
@@ -248,13 +248,13 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
               </p>
             )}
             <button type="button" onClick={() => { setModelPickerCap(null); setShowModelSelect(true); }}
-              className="w-full mt-2 py-2 border border-dashed border-black/10 dark:border-white/10 rounded-lg text-xs text-primary font-medium hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-1">
+              className="w-full mt-2 shrink-0 py-2 border border-dashed border-black/10 dark:border-white/10 rounded-lg text-xs text-primary font-medium hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-1">
               <span className="material-symbols-outlined text-[16px]">add</span>
               Add Model
             </button>
           </div>
 
-          <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+          <div className="flex shrink-0 flex-col gap-2 pt-1 sm:flex-row">
             <Button onClick={onClose} variant="ghost" fullWidth size="sm">Cancel</Button>
             <Button onClick={handleSave} fullWidth size="sm" disabled={!name.trim() || !!nameError || saving}>
               {saving ? "Saving..." : isEdit ? "Save" : "Create"}
@@ -268,7 +268,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
           onSelect={handleAddModel} onDeselect={handleDeselectModel}
           activeProviders={activeProviders} modelAliases={modelAliases}
           title="Add Model to Combo" kindFilter={kindFilter} capFilter={modelPickerCap}
-          addedModelValues={models} closeOnSelect={false}
+          addedModelValues={models} closeOnSelect={false} size="combo"
           onBack={() => setShowModelSelect(false)} />
       )}
     </>
