@@ -84,7 +84,7 @@ async function main() {
     const marker = path.join(dataDir, "db", ".migrated-from-json");
     if (!fs.existsSync(dbFile)) throw new Error(`SQLite database missing: ${dbFile}`);
     if (!fs.existsSync(marker)) throw new Error(`Migration marker missing: ${marker}`);
-    console.log(`Smoke-tested hxrouter@${expectedVersion}: bundled server, SQLite, legacy migration`);
+    console.log(`Smoke-tested @huathy/hxrouter@${expectedVersion}: bundled server, SQLite, legacy migration`);
   } finally {
     child.kill("SIGTERM");
     await new Promise((resolve) => {

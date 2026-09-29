@@ -145,7 +145,7 @@ jobs:
         run: |
           npm run build --prefix cli
           npm pack ./cli --pack-destination "$RUNNER_TEMP"
-          printf 'tarball=%s\n' "$RUNNER_TEMP/hxrouter-${{ needs.check-branch.outputs.version }}.tgz" >> "$GITHUB_OUTPUT"
+          printf 'tarball=%s\n' "$RUNNER_TEMP/huathy-hxrouter-${{ needs.check-branch.outputs.version }}.tgz" >> "$GITHUB_OUTPUT"
 
       - name: Validate final CLI tarball
         env:
@@ -215,7 +215,7 @@ jobs:
       - name: Revalidate downloaded CLI tarball
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
+        run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/huathy-hxrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
 
       # npm versions are immutable, so a first release whose name is not yet
       # registered on npmjs.com must claim the name with a local publish before
@@ -229,9 +229,9 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
         run: |
-          if npm view "hxrouter@$RELEASE_VERSION" version >/dev/null 2>&1; then
+          if npm view "@huathy/hxrouter@$RELEASE_VERSION" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::hxrouter@$RELEASE_VERSION is already published; the local first publish claimed the name"
+            echo "::notice::@huathy/hxrouter@$RELEASE_VERSION is already published; skipping the republish"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
@@ -240,7 +240,7 @@ jobs:
         if: steps.registry.outputs.published != 'true'
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: npm publish "$RUNNER_TEMP/npm-package/hxrouter-${RELEASE_VERSION}.tgz" --provenance
+        run: npm publish "$RUNNER_TEMP/npm-package/huathy-hxrouter-${RELEASE_VERSION}.tgz" --provenance
 
   promote-ghcr:
     needs: [check-branch, build-and-verify-ghcr]
@@ -374,14 +374,14 @@ jobs:
           set -euo pipefail
           published=""
           for attempt in $(seq 1 10); do
-            if published="$(npm view "hxrouter@$RELEASE_VERSION" version 2>/dev/null)" && [ "$published" = "$RELEASE_VERSION" ]; then
+            if published="$(npm view "@huathy/hxrouter@$RELEASE_VERSION" version 2>/dev/null)" && [ "$published" = "$RELEASE_VERSION" ]; then
               break
             fi
-            echo "npm registry is not serving hxrouter@$RELEASE_VERSION yet (attempt $attempt/10)"
+            echo "npm registry is not serving @huathy/hxrouter@$RELEASE_VERSION yet (attempt $attempt/10)"
             sleep 6
           done
           test "${published:-}" = "$RELEASE_VERSION"
-          echo "npm: hxrouter@$published"
+          echo "npm: @huathy/hxrouter@$published"
           docker buildx imagetools inspect "$GHCR_IMAGE:$RELEASE_VERSION" | tee /tmp/release-manifest.txt
           grep -q 'linux/amd64' /tmp/release-manifest.txt
           grep -q 'linux/arm64' /tmp/release-manifest.txt
@@ -433,7 +433,7 @@ jobs:
           ### npm
 
           ```bash
-          npm install -g hxrouter@__VERSION__
+          npm install -g @huathy/hxrouter@__VERSION__
           hxrouter
           ```
 

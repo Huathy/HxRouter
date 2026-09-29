@@ -34,14 +34,15 @@ if (entries.some((entry) => /(^|\/)better_sqlite3\.node$/.test(entry))) {
 const packageJson = JSON.parse(execFileSync("tar", ["-xOf", tarball, "package/package.json"], {
   encoding: "utf8",
 }));
-if (packageJson.name !== "hxrouter") {
+if (packageJson.name !== "@huathy/hxrouter") {
   throw new Error(`Unexpected package name: ${packageJson.name}`);
 }
 if (packageJson.version !== expectedVersion) {
   throw new Error(`Tarball version mismatch: ${packageJson.version} !== ${expectedVersion}`);
 }
 
-const expectedFilename = `hxrouter-${expectedVersion}.tgz`;
+// npm flattens the scope into a dash when it names the tarball.
+const expectedFilename = `huathy-hxrouter-${expectedVersion}.tgz`;
 if (path.basename(tarball) !== expectedFilename) {
   throw new Error(`Tarball filename mismatch: ${path.basename(tarball)} !== ${expectedFilename}`);
 }
