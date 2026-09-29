@@ -1,6 +1,6 @@
 # CI/CD Release Policy
 
-Mandatory for every AI-assisted release. Do not bypass these rules with force tags, manual npm publish, manual GHCR tag mutation, or `latest`-only deployment.
+Mandatory for every AI-assisted release. Do not bypass these rules with force tags, manual artifact publishing, manual GHCR tag mutation, or `latest`-only deployment.
 
 ## Release Contract
 
@@ -88,8 +88,8 @@ The release workflow must complete in this order:
 ```text
 check-branch
 package-npm + build-and-verify-ghcr
-publish-npm
-promote-ghcr
+promote-ghcr + promote-dockerhub
+cleanup-staging + create-github-release
 ```
 
 Required evidence:
@@ -99,8 +99,24 @@ Required evidence:
 - `package-npm`: actual tarball contains `app/_nm/sql.js/dist/sql-wasm.wasm`; no `better_sqlite3.node`.
 - Artifact smoke test: extracted CLI starts with a temporary `DATA_DIR`, responds to `/api/settings`, creates `db/data.sqlite`, and migrates legacy `db.json` without network.
 - `build-and-verify-ghcr`: staging image contains `linux/amd64` and `linux/arm64`; native SQLite query succeeds.
-- `publish-npm`: publishes the validated artifact, never rebuilds it.
-- `promote-ghcr`: promotes staging image to `X.Y.Z` and `latest` only after npm succeeds.
+- `promote-ghcr` / `promote-dockerhub`: promote the same verified staging image to `X.Y.Z` and `latest` in both registries; the job re-inspects the published manifest and fails if either platform is missing.
+- `create-github-release`: revalidates the downloaded tarball, verifies both registries, creates the release with generated notes plus the install section, and attaches `huathy-hxrouter-X.Y.Z.tgz` as a release asset.
+- `cleanup-staging`: removes the `release-<run_id>-<attempt>` staging tag only after both promotions succeeded, because that tag is the recovery anchor when a promotion fails.
+
+## CLI Distribution
+
+The CLI is **not published to npmjs.com**. It ships as a GitHub Release asset, so no registry account, token, 2FA or provenance setup is involved:
+
+```bash
+npm install -g https://github.com/Huathy/HxRouter/releases/download/v1.0.9/huathy-hxrouter-1.0.9.tgz
+hxrouter
+```
+
+Rules:
+
+- Never add an `npm publish` step, an `NPM_TOKEN` secret, or a trusted-publishing configuration back into the release workflow. A published version is immutable, and the release asset is the single source of truth.
+- The package keeps the scoped name `@huathy/hxrouter` even though the registry is unused: it documents ownership, and the installed command stays `hxrouter` because `bin` is unchanged.
+- The tarball name follows npm's scope-flattening rule, `huathy-hxrouter-X.Y.Z.tgz`; `cli/scripts/validate-package.cjs` is the single place that asserts it, and CI plus local `pnpm cli:pack` both run that validator.
 
 ## Deployment Rules
 
@@ -124,12 +140,7 @@ curl -fsS http://127.0.0.1:3003/api/health
 - Once a tag is pushed, it is immutable even if CI fails. Never delete, move, force-push, or rerun under the same tag after a release-gate bug; fix the workflow and use the next version.
 - `v0.91.3` and `v0.91.4` are historical failed tags (release-validation ref bug). `v0.91.11` failed due to missing QEMU in multi-arch GHCR build. Do not reuse them; `v0.91.12` resolved multi-arch with `setup-qemu-action@v3`.
 - GHCR staging failure: do not promote its staging tag.
-- npm publish timeout: query npm first; never retry blindly:
-
-```bash
-npm view hxrouter@X.Y.Z version
-```
-
-- npm already published but GHCR promotion failed: promote/recover the exact staging image; do not republish npm.
+- Docker Hub or GHCR promotion failure: promote/recover the exact staging image; never rebuild for a promotion.
+- GitHub Release asset missing after a successful promotion: re-run the release for the next version; the upload step is idempotent (`gh release upload --clobber`) but a tag stays immutable, so this only happens through a new version.
 - Production health failure: rollback to the previous immutable image tag; preserve the DB volume and inspect migration backups.
 - Never use `git reset --hard`, force-push, or delete published tags as recovery.

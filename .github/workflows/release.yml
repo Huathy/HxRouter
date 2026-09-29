@@ -162,85 +162,10 @@ jobs:
       - name: Upload validated CLI tarball
         uses: actions/upload-artifact@v4
         with:
-          name: npm-package-${{ needs.check-branch.outputs.version }}
+          name: cli-package-${{ needs.check-branch.outputs.version }}
           path: ${{ steps.pack.outputs.tarball }}
           if-no-files-found: error
           retention-days: 1
-
-  publish-npm:
-    needs: [check-branch, package-npm]
-    if: needs.check-branch.outputs.is-release-branch == 'true' && needs.package-npm.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.14.0
-          registry-url: https://registry.npmjs.org/
-
-      - name: Install npm trusted publishing client
-        run: npm install --global npm@11.5.1
-
-      # Trusted publishing (OIDC) stays the default. A package name that does not
-      # exist on npmjs.com yet cannot be created by OIDC — npm answers
-      # `404 Not Found - PUT https://registry.npmjs.org/<name>` — so the name has
-      # to be claimed once with a real token. When the NPM_TOKEN secret is
-      # present we authenticate with it; the two mechanisms are mutually
-      # exclusive, so .npmrc is only written in that case.
-      - name: Select npm authentication
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > .npmrc
-            echo "npm: authenticating with the NPM_TOKEN secret"
-          else
-            echo "npm: authenticating with trusted publishing (OIDC)"
-          fi
-
-      - name: Download validated CLI tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: npm-package-${{ needs.check-branch.outputs.version }}
-          path: ${{ runner.temp }}/npm-package
-
-      - name: Revalidate downloaded CLI tarball
-        env:
-          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: node cli/scripts/validate-package.cjs "$RUNNER_TEMP/npm-package/huathy-hxrouter-${RELEASE_VERSION}.tgz" "$RELEASE_VERSION"
-
-      # npm versions are immutable, so a first release whose name is not yet
-      # registered on npmjs.com must claim the name with a local publish before
-      # Trusted Publishing can be configured for the package. Without this guard
-      # the workflow would fail permanently on that already-published version,
-      # which also blocks create-github-release (it needs publish-npm).
-      # This matches .agent/cicd.md: "npm already published but GHCR promotion
-      # failed: promote/recover the exact staging image; do not republish npm."
-      - name: Check whether this version is already on the registry
-        id: registry
-        env:
-          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: |
-          if npm view "@huathy/hxrouter@$RELEASE_VERSION" version >/dev/null 2>&1; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::@huathy/hxrouter@$RELEASE_VERSION is already published; skipping the republish"
-          else
-            echo "published=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish validated CLI tarball
-        if: steps.registry.outputs.published != 'true'
-        env:
-          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-        run: npm publish "$RUNNER_TEMP/npm-package/huathy-hxrouter-${RELEASE_VERSION}.tgz" --provenance
 
   promote-ghcr:
     needs: [check-branch, build-and-verify-ghcr]
@@ -314,10 +239,9 @@ jobs:
   # .agent/cicd.md: promote or recover the exact staging image, never rebuild), so
   # it is only dropped once every registry is serving the release. Runs last.
   cleanup-staging:
-    needs: [check-branch, publish-npm, promote-ghcr, promote-dockerhub]
+    needs: [check-branch, promote-ghcr, promote-dockerhub]
     if: >-
       needs.check-branch.outputs.is-release-branch == 'true' &&
-      needs.publish-npm.result == 'success' &&
       needs.promote-ghcr.result == 'success' &&
       needs.promote-dockerhub.result == 'success'
     runs-on: ubuntu-latest
@@ -348,7 +272,7 @@ jobs:
   # Runs last: the GitHub Release (and therefore the generated contributors list)
   # must not exist before both published artifacts are live in the registries.
   create-github-release:
-    needs: [check-branch, publish-npm, promote-ghcr, promote-dockerhub]
+    needs: [check-branch, package-npm, promote-ghcr, promote-dockerhub]
     if: needs.check-branch.outputs.is-release-branch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -366,22 +290,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Download validated CLI tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-package-${{ needs.check-branch.outputs.version }}
+          path: ${{ runner.temp }}/cli-package
+
       - name: Verify both published artifacts
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
           DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/hxrouter
         run: |
           set -euo pipefail
-          published=""
-          for attempt in $(seq 1 10); do
-            if published="$(npm view "@huathy/hxrouter@$RELEASE_VERSION" version 2>/dev/null)" && [ "$published" = "$RELEASE_VERSION" ]; then
-              break
-            fi
-            echo "npm registry is not serving @huathy/hxrouter@$RELEASE_VERSION yet (attempt $attempt/10)"
-            sleep 6
-          done
-          test "${published:-}" = "$RELEASE_VERSION"
-          echo "npm: @huathy/hxrouter@$published"
+          tarball="$RUNNER_TEMP/cli-package/huathy-hxrouter-$RELEASE_VERSION.tgz"
+          node cli/scripts/validate-package.cjs "$tarball" "$RELEASE_VERSION"
           docker buildx imagetools inspect "$GHCR_IMAGE:$RELEASE_VERSION" | tee /tmp/release-manifest.txt
           grep -q 'linux/amd64' /tmp/release-manifest.txt
           grep -q 'linux/arm64' /tmp/release-manifest.txt
@@ -402,7 +324,7 @@ jobs:
 
           ## 安装 / Install
 
-          本次发布同时产出两个包：GHCR 镜像 + Docker Hub 镜像 + npm CLI 包。
+          本次发布产出：GHCR 镜像 + Docker Hub 镜像 + GitHub Release 附件（CLI 安装包）。
 
           ### Docker (GHCR)
 
@@ -430,19 +352,31 @@ jobs:
 
           或使用仓库根目录的 `docker-compose.yml`：`docker compose up -d`
 
-          ### npm
+          ### CLI（GitHub Release 附件，无需 npm 账号）
 
           ```bash
-          npm install -g @huathy/hxrouter@__VERSION__
+          npm install -g https://github.com/__REPO__/releases/download/__TAG__/huathy-hxrouter-__VERSION__.tgz
           hxrouter
+          ```
+
+          校验完整性（可选，sha256 为该 Release 附件页面显示的值）：
+
+          ```bash
+          curl -fsSL -o huathy-hxrouter-__VERSION__.tgz \\
+            https://github.com/__REPO__/releases/download/__TAG__/huathy-hxrouter-__VERSION__.tgz
+          sha256sum huathy-hxrouter-__VERSION__.tgz
           ```
 
           Dashboard: http://localhost:20128
           EOF
           sed -i "s/__VERSION__/$RELEASE_VERSION/g" /tmp/install.md
           sed -i "s|__DOCKERHUB__|$DOCKERHUB_IMAGE|g" /tmp/install.md
+          sed -i "s|__REPO__|$GITHUB_REPOSITORY|g" /tmp/install.md
+          sed -i "s|__TAG__|$RELEASE_TAG|g" /tmp/install.md
           test "$(grep -c '__VERSION__' /tmp/install.md)" = "0"
           test "$(grep -c '__DOCKERHUB__' /tmp/install.md)" = "0"
+          test "$(grep -c '__REPO__' /tmp/install.md)" = "0"
+          test "$(grep -c '__TAG__' /tmp/install.md)" = "0"
 
       - name: Create GitHub release with generated notes
         env:
@@ -468,3 +402,28 @@ jobs:
           fi
           gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/notes.md
           gh release view "$TAG" --json url,tagName --jq '"Created \(.tagName): \(.url)"'
+
+      - name: Attach the CLI tarball to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="$RELEASE_TAG"
+          TARBALL="$RUNNER_TEMP/cli-package/huathy-hxrouter-$RELEASE_VERSION.tgz"
+          test -f "$TARBALL"
+
+          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "huathy-hxrouter-$RELEASE_VERSION.tgz"; then
+            echo "::notice::huathy-hxrouter-$RELEASE_VERSION.tgz is already attached to $TAG"
+            exit 0
+          fi
+
+          # A release that already exists (for example a re-run after a failed
+          # promotion) still needs the asset, so upload instead of skipping.
+          if ! gh release view "$TAG" --json tagName >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file /tmp/notes.md
+          fi
+
+          gh release upload "$TAG" "$TARBALL" --clobber
+          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name) \(.size) bytes \(.url)"'
+          echo "::notice::install with: npm install -g https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/huathy-hxrouter-$RELEASE_VERSION.tgz"
