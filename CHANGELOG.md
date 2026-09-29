@@ -1,3 +1,43 @@
+# v1.0.3 (2026-09-29)
+
+Merges the MiMo and Zed provider work into `master` and republishes the image. One dependency fix was required to make the tree build at all.
+
+## Features
+
+- **MiMo** (`9d32f655`): cloud API access, desktop-account session login with an optional SOCKS egress proxy for the `sgp` region, region routing, and credential import. New executor `open-sse/executors/xiaomi-mimo.js`, `open-sse/shared/mimoAccount.js`, `src/lib/mimoLoginSession.js`, and the OAuth routes under `src/app/api/oauth/xiaomi-mimo/` (`login/start`, `login/status`, `api-key`, `auto-import`).
+- **Zed** (`9d32f655`): hosted-model execution, credential import, and multi-protocol response translation. New executor `open-sse/executors/zed.js`, `src/lib/oauth/utils/zedCredentials.js`, and routes under `src/app/api/oauth/zed/`.
+- Multimodal capacity adaptation (`open-sse/services/capacityAdapter.js`) and upstream rate-limit header passthrough (`open-sse/utils/upstreamHeaders.js`).
+- Usage statistics now refresh once the last active request drains, so per-model and total figures stop going stale while a request is still open.
+
+## Fixed
+
+- **Build was broken on `master`**: `src/lib/mimoLoginSession.js:447` uses a literal `import("socks-proxy-agent")` (webpack rejects fully dynamic specifiers, and the SOCKS egress is a real code path, not a stub), but the package was never declared, so `pnpm run build` failed with `Module not found: Can't resolve 'socks-proxy-agent'`. `socks-proxy-agent@^10.1.0` is now a declared dependency and the lockfile is committed. `pnpm install --frozen-lockfile` verified clean, and `pnpm add` normalised the dependency key order in `package.json` while touching it.
+- Login proxy routes are covered by the dashboard auth guard, and the chat path no longer cools down an account on a pre-credential `retry-after` failure (`tests/unit/handler-acl-enforcement.test.js`, `tests/unit/chat-pre-credential-retry-after.test.js`, `tests/unit/chat-client-abort-fallback.test.js`, `tests/unit/spend-budget-gate.test.js` updated).
+
+## Known blockers on the publishing side
+
+- **npm cannot publish yet.** `publish-npm` failed on both `v1.0.1` and `v1.0.2`: after the `publishConfig.access = "public"` fix, npm answers `404 Not Found - PUT https://registry.npmjs.org/hxrouter`, because the `hxrouter` name does not exist on npmjs.com and OIDC trusted publishing cannot create a package — the name has to be claimed once with a real npm token before trusted publishing can be configured. Docker is unaffected and ships on every release.
+- **The GHCR package is private.** `docker pull ghcr.io/huathy/hxrouter:1.0.3` returns 401 until the package visibility is switched to Public in the repository's package settings. The token used for releases carries only `gist, repo, workflow`, so CI cannot flip it.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0. `utf-8 check: clean (5443 files)`, `Compiled successfully in 35.2s` (the first build on this tree failed with the missing-module error above and was re-run after the dependency was declared).
+- `pnpm install --frozen-lockfile` → exit 0, `Already up to date`.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# Docker (after the package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.3
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data ghcr.io/huathy/hxrouter:1.0.3
+
+# npm — not published yet, see Known blockers
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.2 (2026-09-29)
 
 Publishes the npm package and records what actually happened in the two previous attempts. No application code changed.
