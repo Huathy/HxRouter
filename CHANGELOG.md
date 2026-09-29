@@ -1,3 +1,36 @@
+# v1.0.7 (2026-09-29)
+
+First release expected to land the npm package, and the first one to leave the GHCR tag list clean. No application code changed.
+
+## Release Infrastructure
+
+- **Staging tag cleanup** (`cleanup-staging` job). `build-and-verify-ghcr` pushes a temporary `release-<run_id>-<attempt>` tag and `promote-ghcr` copies it to the version and `latest` tags; the staging tag is the recovery anchor when a promotion fails (`.agent/cicd.md` requires promoting or recovering the exact staging image, never rebuilding), so it is only removed once `publish-npm`, `promote-ghcr` and `promote-dockerhub` have all succeeded. The job runs `docker buildx imagetools rm` on that one tag and treats an already-missing tag as success, so a release that fails anywhere keeps its recovery anchor and a fully green release does not leave `release-*` clutter in the package tag list.
+- The six staging tags left by the earlier runs (`v1.0.1` through `v1.0.6`, run ids 36506928926 / 36507986660 / 36511335738 / 36512977024 / 36514838987 / 36516820922) predate this job and can be deleted from the repository's package settings.
+- The `v1.0.6` npm failure was a token problem, not a pipeline one: the granular token only carried the `@huathy` scope and had 2FA bypass off, so `PUT https://registry.npmjs.org/hxrouter` was answered `403 — You may not perform that action with these credentials`. Widening the token to all packages and enabling the 2FA bypass is what makes the token branch of `publish-npm` usable.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5443 files)`.
+- `npx vitest run tests/translator/golden-url-header.test.js -u` → 2 snapshots updated, 184 tests passed; the snapshot diff is version-only.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# Docker Hub
+docker pull docker.io/huathy/hxrouter:1.0.7
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data docker.io/huathy/hxrouter:1.0.7
+
+# GHCR (after its package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.7
+
+# npm
+npm install -g hxrouter@1.0.7
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.6 (2026-09-29)
 
 First release that can actually reach all three registries, and the first attempt at publishing the npm package. No application code changed.
