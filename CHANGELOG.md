@@ -1,3 +1,35 @@
+# v1.0.6 (2026-09-29)
+
+First release that can actually reach all three registries, and the first attempt at publishing the npm package. No application code changed.
+
+## Release Infrastructure
+
+- **Docker Hub login was reading the wrong context** (`v1.0.5`, run 36514838987): `promote-dockerhub` used `secrets.DOCKERHUB_USERNAME`, but the Docker Hub namespace lives in a repository *variable*, so the login received an empty username and Docker answered `malformed HTTP Authorization header`. The job now reads `vars.DOCKERHUB_USERNAME` (the value is the bare namespace, `huathy`) and keeps the token in `secrets.DOCKERHUB_TOKEN`; the published image is `docker.io/huathy/hxrouter`.
+- **npm authentication can now fall back to a token.** `publish-npm` still prefers OIDC trusted publishing, but when the `NPM_TOKEN` secret is present it writes `//registry.npmjs.org/:_authToken=…` into `.npmrc` and authenticates with the token instead. The two mechanisms are mutually exclusive, so `.npmrc` is only written in the token case. This exists because OIDC cannot create a package: npm answers `404 Not Found - PUT https://registry.npmjs.org/hxrouter` for a name that is not registered yet, which is what failed every run from `v1.0.2` through `v1.0.5`.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5443 files)`.
+- `npx vitest run tests/translator/golden-url-header.test.js -u` → 2 snapshots updated, 184 tests passed; the snapshot diff is version-only.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# Docker Hub
+docker pull docker.io/huathy/hxrouter:1.0.6
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data docker.io/huathy/hxrouter:1.0.6
+
+# GHCR (after its package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.6
+
+# npm
+npm install -g hxrouter@1.0.6
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.5 (2026-09-29)
 
 Adds Docker Hub as a second distribution channel. Every release now pushes the same verified multi-arch image to both GHCR and Docker Hub.
