@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  # Manual entry point for environments where `push` events do not reach the
+  # runner. It runs the exact same gates as a tag push; the tag is supplied as
+  # an input and is still validated by check-branch (tag == origin/$RELEASE_BRANCH).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish, e.g. v1.0.1"
+        required: true
+        type: string
 
 concurrency:
   group: release
@@ -14,6 +23,7 @@ env:
   # The tag must point at the current tip of this branch. `main` stays the
   # integration branch; releases are cut from `master`.
   RELEASE_BRANCH: master
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   check-branch:
@@ -25,12 +35,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Verify tag/commit is on the release branch
         id: check
         run: |
           git fetch origin "$RELEASE_BRANCH"
-          git fetch origin "refs/tags/$GITHUB_REF_NAME:refs/tags/release-validation"
+          git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/release-validation"
           if test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$RELEASE_BRANCH")"; then
             echo "is-release-branch=true" >> "$GITHUB_OUTPUT"
             echo "✅ Release target is the current $RELEASE_BRANCH commit"
@@ -40,7 +51,7 @@ jobs:
             exit 1
           fi
 
-          RELEASE_TAG_REF=refs/tags/release-validation node cli/scripts/validate-release.cjs "$GITHUB_REF_NAME"
+          RELEASE_TAG_REF=refs/tags/release-validation node cli/scripts/validate-release.cjs "$RELEASE_TAG"
 
   build-and-verify-ghcr:
     needs: check-branch
@@ -54,6 +65,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -101,6 +114,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -162,6 +177,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -246,6 +263,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -317,7 +336,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="$GITHUB_REF_NAME"
+          TAG="$RELEASE_TAG"
           if gh release view "$TAG" --json tagName >/dev/null 2>&1; then
             echo "::notice::GitHub release $TAG already exists; leaving the existing notes untouched"
             exit 0
