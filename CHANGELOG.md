@@ -1,3 +1,41 @@
+# v1.0.9 (2026-09-29)
+
+The CLI is no longer published to npmjs.com. It ships as a GitHub Release asset instead, so installing it needs no registry account, no token, no 2FA, and no provenance setup. No application code changed.
+
+## Release Infrastructure
+
+- **`publish-npm` is gone.** The release pipeline is now `check-branch` → `package-npm` + `build-and-verify-ghcr` → `promote-ghcr` + `promote-dockerhub` → `cleanup-staging` + `create-github-release`. Nothing in the workflow touches registry.npmjs.org any more: no `npm publish`, no `NPM_TOKEN` auth, no trusted-publishing setup, no "already published" probe. The `NPM_TOKEN` repository secret can be deleted.
+- **The validated tarball becomes a release asset.** `create-github-release` downloads the `cli-package-<version>` artifact that `package-npm` produced, re-runs `validate-package.cjs` on it, verifies the GHCR and Docker Hub manifests, creates the release with generated notes plus the install section, and then attaches `huathy-hxrouter-<version>.tgz` with `gh release upload --clobber`. The upload is idempotent: an already-attached asset is left alone, and a release that exists without the asset gets it.
+- **The install section changed accordingly**: `npm install -g https://github.com/Huathy/HxRouter/releases/download/<tag>/huathy-hxrouter-<version>.tgz`, plus an optional `curl` + `sha256sum` snippet for verifying the download. The placeholders are substituted with `sed` and then asserted to be gone, so a release can never ship with a literal `__TAG__` in its notes.
+- **Job dependencies were rewired**: `create-github-release` now waits for `package-npm` (it needs the tarball) plus both promotions, and `cleanup-staging` waits only for the two promotions. Because nothing gates on npm any more, this is the first release that can be fully green end to end, including the GitHub Release page and the staging-tag cleanup.
+- `.agent/cicd.md` was updated to match: the required job order and evidence list, a new "CLI Distribution" section that forbids reintroducing `npm publish` / `NPM_TOKEN` / trusted publishing, and a failure-recovery entry for a missing release asset.
+- The package keeps the scoped name `@huathy/hxrouter` even though the registry is unused — it documents ownership, `bin` is still `hxrouter`, and the tarball keeps npm's scope-flattened `huathy-hxrouter-<version>.tgz` name that `validate-package.cjs` asserts.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5650 files)`.
+- `pnpm cli:pack` → `huathy-hxrouter-1.0.9.tgz`, and `node cli/scripts/validate-package.cjs` on it passes: `Validated @huathy/hxrouter@1.0.9`.
+- `npm install --package-lock-only` → exit 0, lockfile in sync.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# CLI (GitHub Release asset; the installed command is hxrouter)
+npm install -g https://github.com/Huathy/HxRouter/releases/download/v1.0.9/huathy-hxrouter-1.0.9.tgz
+hxrouter
+
+# Docker Hub
+docker pull docker.io/huathy/hxrouter:1.0.9
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data docker.io/huathy/hxrouter:1.0.9
+
+# GHCR (after its package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.9
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.8 (2026-09-29)
 
 Publishes the npm CLI under the scoped name `@huathy/hxrouter`. The command it installs is still `hxrouter`, so users see no difference.
