@@ -1,3 +1,36 @@
+# v1.0.4 (2026-09-29)
+
+Republishes the `v1.0.3` feature set to the registry. No application code changed; the only change is the lockfile the Docker build installs from.
+
+## Fixed
+
+- **`package-lock.json` was left behind by the new MiMo SOCKS dependency** (`v1.0.3`, run 36511335738). The Dockerfile installs with `npm ci` from `package-lock.json` (`Dockerfile:11-17`), while the dependency was added through pnpm, so only `pnpm-lock.yaml` was regenerated. The image build aborted at the install step with `npm error Missing: socks-proxy-agent@10.1.0 from lock file` (plus `agent-base`, `socks`, `ip-address`, `smart-buffer`), and `promote-ghcr` was skipped, so `v1.0.3` produced no image. `package-lock.json` is regenerated with `npm install --package-lock-only`, exactly as the Dockerfile comment instructs.
+- Both lockfiles are now in sync and both install paths are verified: `pnpm install --frozen-lockfile` → `Already up to date`, and `npm ci --dry-run` in a scratch directory with only `package.json` + `package-lock.json` → exit 0, 675 packages resolved.
+
+## Known blockers on the publishing side
+
+- **npm cannot publish yet.** `publish-npm` has failed on every run so far: `v1.0.1` with `EUSAGE — Can't generate provenance for new or private package` (fixed by `publishConfig.access = "public"` in `cli/package.json`) and then, from `v1.0.2` onwards, with `404 Not Found - PUT https://registry.npmjs.org/hxrouter`. The `hxrouter` name does not exist on npmjs.com and OIDC trusted publishing cannot create a package — the name has to be claimed once with a real npm token before trusted publishing can be configured for it.
+- **The GHCR package is private.** `docker pull ghcr.io/huathy/hxrouter:1.0.4` returns 401 until the package visibility is switched to Public in the repository's package settings. The release token carries only `gist, repo, workflow`, so neither CI nor this release can flip it.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5443 files)`.
+- `pnpm install --frozen-lockfile` → exit 0. `npm ci --dry-run` (scratch directory, package.json + package-lock.json only) → exit 0, 675 packages.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# Docker (after the package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.4
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data ghcr.io/huathy/hxrouter:1.0.4
+
+# npm — not published yet, see Known blockers
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.3 (2026-09-29)
 
 Merges the MiMo and Zed provider work into `master` and republishes the image. One dependency fix was required to make the tree build at all.
