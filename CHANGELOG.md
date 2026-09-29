@@ -1,3 +1,42 @@
+# v1.0.5 (2026-09-29)
+
+Adds Docker Hub as a second distribution channel. Every release now pushes the same verified multi-arch image to both GHCR and Docker Hub.
+
+## Release Infrastructure
+
+- **New `promote-dockerhub` job** in `.github/workflows/release.yml`: it logs in with the `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` repository secrets and promotes the *same* verified staging image that `build-and-verify-ghcr` produced (`docker buildx imagetools create` from `ghcr.io/huathy/hxrouter:release-<run_id>-<attempt>`), so both registries ship an identical `linux/amd64` + `linux/arm64` index. The job asserts the image name is not empty before pushing, and re-inspects the published manifest to confirm both platforms are present.
+- The namespace is taken from the `DOCKERHUB_USERNAME` secret, so the published image is `docker.io/<dockerhub user>/hxrouter` without hardcoding an account in the repository.
+- `create-github-release` now waits for `promote-dockerhub` as well and verifies the Docker Hub manifest alongside the GHCR one; the generated install notes list both registries. The heredoc that builds those notes stays quoted and uses a `__DOCKERHUB__` placeholder, because an unquoted heredoc would treat the markdown code fences as command substitution.
+- `publish-npm` still gates the GitHub Release page, so no release notes are generated while npm cannot publish (see below).
+
+## Known blockers on the publishing side
+
+- **npm cannot publish yet.** Every `publish-npm` run has failed: `v1.0.1` with `EUSAGE — Can't generate provenance for new or private package` (fixed by `publishConfig.access = "public"`), and from `v1.0.2` onwards with `404 Not Found - PUT https://registry.npmjs.org/hxrouter`. The `hxrouter` name does not exist on npmjs.com and OIDC trusted publishing cannot create a package; the name has to be claimed once with a real npm token before trusted publishing can be configured for it.
+- **The GHCR package is still private**, so `docker pull ghcr.io/huathy/hxrouter:1.0.5` returns 401 until the visibility is switched to Public in the repository's package settings. The release token carries only `gist, repo, workflow`, so CI cannot flip it. The Docker Hub repository needs to be public as well for anonymous pulls.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5443 files)`.
+- `npx vitest run tests/translator/golden-url-header.test.js -u` → 2 snapshots updated, 184 tests passed; the snapshot diff is version-only.
+- The workflow itself is verified by its own gates: `check-branch` (tag equals `origin/master`, versions match, the previous commit changes only `CHANGELOG.md`, the tag is annotated), `package-npm` (tarball validation plus an offline smoke test) and `build-and-verify-ghcr` (multi-arch build, manifest inspection, native SQLite query inside the image).
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# Docker (GHCR, after its package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.5
+
+# Docker Hub
+docker pull docker.io/<dockerhub user>/hxrouter:1.0.5
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data docker.io/<dockerhub user>/hxrouter:1.0.5
+
+# npm — not published yet, see Known blockers
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.4 (2026-09-29)
 
 Republishes the `v1.0.3` feature set to the registry. No application code changed; the only change is the lockfile the Docker build installs from.
