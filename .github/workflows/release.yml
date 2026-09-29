@@ -310,6 +310,41 @@ jobs:
           grep -q 'linux/arm64' /tmp/dockerhub-manifest.txt
           echo "docker hub: $DOCKERHUB_IMAGE:$RELEASE_VERSION (amd64 + arm64)"
 
+  # The staging tag is the recovery anchor when a promotion fails (see
+  # .agent/cicd.md: promote or recover the exact staging image, never rebuild), so
+  # it is only dropped once every registry is serving the release. Runs last.
+  cleanup-staging:
+    needs: [check-branch, publish-npm, promote-ghcr, promote-dockerhub]
+    if: >-
+      needs.check-branch.outputs.is-release-branch == 'true' &&
+      needs.publish-npm.result == 'success' &&
+      needs.promote-ghcr.result == 'success' &&
+      needs.promote-dockerhub.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove the staging tag
+        env:
+          STAGING_IMAGE: ${{ env.GHCR_IMAGE }}:release-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools rm "$STAGING_IMAGE" 2>/dev/null; then
+            echo "removed staging tag $STAGING_IMAGE"
+          else
+            echo "::notice::staging tag $STAGING_IMAGE was already gone"
+          fi
+
   # Runs last: the GitHub Release (and therefore the generated contributors list)
   # must not exist before both published artifacts are live in the registries.
   create-github-release:

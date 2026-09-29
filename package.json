@@ -1,6 +1,6 @@
 {
   "name": "hxrouter-app",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "HxRouter web dashboard",
   "private": true,
   "engines": {
