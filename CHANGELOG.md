@@ -1,3 +1,38 @@
+# v1.0.8 (2026-09-29)
+
+Publishes the npm CLI under the scoped name `@huathy/hxrouter`. The command it installs is still `hxrouter`, so users see no difference.
+
+## Fixed
+
+- **npm rejected the unscoped name.** The 2FA blocker is gone, but npm answered the first real publish attempt with `403 Forbidden — Package name too similar to existing package hx-router; try renaming your package to '@huathy/hxrouter'`, because `hx-router` already exists on the registry and the name-similarity policy blocks the unscoped variant. The CLI package is now `@huathy/hxrouter`; `bin` stays `hxrouter`, so `npm install -g @huathy/hxrouter` still gives the `hxrouter` command.
+- Everything that keys off the npm package name follows the rename: `cli/scripts/validate-package.cjs` now expects `@huathy/hxrouter` and the scope-flattened tarball name `huathy-hxrouter-<version>.tgz` (npm turns `@scope/name` into `scope-name-<version>.tgz`), the release workflow's pack / validate / publish / already-published / verification steps all address the scoped package, and the generated install notes read `npm install -g @huathy/hxrouter@__VERSION__`.
+- The container image names are unchanged: `ghcr.io/huathy/hxrouter` and `docker.io/huathy/hxrouter`.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures.
+- `pnpm run build` → exit 0, `utf-8 check: clean (5650 files)`.
+- `pnpm cli:pack` → `huathy-hxrouter-1.0.8.tgz`, and `node cli/scripts/validate-package.cjs` on it passes: `Validated @huathy/hxrouter@1.0.8`. This is the same pack + validation pair the release pipeline runs, executed locally to prove the scoped naming end to end.
+- `npm install --package-lock-only` → exit 0, lockfile in sync.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider, including MiMo and Zed, was called during this release.
+
+## Install
+
+```bash
+# npm (the installed command is still hxrouter)
+npm install -g @huathy/hxrouter@1.0.8
+hxrouter
+
+# Docker Hub
+docker pull docker.io/huathy/hxrouter:1.0.8
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data docker.io/huathy/hxrouter:1.0.8
+
+# GHCR (after its package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.8
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.7 (2026-09-29)
 
 First release expected to land the npm package, and the first one to leave the GHCR tag list clean. No application code changed.
