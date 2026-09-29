@@ -1,3 +1,38 @@
+# v1.0.1 (2026-09-29)
+
+First published artifact of the HxRouter line. The shipped code is identical to the `v1.0.0` tag (`ecafa624`): that tag was pushed while GitHub Actions was still disabled for this repository, so its workflow never ran and no npm package or image was produced. `.agent/cicd.md` makes a pushed tag immutable — it must not be deleted, moved, force-pushed, or re-fired — so the release is cut again from the same `master` line as `v1.0.1`.
+
+## Release Scope
+
+- No code change against `v1.0.0`. Only the version string moved: `package.json`, `cli/package.json`, and the version-bearing golden header snapshot (`User-Agent: HxRouter/1.0.1`, `X-CLIENT-VERSION`, `X-CORE-VERSION`, `X-Msh-Version`).
+- Everything else in this release is the `v1.0.0` entry below, unchanged: HxRouter rebrand and packaging rename (npm `hxrouter`, `ghcr.io/huathy/hxrouter`, `X-HxRouter`), the 21-route dashboard-auth sweep and the spend-budget gate, route-decision / cache / latency observability, Playground, model pricing, weighted provider and combo scheduling, inlined context compression replacing the Headroom sidecar, the combo and modal a11y pass, and the UTF-8 build gate.
+
+## Release Infrastructure
+
+- The release branch is `master`: `release.yml` compares the tag against `origin/$RELEASE_BRANCH` and the job output is `is-release-branch`; `main` stays the integration branch (`8e0309e0`).
+- Actions was disabled on this repository when `v1.0.0` was tagged, so that push produced nothing. This is the first tag that actually executes the pipeline: multi-arch image build and verification, CLI pack + validation + offline smoke test, npm publish, GHCR promotion to `1.0.1` and `latest`, then GitHub Release notes.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures, 100.57s.
+- `pnpm run build` → exit 0. `utf-8 check: clean (5430 files)`, `Compiled successfully in 44s`, 150 static pages generated.
+- `npx vitest run tests/translator/golden-url-header.test.js -u` → 2 snapshots updated, 184 tests passed; the snapshot diff is version-only.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider was called during this release.
+
+## Install
+
+```bash
+# Docker
+docker pull ghcr.io/huathy/hxrouter:1.0.1
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data ghcr.io/huathy/hxrouter:1.0.1
+
+# npm
+npm install -g hxrouter@1.0.1
+hxrouter
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.0 (2026-09-28)
 
 First tagged release of the HxRouter line: the repository carried no release tag before this one, and every artifact below (npm `hxrouter@1.0.0`, `ghcr.io/huathy/hxrouter:1.0.0` for `linux/amd64` + `linux/arm64`) is produced from this commit by the `v*` tag workflow. It builds on the v0.91.30 upstream-sync line, which is merged in at `ed1bc297`; the HxRouter rebrand, packaging, and the work listed below are what this release adds on top.
