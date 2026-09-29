@@ -600,6 +600,7 @@ vi.mock("open-sse/handlers/fetch/index.js", () => ({ handleFetchCore: hw.handleF
 vi.mock("open-sse/services/combo.js", () => ({
   handleComboChat: hw.handleComboChat, handleFusionChat: hw.handleFusionChat,
   stripComboPrefix: hw.stripComboPrefix, getComboModelsFromData: hw.getComboModelsFromData,
+  detectRequiredCapabilities: () => new Set(),
 }));
 vi.mock("open-sse/utils/bypassHandler.js", () => ({ handleBypassRequest: hw.handleBypassRequest }));
 vi.mock("open-sse/utils/claudeHeaderCache.js", () => ({ cacheClaudeHeaders: hw.cacheClaudeHeaders }));

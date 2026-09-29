@@ -18,6 +18,8 @@ import { OllamaLocalExecutor } from "./ollama-local.js";
 import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { MimoFreeExecutor } from "./mimo-free.js";
+import { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
+import ZedExecutor from "./zed.js";
 import { ZcodeExecutor } from "./zcode.js";
 import { CodeBuddyExecutor } from "./codebuddy-cn.js";
 import { AgentRouterExecutor } from "./agentrouter.js";
@@ -52,6 +54,8 @@ const executors = {
   commandcode: new CommandCodeExecutor(),
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
   "mimo-free": new MimoFreeExecutor(),
+  "xiaomi-mimo": new XiaomiMimoExecutor(),
+  zed: new ZedExecutor(),
   mmf: new MimoFreeExecutor(), // Alias for mimo-free
   zcode: new ZcodeExecutor(),
   zc: new ZcodeExecutor(), // Alias for zcode
@@ -97,6 +101,8 @@ export { OllamaLocalExecutor } from "./ollama-local.js";
 export { CommandCodeExecutor } from "./commandcode.js";
 export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 export { MimoFreeExecutor } from "./mimo-free.js";
+export { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
+export { default as ZedExecutor } from "./zed.js";
 export { ZcodeExecutor } from "./zcode.js";
 export { CodeBuddyExecutor } from "./codebuddy-cn.js";
 export { MuseSparkWebExecutor } from "./muse-spark-web.js";

@@ -108,6 +108,7 @@ vi.mock("open-sse/services/combo.js", () => ({
   handleComboChat: mocks.handleComboChat,
   handleFusionChat: mocks.handleFusionChat,
   stripComboPrefix: vi.fn((s) => s),
+  detectRequiredCapabilities: () => new Set(),
 }));
 vi.mock("open-sse/utils/claudeHeaderCache.js", () => ({ cacheClaudeHeaders: mocks.cacheClaudeHeaders }));
 vi.mock("open-sse/translator/formats.js", () => ({ detectFormatByEndpoint: mocks.detectFormatByEndpoint }));

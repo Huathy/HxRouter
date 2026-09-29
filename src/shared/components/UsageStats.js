@@ -463,13 +463,13 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     return () => controller.abort();
   }, []);
   // Fetch filtered stats via REST when period changes
-  useEffect(() => {
+  const loadStats = useCallback((isInitial) => {
     // First load: show full spinner; subsequent: show subtle fetching indicator
-    if (isInitialLoad.current) {
+    if (isInitial) {
       isInitialLoad.current = false;
-      setLoadState({ loading: true, fetching: false });
+      setLoadState((prev) => ({ ...prev, loading: true, fetching: false }));
     } else {
-      setLoadState({ loading: false, fetching: true });
+      setLoadState((prev) => ({ ...prev, loading: false, fetching: true }));
     }
 
     const controller = new AbortController();
@@ -484,10 +484,27 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       })
       .catch(() => {})
       .finally(() => {
-        if (!controller.signal.aborted) setLoadState({ loading: false, fetching: false });
+        if (!controller.signal.aborted) setLoadState((prev) => ({ ...prev, loading: false, fetching: false }));
       });
     return () => controller.abort();
   }, [period]);
+
+  useEffect(() => loadStats(isInitialLoad.current), [loadStats]);
+
+  // SSE only carries activeRequests, so byModel/totals go stale once a request finishes.
+  // onComplete writes the usage log before unregistering the request, so refetch after the drain.
+  const wasBusyRef = useRef(false);
+  const activeCount = stats?.activeRequests?.length || 0;
+  useEffect(() => {
+    if (activeCount > 0) {
+      wasBusyRef.current = true;
+      return;
+    }
+    if (!wasBusyRef.current) return;
+    wasBusyRef.current = false;
+    const timer = setTimeout(() => loadStats(false), 800);
+    return () => clearTimeout(timer);
+  }, [activeCount, loadStats]);
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
     const es = new EventSource("/api/usage/stream");

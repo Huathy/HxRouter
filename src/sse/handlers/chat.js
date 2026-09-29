@@ -36,6 +36,12 @@ import { isModelAllowed } from "../services/allowedModels.js";
 import { reserveSpend } from "../services/spendBudget.js";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
+import { detectRequiredCapabilities } from "open-sse/services/combo.js";
+import {
+  augmentModelsWithCapacityAdapter,
+  withCapacityAdapterStripping,
+  getActiveAdapterStrategy,
+} from "open-sse/services/capacityAdapter.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { errorResponse, unavailableResponse, withSelectedConnectionHeader } from "open-sse/utils/error.js";
@@ -174,6 +180,17 @@ export async function handleChat(request, clientRawRequest = null) {
     const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
     const comboStrategy = comboSpecificStrategy || settings.comboStrategy || "fallback";
 
+    // Capacity adapter: prepend pool models ONLY when no combo member can handle
+    // the modality the request needs (e.g. combo has no vision model, request has
+    // an image). Augmented models are stripped to fit the adapter's smaller
+    // context window before dispatch.
+    const requiredCapabilities = detectRequiredCapabilities(body);
+    const augmentedModels = augmentModelsWithCapacityAdapter(comboModels, requiredCapabilities, settings);
+    const adapterAdded = augmentedModels.filter((m) => !comboModels.includes(m));
+    if (adapterAdded.length > 0) {
+      log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → ${adapterAdded.join(", ")}`);
+    }
+
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
       // Fusion fans this ONE client request out into `comboModels.length` parallel
@@ -205,11 +222,14 @@ export async function handleChat(request, clientRawRequest = null) {
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     const comboWeights = comboStrategies[modelStr]?.weights;
-    log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
     return budget.dispatch(() => handleComboChat({
       body,
-      models: comboModels,
-      handleSingleModel: (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }, { strategy: comboStrategy, comboName: modelStr }),
+      models: augmentedModels,
+      handleSingleModel: withCapacityAdapterStripping(
+        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }, { strategy: comboStrategy, comboName: modelStr }),
+        adapterAdded
+      ),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -221,7 +241,25 @@ export async function handleChat(request, clientRawRequest = null) {
     }));
   }
 
-  // Single model request
+  // Single model request — may still switch to a capacity-adapter model when the
+  // target cannot handle a modality the request needs (e.g. no vision, has image).
+  const soloAugmented = augmentModelsWithCapacityAdapter([modelStr], detectRequiredCapabilities(body), settings);
+  if (soloAugmented.length > 1) {
+    const soloAdapterAdded = soloAugmented.filter((m) => m !== modelStr);
+    log.info("CHAT", `Capacity adapter for [${[...detectRequiredCapabilities(body)].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
+    return budget.dispatch(() => handleComboChat({
+      body,
+      models: soloAugmented,
+      handleSingleModel: withCapacityAdapterStripping(
+        (b, m, opts) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, apiKeyInfo, { ...opts, clientBodyBytes: requestBytes }, { strategy: "direct", comboName: modelStr }),
+        soloAdapterAdded
+      ),
+      log,
+      comboName: modelStr,
+      comboStrategy: getActiveAdapterStrategy(detectRequiredCapabilities(body), settings),
+    }));
+  }
+
   return budget.dispatch(() => handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, apiKeyInfo, { clientBodyBytes: requestBytes }, { strategy: "direct" }));
 }
 
