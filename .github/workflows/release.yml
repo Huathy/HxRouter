@@ -189,6 +189,23 @@ jobs:
       - name: Install npm trusted publishing client
         run: npm install --global npm@11.5.1
 
+      # Trusted publishing (OIDC) stays the default. A package name that does not
+      # exist on npmjs.com yet cannot be created by OIDC — npm answers
+      # `404 Not Found - PUT https://registry.npmjs.org/<name>` — so the name has
+      # to be claimed once with a real token. When the NPM_TOKEN secret is
+      # present we authenticate with it; the two mechanisms are mutually
+      # exclusive, so .npmrc is only written in that case.
+      - name: Select npm authentication
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > .npmrc
+            echo "npm: authenticating with the NPM_TOKEN secret"
+          else
+            echo "npm: authenticating with trusted publishing (OIDC)"
+          fi
+
       - name: Download validated CLI tarball
         uses: actions/download-artifact@v4
         with:
@@ -268,13 +285,13 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Promote verified image
         env:
           STAGING_IMAGE: ${{ env.GHCR_IMAGE }}:release-${{ github.run_id }}-${{ github.run_attempt }}
-          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/hxrouter
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
         run: |
           set -euo pipefail
@@ -284,7 +301,7 @@ jobs:
 
       - name: Verify published Docker Hub manifest
         env:
-          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/hxrouter
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
         run: |
           set -euo pipefail
@@ -317,7 +334,7 @@ jobs:
       - name: Verify both published artifacts
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/hxrouter
         run: |
           set -euo pipefail
           published=""
@@ -342,7 +359,7 @@ jobs:
       - name: Build install section
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
-          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          DOCKERHUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/hxrouter
         run: |
           cat > /tmp/install.md <<'EOF'
 
