@@ -1,3 +1,43 @@
+# v1.0.2 (2026-09-29)
+
+Publishes the npm package and records what actually happened in the two previous attempts. No application code changed.
+
+## Fixed
+
+- **npm publish failed on the first release of the `hxrouter` name** (`v1.0.1`, run 36506928926): OIDC trusted publishing authenticated correctly, but `npm publish --provenance` aborted with `EUSAGE — Can't generate provenance for new or private package, you must set 'access' to public`, because a package name that does not exist on npmjs.com yet is treated as private for provenance purposes. `cli/package.json` now carries `publishConfig.access = "public"`, which travels inside the packed tarball, so the flag applies to the artifact the workflow publishes rather than to whoever runs `npm publish`.
+
+## v1.0.1 outcome (for the record)
+
+- `check-branch` ✅, `package-npm` ✅, `build-and-verify-ghcr` ✅ (multi-arch `linux/amd64` + `linux/arm64`, native SQLite query OK), `promote-ghcr` ✅ — the image was built, verified and promoted to `ghcr.io/huathy/hxrouter:1.0.1` and `:latest`.
+- `publish-npm` ❌ (the `EUSAGE` above) and therefore `create-github-release` skipped, so tag `v1.0.1` has no GitHub Release notes page.
+- The GHCR package is created **private**. An anonymous `docker pull ghcr.io/huathy/hxrouter:1.0.1` returns 401 until the package visibility is switched to Public (package settings, or an API call with `write:packages`). The publishing token in use carries only `gist, repo, workflow`, so the visibility change could not be made from CI.
+
+## Release Infrastructure
+
+- `release.yml` accepts `workflow_dispatch` with a `tag` input. `push` events do not create runs for this repository — three separate `master` pushes and the `v1.0.0` / `v1.0.1` tag pushes all left `GET /actions/runs` unchanged, while a dispatched `Core CI` run finished `success` on the Ubuntu / Node 22 runner and the repository's Actions permission reads `enabled: true / allowed_actions: all`. The tag is still validated by `check-branch` (tag must equal `origin/master`, versions must match, the previous commit must change only `CHANGELOG.md`, and the tag must be annotated), and the job order and gates are unchanged.
+
+## Tests
+
+- `pnpm test` → exit 0. 331 test files passed / 13 skipped (344), 3811 tests passed / 96 skipped (3907), 0 failures, 78.69s.
+- `pnpm run build` → exit 0. `utf-8 check: clean (5431 files)`, `Compiled successfully in 49s`, 150 static pages generated.
+- `npx vitest run tests/translator/golden-url-header.test.js -u` → 2 snapshots updated, 184 tests passed; the snapshot diff is version-only.
+- `Core CI` dispatched on `master` → `success` on GitHub's Ubuntu / Node 22 runner.
+- Not covered: the live-provider suites under `tests/translator/real/` stay skipped (they need real provider credentials) and no provider was called during this release.
+
+## Install
+
+```bash
+# Docker (after the package visibility is set to Public)
+docker pull ghcr.io/huathy/hxrouter:1.0.2
+docker run -d --name hxrouter -p 20128:20128 -v 9router-data:/app/data -e DATA_DIR=/app/data ghcr.io/huathy/hxrouter:1.0.2
+
+# npm
+npm install -g hxrouter@1.0.2
+hxrouter
+```
+
+Dashboard: http://localhost:20128
+
 # v1.0.1 (2026-09-29)
 
 First published artifact of the HxRouter line. The shipped code is identical to the `v1.0.0` tag (`ecafa624`): that tag was pushed while GitHub Actions was still disabled for this repository, so its workflow never ran and no npm package or image was produced. `.agent/cicd.md` makes a pushed tag immutable — it must not be deleted, moved, force-pushed, or re-fired — so the release is cut again from the same `master` line as `v1.0.1`.
