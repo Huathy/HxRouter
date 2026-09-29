@@ -1,6 +1,6 @@
 {
   "name": "hxrouter",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "HxRouter CLI - Start and manage HxRouter server",
   "engines": {
     "node": ">=22.5.0"
