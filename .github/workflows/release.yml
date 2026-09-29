@@ -252,10 +252,51 @@ jobs:
           docker buildx imagetools create --tag "$RELEASE_IMAGE" "$STAGING_IMAGE"
           docker buildx imagetools create --tag "$LATEST_IMAGE" "$STAGING_IMAGE"
 
+  # Second distribution channel: the same verified staging image, promoted to
+  # Docker Hub. The namespace is the DOCKERHUB_USERNAME secret, so the image is
+  # docker.io/<dockerhub user>/hxrouter.
+  promote-dockerhub:
+    needs: [check-branch, build-and-verify-ghcr]
+    if: needs.check-branch.outputs.is-release-branch == 'true' && needs.build-and-verify-ghcr.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Promote verified image
+        env:
+          STAGING_IMAGE: ${{ env.GHCR_IMAGE }}:release-${{ github.run_id }}-${{ github.run_attempt }}
+          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$DOCKERHUB_IMAGE" && test "$DOCKERHUB_IMAGE" != "docker.io//hxrouter"
+          docker buildx imagetools create --tag "$DOCKERHUB_IMAGE:$RELEASE_VERSION" "$STAGING_IMAGE"
+          docker buildx imagetools create --tag "$DOCKERHUB_IMAGE:latest" "$STAGING_IMAGE"
+
+      - name: Verify published Docker Hub manifest
+        env:
+          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
+          RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "$DOCKERHUB_IMAGE:$RELEASE_VERSION" | tee /tmp/dockerhub-manifest.txt
+          grep -q 'linux/amd64' /tmp/dockerhub-manifest.txt
+          grep -q 'linux/arm64' /tmp/dockerhub-manifest.txt
+          echo "docker hub: $DOCKERHUB_IMAGE:$RELEASE_VERSION (amd64 + arm64)"
+
   # Runs last: the GitHub Release (and therefore the generated contributors list)
   # must not exist before both published artifacts are live in the registries.
   create-github-release:
-    needs: [check-branch, publish-npm, promote-ghcr]
+    needs: [check-branch, publish-npm, promote-ghcr, promote-dockerhub]
     if: needs.check-branch.outputs.is-release-branch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -276,6 +317,7 @@ jobs:
       - name: Verify both published artifacts
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
         run: |
           set -euo pipefail
           published=""
@@ -292,10 +334,15 @@ jobs:
           grep -q 'linux/amd64' /tmp/release-manifest.txt
           grep -q 'linux/arm64' /tmp/release-manifest.txt
           echo "ghcr: $GHCR_IMAGE:$RELEASE_VERSION (amd64 + arm64)"
+          docker buildx imagetools inspect "$DOCKERHUB_IMAGE:$RELEASE_VERSION" | tee /tmp/dockerhub-release-manifest.txt
+          grep -q 'linux/amd64' /tmp/dockerhub-release-manifest.txt
+          grep -q 'linux/arm64' /tmp/dockerhub-release-manifest.txt
+          echo "docker hub: $DOCKERHUB_IMAGE:$RELEASE_VERSION (amd64 + arm64)"
 
       - name: Build install section
         env:
           RELEASE_VERSION: ${{ needs.check-branch.outputs.version }}
+          DOCKERHUB_IMAGE: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/hxrouter
         run: |
           cat > /tmp/install.md <<'EOF'
 
@@ -303,9 +350,9 @@ jobs:
 
           ## 安装 / Install
 
-          本次发布同时产出两个包：GHCR 镜像 + npm CLI 包。
+          本次发布同时产出两个包：GHCR 镜像 + Docker Hub 镜像 + npm CLI 包。
 
-          ### Docker
+          ### Docker (GHCR)
 
           ```bash
           docker pull ghcr.io/huathy/hxrouter:__VERSION__
@@ -315,6 +362,18 @@ jobs:
             -v 9router-data:/app/data \
             -e DATA_DIR=/app/data \
             ghcr.io/huathy/hxrouter:__VERSION__
+          ```
+
+          ### Docker (Docker Hub)
+
+          ```bash
+          docker pull __DOCKERHUB__:__VERSION__
+          docker pull __DOCKERHUB__:latest
+
+          docker run -d --name hxrouter -p 20128:20128 \
+            -v 9router-data:/app/data \
+            -e DATA_DIR=/app/data \
+            __DOCKERHUB__:__VERSION__
           ```
 
           或使用仓库根目录的 `docker-compose.yml`：`docker compose up -d`
@@ -329,7 +388,9 @@ jobs:
           Dashboard: http://localhost:20128
           EOF
           sed -i "s/__VERSION__/$RELEASE_VERSION/g" /tmp/install.md
+          sed -i "s|__DOCKERHUB__|$DOCKERHUB_IMAGE|g" /tmp/install.md
           test "$(grep -c '__VERSION__' /tmp/install.md)" = "0"
+          test "$(grep -c '__DOCKERHUB__' /tmp/install.md)" = "0"
 
       - name: Create GitHub release with generated notes
         env:
