@@ -10,8 +10,8 @@ First published artifact of the HxRouter line. The shipped code is identical to 
 ## Release Infrastructure
 
 - The release branch is `master`: `release.yml` compares the tag against `origin/$RELEASE_BRANCH` and the job output is `is-release-branch`; `main` stays the integration branch (`8e0309e0`).
-- Actions was disabled on this repository when `v1.0.0` was tagged, so that push produced nothing. This is the first tag that actually executes the pipeline: multi-arch image build and verification, CLI pack + validation + offline smoke test, npm publish, GHCR promotion to `1.0.1` and `latest`, then GitHub Release notes.
-- While diagnosing that, `master` received one empty commit (`chore: probe Actions trigger after enabling`, `24c2f189`) to test whether `push` events produce runs; it changed no files and is only in the history because branch pushes did not register a run. `Core CI` was then dispatched by hand on that commit and finished `success` on GitHub's Ubuntu / Node 22 runner.
+- The `v1.0.0` tag push produced no workflow run at all: `push` events do not create runs for this repository (three separate `master` pushes left `GET /actions/runs` at `total_runs=0`), while `workflow_dispatch` works — `Core CI` was dispatched by hand on `24c2f189` and finished `success` on the Ubuntu / Node 22 runner, and the repository's Actions permission is `enabled: true / allowed_actions: all`. `release.yml` therefore also accepts `workflow_dispatch` with a `tag` input so a release can be started without depending on tag-push delivery; the gates and the publish order are untouched.
+- While diagnosing that, `master` received one empty commit (`chore: probe Actions trigger after enabling`, `24c2f189`) to test whether `push` events produce runs; it changed no files and is only in the history because branch pushes did not register a run.
 
 ## Tests
 
